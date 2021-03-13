@@ -15,8 +15,8 @@
 if declare -F err_exit 1> /dev/null; then
 	: do nothing
 else
-	err_exit() {
-	  EXITCODE=$1; shift
+err_exit() {
+	  EXITCODE="$1"; shift
 	  (printf "$*" && echo -e "") 1>&2; 
 	  # pushd -0 >/dev/null && dirs -c
 	  exit $EXITCODE 
@@ -82,5 +82,3 @@ else
   rm -f "$TEMPLOCKFILE"
   err_exit 13 "$0: An instance of $PROGNAME is already running; aborting"
 fi
-
-

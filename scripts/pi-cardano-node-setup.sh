@@ -25,7 +25,7 @@ err_exit() {
 }
 
 # Read in trapping and locking code, if present
-SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::')
+SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
 if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" ]; then
 	. "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" \
 		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-node-fake-code.sh"

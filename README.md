@@ -15,7 +15,7 @@ Command-line syntax is as follows:
 ```
 pi-cardano-setup.sh [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] \
     [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-    [-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-x]
+    [-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 ```
 
 Argument explanation:
@@ -36,6 +36,7 @@ Argument explanation:
 -s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
+-v    DHCP to a specific VLAN
 -x    Don't recompile anything big
 ```
 
