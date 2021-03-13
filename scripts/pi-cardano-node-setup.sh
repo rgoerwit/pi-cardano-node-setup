@@ -25,8 +25,8 @@ err_exit() {
 }
 
 # Read in trapping and locking code, if present
-if [ -e "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" ]; then
-	SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::')
+SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::')
+if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" ]; then
 	. "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" \
 		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-node-fake-code.sh"
 fi
@@ -34,7 +34,9 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [[-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] [-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-x]
+Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] \
+    [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+	[-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 New (overclocking) mainnet setup on TCP port 3000:   $PROGNAME -b builduser -u cardano -n mainnet -o 2100 -p 3000 
@@ -55,12 +57,13 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -d -b
 -s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
+-v    DHCP to a specific VLAN
 -x    Don't recompile anything big
 _EOF
   exit 1
 }
 
-while getopts 4:6::bc:dfh:m:n:o:p:rs:u:w:x opt; do
+while getopts 4:6::bc:dfh:m:n:o:p:rs:u:v:w:x opt; do
   case ${opt} in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -76,6 +79,7 @@ while getopts 4:6::bc:dfh:m:n:o:p:rs:u:w:x opt; do
 	s ) MY_SUBNET="${OPTARG}" ;;
     u ) INSTALL_USER="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
+	v ) VLAN_NUMBER="${OPTARG}"
     x ) SKIP_RECOMPILE='Y' ;;
     \? ) usage ;;
     esac
@@ -180,7 +184,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
+	ifupdown libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
@@ -344,6 +348,24 @@ _EOF
 	dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
 fi
 
+# DHCP to a specifi VLAN if asked (e.g., -v 5)
+if [ ".$VLAN_NUMBER" != '.' ]; then
+    NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
+	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
+		echo "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs.  Do this part manually."
+	else
+    	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
+		cat << _EOF >> "$NETPLAN_FILE"
+    vlans:
+        vlan$VLAN_NUMBER:
+            id: $VLAN_NUMBER
+            link: eth0
+            dhcp4: true
+_EOF
+    echo "You will need to run:  'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
+	fi
+fi
+
 # Add cardano user (or whatever install user is used) and lock password
 #
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
@@ -374,7 +396,7 @@ chown root.root "$CABAL"
 chmod 755 "$CABAL"
 $CABAL update 1>> "$BUILDLOG" || err_exit 67 "$0: Failed to '$CABAL update'; aborting"
 
-# Install wacky Cardano version of libsodium
+# Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
 'rm' -rf libsodium
@@ -391,6 +413,7 @@ if [ -f "/usr/local/lib/libsodium.so.23.3.0" ]; then
 		ln -s "/usr/local/lib/libsodium.so.23.3.0" "/usr/lib/libsodium.so.23"
 fi
 
+# Modify and source .bashrc file; save NODE_BUILD_NUM
 #
 NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/index.html' 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }')
 [ -z "$NODE_BUILD_NUM" ] && \
@@ -444,7 +467,7 @@ echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.
 #
 $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
 #
-# STOP THE NODE TO BE ABLE TO REPLACE BINARIES
+# Stop the node so we can replace binaries
 #
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
@@ -481,7 +504,6 @@ for subdir in 'files' 'db' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconf
 	find "${INSTALLDIR}/$subdir" -type f -exec chmod "0664" {} \;
 done
 
-#
 # UPDATE mainnet-config.json TO THE LATEST VERSION AND START THE NODE
 #
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -600,5 +622,3 @@ echo "  It is highly recommended that the (powerful) $PIUSER account be locked o
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
 rm -f "$LOGFILE"      2> /dev/null
-
-
