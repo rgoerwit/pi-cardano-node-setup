@@ -41,15 +41,15 @@ New (overclocking) mainnet setup on TCP port 3000:   $PROGNAME -b builduser -u c
 Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -d -b builduser -u cardano -n mainnet
 
 -4    External IPv4 address (defaults to 0.0.0.0)
--6    External IPv6 address (defaults no NULL)
+-6    External IPv6 address (defaults to NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
--d    Don't overwrite config files or 'env' file for gLiveView
+-d    Don't overwrite config files, or 'env' file for gLiveView
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
-      eg: -n testnet (alternatives: allegra	launchpad mainnet mary_qa shelley_qa staging testnet...)
--o    Will set up overclocking (speed should be something like, e.g., 2100 for a Pi 4)
+-n    Connect to specified network instead of mainnet network (Default: mainnet)
+      e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
+-o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
 -p    Listen port (default 3000)
 -r    Install RDP
 -s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
@@ -180,7 +180,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	libbz2-dev liblz4-dev libsnappy-dev cython	1>> "$BUILDLOG" 2>&1 \
+	libbz2-dev liblz4-dev libsnappy-dev cython libnuma-devel 1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
