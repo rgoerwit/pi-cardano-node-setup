@@ -1,17 +1,18 @@
 ## Synopsis
 
-pi-cardano-setup.sh:  Bash script that installs a Cardano relay node on a Raspberry Pi 4 running 64-bit aarch64 Ubuntu LTS
+**pi-cardano-setup.sh**:  Bash script that installs a Cardano relay node on a Raspberry Pi 4 running 64-bit aarch64 Ubuntu LTS
 
 ## Code Example
 
 Example invocations follow.
 
-New (overclocking) mainnet setup on TCP port 3000:   pi-cardano-setup.sh -b builduser -u cardano -n mainnet -o 2100 -p 3000 
+**New (overclocking) mainnet setup on TCP port 3000**:   'pi-cardano-setup.sh -b builduser -u cardano -n mainnet -o 2100 -p 3000' 
 
-Refresh of existing mainnet setup (keep existing config files):  pi-cardano-setup.sh -d -b builduser -u cardano -n mainnet
+**Refresh of existing mainnet setup (keep existing config files)**:  'pi-cardano-setup.sh -d -b builduser -u cardano -n mainnet'
 
 Command-line arguments are as follows:
 
+```
 -4    External IPv4 address (defaults to 0.0.0.0)
 -6    External IPv6 address (defaults no NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
@@ -28,6 +29,7 @@ Command-line arguments are as follows:
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -x    Don't recompile anything big
+```
 
 ## Motivation
 
@@ -39,10 +41,10 @@ pi-cardano-setup.sh not only gets the operating system ready, installing all the
 
 It is a distillation of many sets of available directions, including:
 
-    https://docs.cardano.org/projects/cardano-node/en/latest/
-	https://cardano-node-installation.stakepool247.eu/cardano-node-upgrades/upgrade-to-1.25.1
-	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
-	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
+>    https://docs.cardano.org/projects/cardano-node/en/latest/
+>	https://cardano-node-installation.stakepool247.eu/cardano-node-upgrades/upgrade-to-1.25.1
+>	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
+>	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
 
 ## Installation
 
@@ -62,5 +64,5 @@ Please email the author at achaar@goerwitz.com if you have suggestions or want t
 
 ## License
 
-MIT license - Cardano community - use at your own risk
+MIT license - (c) Richard Goerwitz 2021 - use at your own risk
 
