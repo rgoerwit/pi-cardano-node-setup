@@ -325,7 +325,7 @@ RemainAfterExit=yes
 
 ExecStart=/usr/sbin/ip link set dev %i up
 ExecStart=/usr/sbin/wpa_supplicant -B -i %i -c /etc/wpa_supplicant/wpa_supplicant.conf
-#ExecStart=/usr/sbin/dhclient %i
+ExecStart=/usr/sbin/dhclient %i
 
 ExecStop=/usr/sbin/ip link set dev %i down
 
@@ -337,12 +337,11 @@ _EOF
 			"/etc/systemd/system/multi-user.target.wants/network-wireless@${WLAN}.service" \
 			    1>> "$BUILDLOG"
 	fi
-	killall -u "$INSTALL_USER"                1>> "$BUILDLOG" 2>&1
 	systemctl daemon-reload                   1>> "$BUILDLOG"
 	systemctl enable wpa_supplicant.service   1>> "$BUILDLOG"
 	systemctl restart wpa_supplicant.service  1>> "$BUILDLOG"
 	# renew DHCP leases
-	dhclient 1>> "$BUILDLOG" 2>&1
+	dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
 fi
 
 # Add cardano user (or whatever install user is used) and lock password
@@ -447,8 +446,14 @@ $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: F
 #
 # STOP THE NODE TO BE ABLE TO REPLACE BINARIES
 #
-systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1 || err_exit 57 "$0: Failed to stop running cardano-node service; aborting"
-systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
+if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
+	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
+	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
+fi
+# Just in case, kill everything run by the install user
+killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
+killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
 # COPY NEW BINARIES
 #
