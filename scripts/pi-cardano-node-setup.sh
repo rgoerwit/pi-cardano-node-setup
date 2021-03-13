@@ -79,7 +79,7 @@ while getopts 4:6::bc:dfh:m:n:o:p:rs:u:v:w:x opt; do
 	s ) MY_SUBNET="${OPTARG}" ;;
     u ) INSTALL_USER="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
-	v ) VLAN_NUMBER="${OPTARG}"
+	v ) VLAN_NUMBER="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
     \? ) usage ;;
     esac
@@ -184,7 +184,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	ifupdown libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
+	dos2unix ifupdown libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
