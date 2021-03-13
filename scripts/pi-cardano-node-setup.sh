@@ -60,7 +60,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6::bc:fh:m:n:op:rs:u:w:x opt; do
+while getopts 4:6::bc:dfh:m:n:o:p:rs:u:w:x opt; do
   case ${opt} in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -168,7 +168,7 @@ mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 touch "$BUILDLOG"
-echo "Logging; run 'tail \"$BUILDLOG\"' in another window to monitor"
+echo "Logging; run 'tail -f \"$BUILDLOG\"' in another window to monitor"
 
 # Update system, install prerequisites, utilities, etc.
 #
@@ -180,15 +180,15 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	libbz2-dev liblz4-dev libsnappy-dev cython	>> "$BUILDLOG" \
+	libbz2-dev liblz4-dev libsnappy-dev cython	1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
-$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG"
-$APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG"
-dpkg-reconfigure build-essential                  1>> "$BUILDLOG"
-dpkg-reconfigure gcc                              1>> "$BUILDLOG"
-$APTINSTALLER install llvm-9                      1>> "$BUILDLOG"      || err_exit 71 "$0: Failed to install llvm-9; aborting"
+$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
+$APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG" 2>&1
+dpkg-reconfigure build-essential                  1>> "$BUILDLOG" 2>&1
+dpkg-reconfigure gcc                              1>> "$BUILDLOG" 2>&1
+$APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
 $APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 
@@ -196,15 +196,16 @@ if [ -x $(which rpi-eeprom-update) ]; then
 	if rpi-eeprom-update | egrep -q 'BOOTLOADER: *up-to-date'; then
 		: do nothing
 	else
-		rpi-eeprom-update -a 1>> "$BUILDLOG"
+		rpi-eeprom-update -a 1>> "$BUILDLOG" 2>&1
     fi
 fi
 
-$APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG"
+$APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
-service ssh start                                 1>> "$BUILDLOG"
+service ssh start                                 1>> "$BUILDLOG" 2>&1 \
+	err_exit 18 "$0: Can't start ssh subsystem ('service ssh start'); aborting"
 
-if [ ".$OVERCLOCK_SPEED" = '.' ]; then
+if [ ".$OVERCLOCK_SPEED" != '.' ]; then
 	# Find config.txt file
 	BOOTCONFIG="/boot/config.txt"
 	if [ -f "$BOOTCONFIG" ]; then
@@ -220,6 +221,7 @@ if [ ".$OVERCLOCK_SPEED" = '.' ]; then
 		if egrep -q '^[	 ]*arm_freq=' "$BOOTCONFIG"; then
 			echo "Overclocking already set up; skipping (edit $BOOTCONFIG file to change settings)"
 		else
+		    [[ "$OVERCLOCK_SPEED" = [0-9]* ]] || err_exit 19 "$0: For argument -o <speed>, <speed> must be an integer (e.g., 2100); aborting"
 			echo "Current CPU temp:  `vcgencmd measure_temp`"
 			echo "Current Max CPU speed:  `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
 			echo "Setting speed to $OVERCLOCK_SPEED; please check $BOOTCONFIG file before next restart"
@@ -243,34 +245,34 @@ if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 	if apt-cache pkgnames | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
 	else
-		$APTINSTALLER install ufw 1>> "$BUILDLOG"
+		$APTINSTALLER install ufw 1>> "$BUILDLOG" 2>&1
 	fi
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
-	ufw default deny incoming    1>> "$BUILDLOG"
-	ufw default allow outgoing   1>> "$BUILDLOG"
-	ufw allow ssh                1>> "$BUILDLOG"
-	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG"
+	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
+	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
+	ufw allow ssh                1>> "$BUILDLOG" 2>&1
+	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	# ufw allow 3001/tcp           1>> "$BUILDLOG"
 	# ufw allow 6000/tcp           1>> "$BUILDLOG"
 	# ufw deny from [IP.address] to any port [number]
 	# ufw delete [rule_number]
-	ufw --force enable           1>> "$BUILDLOG"
+	ufw --force enable           1>> "$BUILDLOG" 2>&1
 	# ufw status numbered  # show what's going on
 
 	# Add RDP service if INSTALLRDP is Y
 	#
 	if [ ".$INSTALLRDP" = ".Y" ]; then
-		$APTINSTALLER install xrdp     1>> "$BUILDLOG"
-		$APTINSTALLER install tasksel  1>> "$BUILDLOG"
-		tasksel install ubuntu-desktop 1>> "$BUILDLOG"
-		systemctl enable xrdp          1>> "$BUILDLOG"
+		$APTINSTALLER install xrdp     1>> "$BUILDLOG" 2>&1
+		$APTINSTALLER install tasksel  1>> "$BUILDLOG" 2>&1
+		tasksel install ubuntu-desktop 1>> "$BUILDLOG" 2>&1
+		systemctl enable xrdp          1>> "$BUILDLOG" 2>&1
 		RUID=$(who | awk 'FNR == 1 {print $1}')
 		RUSER_UID=$(id -u ${RUID})
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>> "$BUILDLOG"
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'      2>> "$BUILDLOG"
 		dconf update 2>> "$BUILDLOG"
-		sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 1>> "$BUILDLOG"
-		ufw allow from "$MY_SUBNET" to any port 3389 1>> "$BUILDLOG"
+		sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 1>> "$BUILDLOG" 2>&1
+		ufw allow from "$MY_SUBNET" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
 
@@ -280,7 +282,7 @@ if [ ".$HIDDENWIFI" != '.' ]; then
 	if [ -f "$WPA_SUPPLICANT" ]; then
 		: do nothing
 	else
-		$APTINSTALLER install wpasupplicant 1>> "$BUILDLOG"
+		$APTINSTALLER install wpasupplicant 1>> "$BUILDLOG" 2>&1
 		cat << _EOF > "$WPA_SUPPLICANT"
 country=US
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
@@ -441,7 +443,7 @@ echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.
 #
 # BUILD
 #
-$CABAL --overwrite-policy=always build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
+$CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
 #
 # STOP THE NODE TO BE ABLE TO REPLACE BINARIES
 #
@@ -450,7 +452,7 @@ systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 57 "$0: Failed t
 #
 # COPY NEW BINARIES
 #
-$CABAL install --overwrite-policy=always --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG"
+$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG"
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	[ -L "$INSTALLDIR/cardano-cli" ] && rm -f "$INSTALLDIR/cardano-cli"
 	[ -L "$INSTALLDIR/cardano-node" ] && rm -f "$INSTALLDIR/cardano-node"
