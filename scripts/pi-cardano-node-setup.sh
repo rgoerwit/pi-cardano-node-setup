@@ -107,6 +107,7 @@ CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 
+echo "The latest version of this script lives here:  https://raw.githubusercontent.com/rgoerwit/pi-cardano-node-setup/main/scripts/pi-cardano-node-setup.sh"
 echo "INSTALLDIR is '/home/${INSTALL_USER}'"
 echo "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 echo "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
