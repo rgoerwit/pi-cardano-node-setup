@@ -10,19 +10,27 @@ Example invocations follow.
 
 **Refresh of existing mainnet setup (keep existing config files)**:  'pi-cardano-setup.sh -d -b builduser -u cardano -n mainnet'
 
-Command-line arguments are as follows:
+Command-line syntax is as follows:
+
+```
+pi-cardano-setup.sh [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] \
+    [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+    [-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-x]
+```
+
+Argument explanation:
 
 ```
 -4    External IPv4 address (defaults to 0.0.0.0)
--6    External IPv6 address (defaults no NULL)
+-6    External IPv6 address (defaults to NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
--d    Don't overwrite config files or 'env' file for gLiveView
+-d    Don't overwrite config files, or 'env' file for gLiveView
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
--n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network)
-      eg: -n testnet (alternatives: allegra	launchpad mainnet mary_qa shelley_qa staging testnet...)
--o    Will set up overclocking (speed should be something like, e.g., 2100 for a Pi 4)
+-n    Connect to specified network instead of mainnet network (Default: mainnet)
+      e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
+-o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
 -p    Listen port (default 3000)
 -r    Install RDP
 -s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
@@ -41,8 +49,8 @@ pi-cardano-setup.sh not only gets the operating system ready, installing all the
 
 It is a distillation of many sets of available directions, including:
 
->    https://docs.cardano.org/projects/cardano-node/en/latest/
->	https://cardano-node-installation.stakepool247.eu/cardano-node-upgrades/upgrade-to-1.25.1
+>     https://docs.cardano.org/projects/cardano-node/en/latest/
+>     https://cardano-node-installation.stakepool247.eu/cardano-node-upgrades/upgrade-to-1.25.1
 >	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
 >	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
 
