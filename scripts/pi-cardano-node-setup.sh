@@ -180,7 +180,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	libbz2-dev liblz4-dev libsnappy-dev cython libnuma-devel 1>> "$BUILDLOG" 2>&1 \
+	libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
@@ -238,7 +238,7 @@ _EOF
 	fi
 fi
 
-# Set up restrictive firewall - just SSH and RDP, plus Cardano node ports 3000 and 3001
+# Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
 if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
@@ -276,7 +276,7 @@ if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 	fi
 fi
 
-# Add hidden WiFi network if -h <network SSID> was supplied
+# Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
 #
 if [ ".$HIDDENWIFI" != '.' ]; then
 	if [ -f "$WPA_SUPPLICANT" ]; then
@@ -345,7 +345,7 @@ _EOF
 	dhclient 1>> "$BUILDLOG" 2>&1
 fi
 
-# Add cardano (or whatever install user is used) and lock password
+# Add cardano user (or whatever install user is used) and lock password
 #
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
     || useradd -m -s /bin/bash "$INSTALL_USER" 1>> "$BUILDLOG"
