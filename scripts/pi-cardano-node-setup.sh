@@ -57,8 +57,8 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -d -b
 -s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
--v    DHCP to a specific VLAN
--x    Don't recompile anything big
+-v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
+-x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 _EOF
   exit 1
 }
@@ -111,7 +111,7 @@ CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 
-echo "The latest version of this script lives here:  https://raw.githubusercontent.com/rgoerwit/pi-cardano-node-setup/main/scripts/pi-cardano-node-setup.sh"
+echo "To get the latest version:  'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
 echo "INSTALLDIR is '/home/${INSTALL_USER}'"
 echo "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 echo "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
@@ -184,7 +184,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	dos2unix ifupdown libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
+	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
 	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
@@ -614,10 +614,11 @@ $PIP install cardano-tools   1>> "$BUILDLOG" \
     || err_exit 117 "$0: Unable to install cardano tools:  $PIP install cardano-tools; aborting"
 
 echo "Tasks:"
-echo "  It may be necessary to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
+echo "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
 echo "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
+echo "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 (date | egrep UTC) \
-    || echo "  Please set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
+    || echo "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
