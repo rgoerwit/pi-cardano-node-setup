@@ -655,11 +655,11 @@ chmod 755 "${CARDANO_SCRIPTDIR}/gLiveView.sh"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/env" -O "${CARDANO_SCRIPTDIR}/env" \
 		|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/env; aborting"
-	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/files/config.json -> CONFIG=\"$NODE_CONFIG_FILE\""
-	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/sockets/node0.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
+	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
+	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
-		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/files/config.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
-		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/sockets/node0.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
+		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
+		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
 			|| err_exit 109 "$0: Failed to modify gLiveView 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"
 fi
 
@@ -678,8 +678,8 @@ debug "  It is highly recommended that the (powerful) $PIUSER account be locked 
 debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 debug "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
 debug "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
-(date | egrep UTC) \
-    || debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
+(date +"%Z %z" | egrep UTC) \
+    && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
