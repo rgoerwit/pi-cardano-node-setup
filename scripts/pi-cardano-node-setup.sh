@@ -574,7 +574,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
-	if [ ".$CURRENT_EKG_PORT" != '.' ] && egrep -q 'CURRENT_EKG_PORT' "${BLOCKCHAINNETWORK}-config.json"; then 
+	if [ ".$CURRENT_EKG_PORT" != '.' ] && egrep -q 'CURRENT_EKG_PORT' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}"; then 
 		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
