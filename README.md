@@ -6,16 +6,16 @@
 
 Example invocations follow.
 
-**New (overclocking) mainnet setup on TCP port 3000**:   'pi-cardano-setup.sh -b builduser -u cardano -n mainnet -o 2100 -p 3000' 
+**New (overclocking) mainnet setup on TCP port 3000**:   pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -o 2100 -p 3000 
 
-**Refresh of existing mainnet setup (keep existing config files)**:  'pi-cardano-setup.sh -d -b builduser -u cardano -n mainnet'
+**Refresh of existing mainnet setup (keep existing config files)**:  pi-cardano-setup.sh -D -d -b builduser -u cardano -n mainnet
 
 Command-line syntax is as follows:
 
 ```
-pi-cardano-setup.sh [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] \
+Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-    [-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
+	[-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 ```
 
 Argument explanation:
@@ -26,6 +26,7 @@ Argument explanation:
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
+-D    Emit chatty debugging output about what the program is doing
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
@@ -33,11 +34,11 @@ Argument explanation:
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
 -p    Listen port (default 3000)
 -r    Install RDP
--s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
+-s    Networks to allow SSH from (comma-separated, CIDR)
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
--v    DHCP to a specific VLAN
--x    Don't recompile anything big
+-v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
+-x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 ```
 
 ## Motivation

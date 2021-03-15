@@ -4,10 +4,10 @@
 #
 #  Copyright 2021 Richard L. Goerwitz III
 #
-#    This code may be freely used for commercial or noncommercial
-#    purposes.  I make no guarantee, however, about this code's
-#    correctness or fitness for any particular purpose.  Use it at
-#    your own risk.
+#    This code may be freely used for commercial or noncommercial purposes.
+#    I make no guarantee, however, about this code's correctness or fitness
+#    for any particular purpose.  Use it at your own risk.  For full licensing
+#    information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
 #
 #############################################################################
 #
@@ -34,19 +34,23 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] \
+Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
 	[-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
-New (overclocking) mainnet setup on TCP port 3000:   $PROGNAME -b builduser -u cardano -n mainnet -o 2100 -p 3000 
-Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -d -b builduser -u cardano -n mainnet
+
+Examples:
+
+New (overclocking) mainnet setup on TCP port 3000:   $PROGNAME -D -b builduser -u cardano -n mainnet -o 2100 -p 3000  
+Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d -b builduser -u cardano -n mainnet
 
 -4    External IPv4 address (defaults to 0.0.0.0)
 -6    External IPv6 address (defaults to NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
+-D    Emit chatty debugging output about what the program is doing
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
@@ -63,13 +67,14 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:c:dh:m:n:o:p:rs:u:v:w:x opt; do
+while getopts 4:6:b:c:dDh:m:n:o:p:rs:u:v:w:x opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
 	b ) BUILD_USER="${OPTARG}" ;;
 	c ) NODE_CONFIG_FILE="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
+	D ) DEBUG='Y' ;;
     h ) HIDDEN_WIFI_INFO="${OPTARG}" ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
@@ -95,7 +100,7 @@ $APTINSTALLER install dnsutils 1> /dev/null
 if [ -z "${MY_SUBNETS}" ]; then
 	MY_SUBNETS="$MY_SUBNET"
 else
-    if echo "$MY_SUBNETS" | $egrep -qv "$(echo \"$MY_SUBNET\" | sed 's/\./\\./g')"; then
+    if echo "$MY_SUBNETS" | egrep -qv "$(echo \"$MY_SUBNET\" | sed 's/\./\\./g')"; then
 		# Make sure that the active interface's network is present in $MY_SUBNETS
 		MY_SUBNETS="$MY_SUBNETS,$MY_SUBNET"
 	fi
@@ -110,20 +115,31 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "${INSTALL_USER}" ] && INSTALL_USER='cardano'
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
-[ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
-[ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ] && echo -e "Running script as root (better to use 'sudo')..."
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="$BUILDDIR/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
 CARDANO_DBDIR="${INSTALLDIR}/db"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
-[ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 
-echo "To get the latest version:  'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
-echo "INSTALLDIR is '/home/${INSTALL_USER}'"
-echo "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
-echo "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
+# Sends output to console as well as the $BUILDLOG file
+debug() {
+	[ -z "$DEBUG" ] || echo -e "$@" | tee -a "$BUILDLOG" 
+} 
+
+skip_op() {	
+	debug 'Skipping: ' "$@" 
+}
+
+[ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+[ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
+[ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ] && debug "Running script as root (better to use 'sudo')..."
+
+debug "To get the latest version:  'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
+debug "INSTALLDIR is '/home/${INSTALL_USER}'"
+debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
+debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
+debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 
 if [ -z "${HIDDEN_WIFI_INFO}" ]; then
 	: do nothing, all good
@@ -151,8 +167,8 @@ CARDANONODEVERSION="1.25.1"
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
-    MAKE='echo "Skipping: make '
-    CABAL='echo "Skipping: cabal '
+    MAKE='skip_op'
+    CABAL='skip_op'
 fi    	
 
 # Change default startup user to match OS; usually oldest home is the user we want
@@ -164,6 +180,7 @@ fi
 
 # Make sure our build user exists and belongs to all the good groups
 #
+debug "Checking and (if need be) making build user:  ${BUILD_USER}"
 if id "$BUILD_USER" 1>> /dev/null; then
     : do nothing because user exists
 else
@@ -176,16 +193,18 @@ for grp in $(groups $PIUSER); do
 		usermod -a -G "$grp" "$BUILD_USER"  1>> /dev/null
     fi
 done
-
+#
 mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 touch "$BUILDLOG"
-echo "If you are compiling (NO -x flag supplied), this will take several hours now...."
-echo "To monitor progress, run this in another window: tail -f \"$BUILDLOG\""
+
+[ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this will take several hours now...."
+debug "To monitor progress, run this in another window: tail -f \"$BUILDLOG\""
 
 # Update system, install prerequisites, utilities, etc.
 #
+debug "Updating system, eeprom; ensuring necessary prerequisites are installed"
 $APTINSTALLER update        1>> "$BUILDLOG"
 $APTINSTALLER upgrade       1>> "$BUILDLOG"
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG"
@@ -194,8 +213,9 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev cython libnuma-dev 1>> "$BUILDLOG" 2>&1 \
-	    || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev cython cython3 libnuma-dev \
+	    1>> "$BUILDLOG" 2>&1 \
+	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 				
 # Make sure some other basic prerequisites are correctly installed
 $APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
@@ -214,12 +234,15 @@ if [ -x $(which rpi-eeprom-update) ]; then
     fi
 fi
 
+debug "Making sure SSH service is enabled and started"
 $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
-service ssh start                                 1>> "$BUILDLOG" 2>&1 \
-	err_exit 18 "$0: Can't start ssh subsystem ('service ssh start'); aborting"
+systemctl start ssh                               1>> "$BUILDLOG" 2>&1
+systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
+    err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
 
 if [ ".$OVERCLOCK_SPEED" != '.' ]; then
+    debug "Checking and (if need be setting up) overclocking (speed=$OVERCLOCK_SPEED, PIVERSION=$PIVERSION)"
 	# Find config.txt file
 	BOOTCONFIG="/boot/config.txt"
 	if [ -f "$BOOTCONFIG" ]; then
@@ -233,12 +256,12 @@ if [ ".$OVERCLOCK_SPEED" != '.' ]; then
 	#
 	if echo "$PIVERSION" | egrep -qi 'Pi 4'; then
 		if egrep -q '^[	 ]*arm_freq=' "$BOOTCONFIG"; then
-			echo "Overclocking already set up; skipping (edit $BOOTCONFIG file to change settings)"
+			debug "Overclocking already set up; skipping (edit $BOOTCONFIG file to change settings)"
 		else
 		    [[ "$OVERCLOCK_SPEED" = [0-9]* ]] || err_exit 19 "$0: For argument -o <speed>, <speed> must be an integer (e.g., 2100); aborting"
-			echo "Current CPU temp:  `vcgencmd measure_temp`"
-			echo "Current Max CPU speed:  `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
-			echo "Setting speed to $OVERCLOCK_SPEED; please check $BOOTCONFIG file before next restart"
+			debug "Current CPU temp:  `vcgencmd measure_temp`"
+			debug "Current Max CPU speed:  `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
+			debug "Setting speed to $OVERCLOCK_SPEED; please check $BOOTCONFIG file before next restart"
 			cat << _EOF >> "$BOOTCONFIG"
 
 over_voltage=5
@@ -255,6 +278,7 @@ fi
 # Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
 if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
+    debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
@@ -274,16 +298,21 @@ if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 	# ufw deny from [IP.address] to any port [number]
 	# ufw delete [rule_number]
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
-	echo "Firewall configured; rule summary (please check and fix later on):"
-	ufw status numbered  # show what's going on
+	debug "Firewall configured; rule summary (please check and fix later on):"
+	[ -z "$DEBUG" ] || ufw status numbered  # show what's going on
 
 	# Add RDP service if INSTALLRDP is Y
 	#
 	if [ ".$INSTALLRDP" = ".Y" ]; then
+	    debug "Setting up RDP; please check setup by hand when done"
 		$APTINSTALLER install xrdp     1>> "$BUILDLOG" 2>&1
 		$APTINSTALLER install tasksel  1>> "$BUILDLOG" 2>&1
 		tasksel install ubuntu-desktop 1>> "$BUILDLOG" 2>&1
 		systemctl enable xrdp          1>> "$BUILDLOG" 2>&1
+		systemctl start xrdp           1>> "$BUILDLOG" 2>&1
+		systemctl status xrdp   1>> "$BUILDLOG" 2>&1 \
+    		err_exit 137 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
+
 		RUID=$(who | awk 'FNR == 1 {print $1}')
 		RUSER_UID=$(id -u ${RUID})
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>> "$BUILDLOG"
@@ -297,6 +326,7 @@ fi
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
 #
 if [ ".$HIDDENWIFI" != '.' ]; then
+    debug "Setting up hidden WiFi network, $HIDDENWIFI; please check by hand when done"
 	if [ -f "$WPA_SUPPLICANT" ]; then
 		: do nothing
 	else
@@ -357,7 +387,9 @@ _EOF
 	fi
 	systemctl daemon-reload                   1>> "$BUILDLOG"
 	systemctl enable wpa_supplicant.service   1>> "$BUILDLOG"
-	systemctl restart wpa_supplicant.service  1>> "$BUILDLOG"
+	systemctl start wpa_supplicant.service    1>> "$BUILDLOG"
+	systemctl status wpa_supplicant.service   1>> "$BUILDLOG" 2>&1 \
+    	err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
 	# renew DHCP leases
 	dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
 fi
@@ -366,7 +398,7 @@ fi
 if [ ".$VLAN_NUMBER" != '.' ]; then
     NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
 	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
-		echo "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs.  Do this part manually."
+		debug "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs.  Do this part manually."
 	else
     	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
 		cat << _EOF >> "$NETPLAN_FILE"
@@ -376,32 +408,36 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
             link: eth0
             dhcp4: true
 _EOF
-    echo "You will need to run:  'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
+    debug "You will need to run:  'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
 	fi
 fi
 
 # Add cardano user (or whatever install user is used) and lock password
 #
+debug "Checking and (if need be) making install user:  ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
     || useradd -m -s /bin/bash "$INSTALL_USER" 1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
 passwd -l "$INSTALL_USER"                   1>> "$BUILDLOG"
 usermod -a -G users "$INSTALL_USER"         1>> "$BUILDLOG" 2>&1
 
-#
 # Install GHC, cabal
 #
 cd "$BUILDDIR"
+debug "Downloading:  ghc-${GHCVERSION}"
 $WGET "http://downloads.haskell.org/~ghc/${GHCVERSION}/ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" -O "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz"
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+    debug "Building:  ghc-${GHCVERSION}"
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
 	cd "ghc-${GHCVERSION}"
 	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GCCARCHARG" CFLAGS="$GCCMARMARG $GCCARCHARG" 1>> "$BUILDLOG"
 fi
+debug "Installing:  ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
+debug "Downloading and installing (note hardcoded version):  cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}"
 $WGET "http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" || \
     err_exit 48 "$0: Unable to download cabal; aborting"
 tar -xf "cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
@@ -412,6 +448,7 @@ $CABAL update 1>> "$BUILDLOG" || err_exit 67 "$0: Failed to '$CABAL update'; abo
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
+debug "Downloading and installing libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
 'rm' -rf libsodium
 git clone https://github.com/input-output-hk/libsodium 1>> "$BUILDLOG" 2>&1
@@ -433,8 +470,8 @@ NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/ca
 [ -z "$NODE_BUILD_NUM" ] && \
     (NODE_BUILD_NUM=$($WGET -S -O- "https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json" 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }') || \
 		err_exit 49 "$0:  Unable to fetch node build number; aborting")
-echo "$0:  NODE_BUILD_NUM discovered:  $NODE_BUILD_NUM" 1>> "$BUILDLOG" 2>&1
-for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
+debug "$0:  NODE_BUILD_NUM discovered (used to fetch latest config files):  $NODE_BUILD_NUM" 
+for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 	for envvar in 'LD_LIBRARY_PATH' 'PKG_CONFIG_PATH' 'NODE_HOME' 'NODE_CONFIG' 'NODE_BUILD_NUM' 'PATH' 'CARDANO_NODE_SOCKET_PATH'; do
 		case "${envvar}" in
 			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:${INSTALLDIR}/lib:\${LD_LIBRARY_PATH}\"" ;;
@@ -447,10 +484,10 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
 		if egrep -q "^ *export +${envvar}=" "$bashrcfile"; then
-		    echo "Substituting in $bashrcfile:  export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}" 1>> $BUILDLOG 2>&1
+		    debug "Changing variable in $bashrcfile:  export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
 			sed -i "$bashrcfile" -e "s|^ *export +\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
 		else
-		    echo "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 1>> $BUILDLOG 2>&1
+		    debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
 			echo "export ${envvar}=${SUBSTITUTION}" >> $bashrcfile
 		fi
     done
@@ -461,6 +498,7 @@ done
 #
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD 1.25.1
 #
+debug "$0:  Downloading, configuring, building source for cardano-node and cardano-cli" 
 cd "$BUILDDIR"
 'rm' -rf cardano-node-OLD
 'mv' -f cardano-node cardano-node-OLD
@@ -473,9 +511,9 @@ git checkout "tags/${CARDANONODEVERSION}"    1>> "$BUILDLOG" 2>&1 || err_exit 79
 #
 $CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 'rm' -rf "$BUILDDIR/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
-echo "package cardano-crypto-praos" >  cabal.project.local
-echo "  flags: -external-libsodium-vrf" >>  cabal.project.local
-echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
+echo "package cardano-crypto-praos" >  "${BUILDDIR}/cabal.project.local"
+echo "  flags: -external-libsodium-vrf" >>  "${BUILDDIR}/cabal.project.local"
+echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
 #
 # BUILD
 #
@@ -483,6 +521,7 @@ $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: F
 #
 # Stop the node so we can replace binaries
 #
+debug "$0:  Stopping cardano-node service, if running (need to do this to replace binaries)" 
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
@@ -494,8 +533,10 @@ killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
 # COPY NEW BINARIES
 #
-$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG"
+debug "$0:  Installing binaries for cardano-node and cardano-cli" 
+$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+    # If we recompiled, remove symlinks if they exist in prep for copying in new binaries
 	[ -L "$INSTALLDIR/cardano-cli" ] && rm -f "$INSTALLDIR/cardano-cli"
 	[ -L "$INSTALLDIR/cardano-node" ] && rm -f "$INSTALLDIR/cardano-node"
 fi
@@ -504,11 +545,10 @@ if [ -x "$INSTALLDIR/cardano-cli" ]; then
 else
     cp $(find "$BUILDDIR/cardano-node" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
     cp $(find "$BUILDDIR/cardano-node" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
-    # cp $(find "$HOME/git/cardano-node/dist-newstyle/build" -type f -name "cardano-cli") "$INSTALLDIR/cardano-cli"
-    # cp $(find "$HOME/git/cardano-node/dist-newstyle/build" -type f -name "cardano-node") "$INSTALLDIR/cardano-node"
 fi
-echo "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
-echo "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
+[ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
+debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
+debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 for subdir in 'files' 'db' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
@@ -518,15 +558,16 @@ for subdir in 'files' 'db' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconf
 	find "${INSTALLDIR}/$subdir" -type f -exec chmod "0664" {} \;
 done
 
-# UPDATE mainnet-config.json TO THE LATEST VERSION AND START THE NODE
+# UPDATE mainnet-config.json and related files to latest version and start node
 #
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+    debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
-	echo "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if there are any)" 1>> "$BUILDLOG"
+	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if there are any)"
 	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
-	echo "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json " 1>> "$BUILDLOG"
+	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"          -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"        -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"   -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
@@ -544,7 +585,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	# Set up startup script
 	#
 	SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
-	echo "(Re-)creating $SYSTEMSTARTUPSCRIPT" 1>> "$BUILDLOG"
+	debug "(Re-)creating cardano-node start-up script: $SYSTEMSTARTUPSCRIPT"
 	[ -f "$NODE_CONFIG_FILE" ] || err_exit 28 "$0: Can't find config.yaml file, "$NODE_CONFIG_FILE"; aborting"
 	#
 	#Usage: cardano-node run [--topology FILEPATH] [--database-path FILEPATH]
@@ -596,14 +637,17 @@ _EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
-echo "Cardano node will be started as follows:  $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
+debug "Cardano node will be started as follows:  $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
 systemctl daemon-reload	
 systemctl enable cardano-node 1>> "$BUILDLOG"
 systemctl start cardano-node  1>> "$BUILDLOG"
+systemctl status cardano-node 1>> "$BUILDLOG" 2>&1 \
+    err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
 #
 # UPDATE gLiveView.sh
 #
+debug "Downloading gLiveView.sh to: ${CARDANO_SCRIPTDIR}"
 cd "$INSTALLDIR"
 $WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh" -O "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
     || err_exit 108 "$0: Failed to fetch ${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh; aborting"
@@ -611,8 +655,8 @@ chmod 755 "${CARDANO_SCRIPTDIR}/gLiveView.sh"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/env" -O "${CARDANO_SCRIPTDIR}/env" \
 		|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/env; aborting"
-	echo "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/files/config.json -> CONFIG=\"$NODE_CONFIG_FILE\""                  1>> $BUILDLOG 2>&1
-	echo "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/sockets/node0.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"" 1>> $BUILDLOG 2>&1
+	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/files/config.json -> CONFIG=\"$NODE_CONFIG_FILE\""
+	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/sockets/node0.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/files/config.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/sockets/node0.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
@@ -621,20 +665,21 @@ fi
 
 # install other utilities
 #
+debug "Installing python-cardano and cardano-tools using $PIP"
 $PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
 $PIP install pip-tools       1>> "$BUILDLOG" 2>&1
 $PIP install python-cardano  1>> "$BUILDLOG" 2>&1
 $PIP install cardano-tools   1>> "$BUILDLOG" \
     || err_exit 117 "$0: Unable to install cardano tools:  $PIP install cardano-tools; aborting"
 
-echo "Tasks:"
-echo "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
-echo "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
-echo "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
-echo "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
-echo "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "Tasks:"
+debug "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
+debug "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
+debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
+debug "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
+debug "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
 (date | egrep UTC) \
-    || echo "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
+    || debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
