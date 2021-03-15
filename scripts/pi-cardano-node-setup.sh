@@ -54,7 +54,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -d -b
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
 -p    Listen port (default 3000)
 -r    Install RDP
--s    Subnet where server resides (e.g., 192.168.34.0/24); only used if you enable RDP (-r) (not recommended)
+-s    Networks to allow SSH from (comma-separated, CIDR)
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
@@ -63,8 +63,8 @@ _EOF
   exit 1
 }
 
-while getopts 4:6::bc:dfh:m:n:o:p:rs:u:v:w:x opt; do
-  case ${opt} in
+while getopts 4:6:b:c:dh:m:n:o:p:rs:u:v:w:x opt; do
+  case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
 	b ) BUILD_USER="${OPTARG}" ;;
@@ -76,10 +76,10 @@ while getopts 4:6::bc:dfh:m:n:o:p:rs:u:v:w:x opt; do
 	o ) OVERCLOCK_SPEED="${OPTARG}" ;;
     p ) LISTENPORT="${OPTARG}" ;;
     r ) INSTALLRDP='Y' ;;
-	s ) MY_SUBNET="${OPTARG}" ;;
+	s ) MY_SUBNETS="${OPTARG}" ;;
     u ) INSTALL_USER="${OPTARG}" ;;
-    w ) LIBSODIUM_VERSION="${OPTARG}" ;;
 	v ) VLAN_NUMBER="${OPTARG}" ;;
+    w ) LIBSODIUM_VERSION="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
     \? ) usage ;;
     esac
@@ -90,14 +90,23 @@ $APTINSTALLER install dnsutils 1> /dev/null
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=10 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 1> /dev/null)" 2> /dev/null
-
+[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
+[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
+if [ -z "${MY_SUBNETS}" ]; then
+	MY_SUBNETS="$MY_SUBNET"
+else
+    if echo "$MY_SUBNETS" | $egrep -qv "$(echo \"$MY_SUBNET\" | sed 's/\./\\./g')"; then
+		# Make sure that the active interface's network is present in $MY_SUBNETS
+		MY_SUBNETS="$MY_SUBNETS,$MY_SUBNET"
+	fi
+fi
+MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[[:space:]]*\(LISTEN\|ESTABLISHED\) *$/\1/gip' | sed 's/[[:space:]]/,/g')
+[ -z "$MY_SSH_HOST" ] || MY_SUBNETS="$MY_SUBNETS,$MY_SSH_HOST"  # Make sure not to cut off the current SSH session
 [ -z "${BUILD_USER}" ] && BUILD_USER='builduser'
 [ -z "${WGET_TIMEOUT}" ] && WGET_TIMEOUT=80
 [ -z "${BLOCKCHAINNETWORK}" ] && BLOCKCHAINNETWORK='mainnet'
 [ -z "${LISTENPORT}" ] && LISTENPORT='3000'
 [ -z "${INSTALLRDP}" ] && INSTALLRDP='N'
-[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig eth0 | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }')  # With a Pi, you get just one RJ45 jack
-[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig eth0 | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }')
 [ -z "${INSTALL_USER}" ] && INSTALL_USER='cardano'
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
@@ -172,7 +181,8 @@ mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 touch "$BUILDLOG"
-echo "Logging; run 'tail -f \"$BUILDLOG\"' in another window to monitor"
+echo "If you are compiling (NO -x flag supplied), this will take several hours now...."
+echo "To monitor progress, run this in another window: tail -f \"$BUILDLOG\""
 
 # Update system, install prerequisites, utilities, etc.
 #
@@ -254,14 +264,18 @@ if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	ufw allow ssh                1>> "$BUILDLOG" 2>&1
+	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
+		ufw allow from "$netw" to any port ssh 1>> "$BUILDLOG" 2>&1
+	done
+	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	# ufw allow 3001/tcp           1>> "$BUILDLOG"
 	# ufw allow 6000/tcp           1>> "$BUILDLOG"
 	# ufw deny from [IP.address] to any port [number]
 	# ufw delete [rule_number]
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
-	# ufw status numbered  # show what's going on
+	echo "Firewall configured; rule summary (please check and fix later on):"
+	ufw status numbered  # show what's going on
 
 	# Add RDP service if INSTALLRDP is Y
 	#
@@ -276,7 +290,7 @@ if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'      2>> "$BUILDLOG"
 		dconf update 2>> "$BUILDLOG"
 		sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 1>> "$BUILDLOG" 2>&1
-		ufw allow from "$MY_SUBNET" to any port 3389 1>> "$BUILDLOG" 2>&1
+		ufw allow from "$MY_SUBNETS" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
 
@@ -617,6 +631,8 @@ echo "Tasks:"
 echo "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
 echo "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
 echo "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
+echo "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
+echo "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
 (date | egrep UTC) \
     || echo "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
