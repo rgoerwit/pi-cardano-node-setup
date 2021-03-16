@@ -283,7 +283,9 @@ fi
 
 # Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
-if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ] || [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ]; then
+if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
+    : ok do nothing
+else
     debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames | egrep -q '^ufw$'; then
