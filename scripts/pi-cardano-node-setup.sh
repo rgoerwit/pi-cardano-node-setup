@@ -563,7 +563,7 @@ done
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
-	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if there are any)"
+	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
 	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
@@ -639,8 +639,8 @@ _EOF
 fi
 debug "Cardano node will be started as follows:  $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
 systemctl daemon-reload	
-systemctl enable cardano-node 1>> "$BUILDLOG"
-systemctl start cardano-node  1>> "$BUILDLOG"
+systemctl enable cardano-node 1>> "$BUILDLOG" 2>&1
+systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
 systemctl status cardano-node 1>> "$BUILDLOG" 2>&1 \
     err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
@@ -678,7 +678,7 @@ debug "  It is highly recommended that the (powerful) $PIUSER account be locked 
 debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 debug "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
 debug "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
-(date +"%Z %z" | egrep UTC) \
+(date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
