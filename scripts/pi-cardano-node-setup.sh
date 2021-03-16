@@ -178,13 +178,14 @@ if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
 fi 
 # A normal x86 box running Ubuntu might download:  https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0-i386-debian-9.tar.xz
 # where CABALARCHITECTURE needs to be "i386" and where CABAL_OS needs to be "debian-9"
+
 if [ -z "$CABALDOWNLOADPREFIX"]; then
 	if echo "$(arch)" | egrep -q 'arm|aarch'; then
     	CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4'
 	else
 	    CABALDOWNLOADPREFIX='https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0'
-		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='i386'
-		[ -z "$CABAL_OS" ] && CABAL_OS='debian-9'
+		([ -z "$CABALARCHITECTURE" ] || [ "$CABALARCHITECTURE" = 'x86_64' ]) && CABALARCHITECTURE='i386'
+		([ -z "$CABAL_OS" ] || [ "$CABAL_OS" = 'linux' ]) && CABAL_OS='debian-9'
 	fi
 fi
 
