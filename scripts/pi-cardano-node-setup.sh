@@ -35,7 +35,7 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
-    [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+    [-G <GCC-arch] [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
 	[-p <port>] [-r] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
@@ -51,6 +51,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
+-G    GHD gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
@@ -76,6 +77,7 @@ while getopts 4:6:b:c:dDh:m:n:o:p:rs:Su:v:w:x opt; do
 	c ) NODE_CONFIG_FILE="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
+	G ) GHC_GCC_ARCH="${OPTARG}" ;;
     h ) HIDDEN_WIFI_INFO="${OPTARG}" ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
@@ -159,7 +161,7 @@ WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeou
 GHCVERSION="8.10.4"
 GHCARCHITECTURE="$(arch)"    # could potentially be aarch64, arm7, arm8, etc. for example; see http://downloads.haskell.org/~ghc/
 GCCMARMARG=""                # will be -marm for Raspberry Pi OS 32 bit; blank for Ubuntu 64
-GCCARCHARG="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
+GHC_ARC="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
 GHCOS="deb10"                # could potentially be deb10, for example; see http://downloads.haskell.org/~ghc/
 CABALARCHITECTURE="$(arch)"  # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
 CABAL="$INSTALLDIR/cabal"
@@ -433,7 +435,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
 	cd "ghc-${GHCVERSION}"
-	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GCCARCHARG" CFLAGS="$GCCMARMARG $GCCARCHARG" 1>> "$BUILDLOG"
+	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GHC_ARCH" CFLAGS="$GCCMARMARG $GHC_ARCH" 1>> "$BUILDLOG"
 fi
 debug "Installing:  ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
