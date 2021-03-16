@@ -168,10 +168,8 @@ if [ -z "$GHC_GCC_ARCH" ]; then
 		&& GHC_GCC_ARCH="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
 fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
-CABALARCHITECTURE="$(arch)"       # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
 CABAL="$INSTALLDIR/cabal"
 MAKE='make'
-CABAL_OS="linux"              # will be deb10 for pi OS 32-bit, and linux for Ubuntu 64
 CARDANONODEVERSION="1.25.1"
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
@@ -179,17 +177,19 @@ if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL='skip_op'
 fi 
-# A normal x86 box running Ubuntu might download:  https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0-i386-debian-9.tar.xz
-# where CABALARCHITECTURE needs to be "i386" and where CABAL_OS needs to be "debian-9"
 
-if [ -z "$CABALDOWNLOADPREFIX"]; then
-	if echo "$(arch)" | egrep -q 'arm|aarch'; then
-    	CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4'
-	else
-	    CABALDOWNLOADPREFIX='https://downloads.haskell.org/~cabal/cabal-install-3.2.0.0/cabal-install-3.2.0.0'
-		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
-		[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
-	fi
+# Guess which cabal binaries to use
+#
+CABAL_VERSION='3.2.0.0'
+if echo "$(arch)" | egrep -q 'arm|aarch'; then
+    CABAL_VERSION='3.4.0.0-rc4'
+	[ -z "$CABALDOWNLOADPREFIX"] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
+	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
+	[ -z "$CABAL_OS" ] && CABAL_OS='linux' # Could be deb10 as well, if available?
+else
+	[ -z "$CABALDOWNLOADPREFIX"] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
+	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
+	[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
 fi
 
 # Change default startup user to match OS; usually oldest home is the user we want
@@ -462,6 +462,9 @@ $MAKE install 1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
 debug "Downloading and installing cabal:  ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+
+# Now do cabal; we'll pull binaries in this case
+#
 $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" || \
     err_exit 48 "$0: Unable to download cabal; aborting"
 tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
