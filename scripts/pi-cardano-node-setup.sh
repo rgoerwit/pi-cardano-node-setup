@@ -175,7 +175,11 @@ PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL='skip_op'
-fi    	
+fi 
+if [ -z "$CABALDOWNLOADPREFIX"]; then
+	(echo "$(arch)" | egrep -q 'arm|aarch') \
+    	&& CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4-'
+fi
 
 # Change default startup user to match OS; usually oldest home is the user we want
 PIUSER=$(ls -c /home | head -1 | tr '[:upper:]' '[:lower:]')
@@ -232,7 +236,7 @@ $APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_ex
 $APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 
-if [ -x $(which rpi-eeprom-update) ]; then 
+if [ -x $(which rpi-eeprom-update 2> /dev/null) ]; then 
 	if rpi-eeprom-update | egrep -q 'BOOTLOADER: *up-to-date'; then
 		: do nothing
 	else
@@ -284,7 +288,7 @@ fi
 # Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
-    : ok do nothing
+    debug "Skipping firewall configuration at user request"
 else
     debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
@@ -445,10 +449,10 @@ debug "Installing:  ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
-debug "Downloading and installing (note hardcoded version):  cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}"
-$WGET "http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" || \
+debug "Downloading and installing cabal:  ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+$WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" || \
     err_exit 48 "$0: Unable to download cabal; aborting"
-tar -xf "cabal-install-3.4.0.0-rc4-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
+tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
 cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
 chmod 755 "$CABAL"
