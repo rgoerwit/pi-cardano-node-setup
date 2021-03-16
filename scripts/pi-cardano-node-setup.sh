@@ -451,6 +451,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
 	cd "ghc-${GHCVERSION}"
+	debug "Running:  ./configure CONF_CC_OPTS_STAGE2=\"$GCCMARMARG $GHC_GCC_ARCH\" CFLAGS=\"$GCCMARMARG $GHC_GCC_ARCH\""
 	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GHC_GCC_ARCH" CFLAGS="$GCCMARMARG $GHC_GCC_ARCH" 1>> "$BUILDLOG"
 fi
 debug "Installing:  ghc-${GHCVERSION}"
