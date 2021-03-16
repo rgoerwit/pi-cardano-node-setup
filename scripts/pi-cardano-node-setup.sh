@@ -163,7 +163,10 @@ WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeou
 GHCVERSION="8.10.4"
 GHCARCHITECTURE="$(arch)"         # could potentially be aarch64, arm7, arm8, etc. for example; see http://downloads.haskell.org/~ghc/
 GCCMARMARG=""                     # will be -marm for Raspberry Pi OS 32 bit; blank for Ubuntu 64
-[ -z "$GHC_GCC_ARCH" ] && GHC_GCC_ARCH="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
+if [ -z "$GHC_GCC_ARCH" ]; then
+	(echo "$(arch)" | egrep -q 'arm|aarch') \
+		&& GHC_GCC_ARCH="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
+fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
 CABALARCHITECTURE="$(arch)"       # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
 CABAL="$INSTALLDIR/cabal"
@@ -183,9 +186,9 @@ if [ -z "$CABALDOWNLOADPREFIX"]; then
 	if echo "$(arch)" | egrep -q 'arm|aarch'; then
     	CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4'
 	else
-	    CABALDOWNLOADPREFIX='https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0'
-		([ -z "$CABALARCHITECTURE" ] || [ "$CABALARCHITECTURE" = 'x86_64' ]) && CABALARCHITECTURE='i386'
-		([ -z "$CABAL_OS" ] || [ "$CABAL_OS" = 'linux' ]) && CABAL_OS='debian-9'
+	    CABALDOWNLOADPREFIX='https://downloads.haskell.org/~cabal/cabal-install-3.2.0.0/cabal-install-3.2.0.0'
+		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
+		[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
 	fi
 fi
 
@@ -465,7 +468,7 @@ tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
 cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
 chmod 755 "$CABAL"
-$CABAL update 1>> "$BUILDLOG" || err_exit 67 "$0: Failed to '$CABAL update'; aborting"
+$CABAL update 1>> "$BUILDLOG" || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
