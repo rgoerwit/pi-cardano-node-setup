@@ -36,7 +36,7 @@ usage() {
 
 Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
+	[-p <port>] [-r] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -59,6 +59,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -p    Listen port (default 3000)
 -r    Install RDP
 -s    Networks to allow SSH from (comma-separated, CIDR)
+-S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
@@ -67,7 +68,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:c:dDh:m:n:o:p:rs:u:v:w:x opt; do
+while getopts 4:6:b:c:dDh:m:n:o:p:rs:Su:v:w:x opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -82,6 +83,7 @@ while getopts 4:6:b:c:dDh:m:n:o:p:rs:u:v:w:x opt; do
     p ) LISTENPORT="${OPTARG}" ;;
     r ) INSTALLRDP='Y' ;;
 	s ) MY_SUBNETS="${OPTARG}" ;;
+	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
 	v ) VLAN_NUMBER="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
@@ -277,7 +279,7 @@ fi
 
 # Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
-if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ]; then
+if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ] || [ ".$SKIP_FIREWALL_CONFIG" != '.Y' ]; then
     debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames | egrep -q '^ufw$'; then
