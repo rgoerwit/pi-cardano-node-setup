@@ -36,7 +36,8 @@ usage() {
 
 Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-G <GCC-arch] [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
+	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
+	[-v <VLAN num> ] [-x]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -53,13 +54,14 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -D    Emit chatty debugging output about what the program is doing
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
--h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
+-h    Install (naturally, hidden) WiFi; format: SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
--p    Listen port (default 3000)
+-p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
 -r    Install RDP
+-R    Relay information (ip-address:port, separated by a colon) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
@@ -70,7 +72,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:c:dDg:G:h:m:n:o:p:rs:Su:v:w:x opt; do
+while getopts 4:6:b:c:dDg:G:h:m:n:o:p:rR:s:Su:v:w:x opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -86,6 +88,7 @@ while getopts 4:6:b:c:dDg:G:h:m:n:o:p:rs:Su:v:w:x opt; do
 	o ) OVERCLOCK_SPEED="${OPTARG}" ;;
     p ) LISTENPORT="${OPTARG}" ;;
     r ) INSTALLRDP='Y' ;;
+	R ) RELAY_INFO="${OPTARG}" ;; 
 	s ) MY_SUBNETS="${OPTARG}" ;;
 	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
@@ -141,18 +144,24 @@ skip_op() {
 [ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
 [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ] && debug "Running script as root (better to use 'sudo')..."
 
-debug "To get the latest version:  'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
+debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
 debug "INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 
-if [ -z "${HIDDEN_WIFI_INFO}" ]; then
-	: do nothing, all good
-else
+# -h argument supplied - parse WiFi info (WiFi usually not recommended, but OK esp. for relay, in a pinch)
+if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
 	HIDDENWIFI=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $1 }')
 	HIDDENWIFIPASSWORD=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $2 }')
 	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] && err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
+fi
+
+# -R argument supplied - this is a block-producing node; parse relay info
+if [ ".${RELAY_INFO}" != '.' ]; then
+	RELAY_ADDRESS=$(echo "$RELAY_INFO" | awk -F: '{ print $1 }')
+	RELAY_PORT=$(echo "$RELAY_INFO" | awk -F: '{ print $2 }')
+	[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: You didn't supply a relay ip-address:port after -R; aborting"
 fi
 
 GUILDREPO="https://github.com/cardano-community/guild-operators"
@@ -183,11 +192,11 @@ fi
 CABAL_VERSION='3.2.0.0'
 if echo "$(arch)" | egrep -q 'arm|aarch'; then
     CABAL_VERSION='3.4.0.0-rc4'
-	[ -z "$CABALDOWNLOADPREFIX"] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
+	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
 	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
 	[ -z "$CABAL_OS" ] && CABAL_OS='linux' # Could be deb10 as well, if available?
 else
-	[ -z "$CABALDOWNLOADPREFIX"] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
+	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
 	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
 	[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
 fi
@@ -201,7 +210,7 @@ fi
 
 # Make sure our build user exists and belongs to all the good groups
 #
-debug "Checking and (if need be) making build user:  ${BUILD_USER}"
+debug "Checking and (if need be) making build user: ${BUILD_USER}"
 if id "$BUILD_USER" 1>> /dev/null; then
     : do nothing because user exists
 else
@@ -244,14 +253,17 @@ $APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG" 2>&1
 dpkg-reconfigure build-essential                  1>> "$BUILDLOG" 2>&1
 dpkg-reconfigure gcc                              1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
-$APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
+$APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1 \
+	|| snap install rpi-imager 					  1>> "$BUILDLOG" 2>&1  # If not present, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 
-if [ -x $(which rpi-eeprom-update 2> /dev/null) ]; then 
-	if rpi-eeprom-update | egrep -q 'BOOTLOADER: *up-to-date'; then
-		: do nothing
+EEPROM_UPDATE="$(which rpi-eeprom-update 2>&1)"
+if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then 
+	if $EEPROM_UPDATE | egrep -q 'BOOTLOADER: *up-to-date'; then
+		debug "Eeprom up to date; skipping update"
 	else
-		rpi-eeprom-update -a 1>> "$BUILDLOG" 2>&1
+		debug "Updating eeprom: $EEPROM_UPDATE -a"
+		$EEPROM_UPDATE -a 1>> "$BUILDLOG" 2>&1
     fi
 fi
 
@@ -280,8 +292,8 @@ if [ ".$OVERCLOCK_SPEED" != '.' ]; then
 			debug "Overclocking already set up; skipping (edit $BOOTCONFIG file to change settings)"
 		else
 		    [[ "$OVERCLOCK_SPEED" = [0-9]* ]] || err_exit 19 "$0: For argument -o <speed>, <speed> must be an integer (e.g., 2100); aborting"
-			debug "Current CPU temp:  `vcgencmd measure_temp`"
-			debug "Current Max CPU speed:  `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
+			debug "Current CPU temp: `vcgencmd measure_temp`"
+			debug "Current Max CPU speed: `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
 			debug "Setting speed to $OVERCLOCK_SPEED; please check $BOOTCONFIG file before next restart"
 			cat << _EOF >> "$BOOTCONFIG"
 
@@ -431,13 +443,13 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
             link: eth0
             dhcp4: true
 _EOF
-    debug "You will need to run:  'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
+    debug "You will need to run: 'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
 	fi
 fi
 
 # Add cardano user (or whatever install user is used) and lock password
 #
-debug "Checking and (if need be) making install user:  ${INSTALL_USER}"
+debug "Checking and (if need be) making install user: ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
     || useradd -m -s /bin/bash "$INSTALL_USER" 1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
@@ -447,21 +459,21 @@ usermod -a -G users "$INSTALL_USER"         1>> "$BUILDLOG" 2>&1
 # Install GHC, cabal
 #
 cd "$BUILDDIR"
-debug "Downloading:  ghc-${GHCVERSION}"
+debug "Downloading: ghc-${GHCVERSION}"
 $WGET "http://downloads.haskell.org/~ghc/${GHCVERSION}/ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" -O "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz"
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-    debug "Building:  ghc-${GHCVERSION}"
+    debug "Building: ghc-${GHCVERSION}"
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
 	cd "ghc-${GHCVERSION}"
-	debug "Running:  ./configure CONF_CC_OPTS_STAGE2=\"$GCCMARMARG $GHC_GCC_ARCH\" CFLAGS=\"$GCCMARMARG $GHC_GCC_ARCH\""
+	debug "Running: ./configure CONF_CC_OPTS_STAGE2=\"$GCCMARMARG $GHC_GCC_ARCH\" CFLAGS=\"$GCCMARMARG $GHC_GCC_ARCH\""
 	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GHC_GCC_ARCH" CFLAGS="$GCCMARMARG $GHC_GCC_ARCH" 1>> "$BUILDLOG"
 fi
-debug "Installing:  ghc-${GHCVERSION}"
+debug "Installing: ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
-debug "Downloading and installing cabal:  ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+debug "Downloading and installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 
 # Now do cabal; we'll pull binaries in this case
 #
@@ -496,8 +508,8 @@ fi
 NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/index.html' 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }')
 [ -z "$NODE_BUILD_NUM" ] && \
     (NODE_BUILD_NUM=$($WGET -S -O- "https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json" 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }') || \
-		err_exit 49 "$0:  Unable to fetch node build number; aborting")
-debug "$0:  NODE_BUILD_NUM discovered (used to fetch latest config files):  $NODE_BUILD_NUM" 
+		err_exit 49 "$0: Unable to fetch node build number; aborting")
+debug "NODE_BUILD_NUM discovered (used to fetch latest config files): $NODE_BUILD_NUM" 
 for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 	for envvar in 'LD_LIBRARY_PATH' 'PKG_CONFIG_PATH' 'NODE_HOME' 'NODE_CONFIG' 'NODE_BUILD_NUM' 'PATH' 'CARDANO_NODE_SOCKET_PATH'; do
 		case "${envvar}" in
@@ -511,7 +523,7 @@ for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
 		if egrep -q "^ *export +${envvar}=" "$bashrcfile"; then
-		    debug "Changing variable in $bashrcfile:  export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
+		    debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
 			sed -i "$bashrcfile" -e "s|^ *export +\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
 		else
 		    debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
@@ -525,7 +537,7 @@ done
 #
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD 1.25.1
 #
-debug "$0:  Downloading, configuring, and (depending on -x argument presence) building cardano-node and cardano-cli" 
+debug "Downloading, configuring, and (if no -x argument) building cardano-node and cardano-cli" 
 cd "$BUILDDIR"
 'rm' -rf cardano-node-OLD
 'mv' -f cardano-node cardano-node-OLD
@@ -548,7 +560,7 @@ $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: F
 #
 # Stop the node so we can replace binaries
 #
-debug "$0:  Stopping cardano-node service, if running (need to do this to replace binaries)" 
+debug "Stopping cardano-node service, if running (need to do this to replace binaries)" 
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
@@ -560,7 +572,7 @@ killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
 # COPY NEW BINARIES
 #
-debug "$0:  Installing binaries for cardano-node and cardano-cli" 
+debug "Installing binaries for cardano-node and cardano-cli" 
 $CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
     # If we recompiled, remove symlinks if they exist in prep for copying in new binaries
@@ -601,7 +613,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
-	if [ ".$CURRENT_EKG_PORT" != '.' ] && egrep -q 'CURRENT_EKG_PORT' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}"; then 
+	if [ ".$CURRENT_EKG_PORT" != '.' ] && egrep -q 'CURRENT_EKG_PORT' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"; then 
 		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
@@ -609,10 +621,40 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": +false/TraceBlockFetchDecisions\": true/g"
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] || err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
 
+    # Modify topology file; add -R <relay-ip:port> information
+	#
+	if [ ".$RELAY_ADDRESS" = '.' ]; then
+		debug "No relay address and port supplied $RELAY_INFO $RELAY_ADDRESS $RELAY_PORT"
+	else
+	    debug "Adding relay ${RELAY_ADDRESS}:${RELAY_PORT} info to ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+		# Have to go through all the elements in .Producers and see if any of them match
+		ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
+		for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
+			if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
+			    ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
+				break
+			fi
+		done
+
+		if [ ".$ALREADY_PRESENT_IN_TOPOLOGY_FILE" = '.Y' ] ; then
+			debug "Topology file already has ${RELAY_ADDRESS}:${RELAY_PORT} information; no need to add it"
+		else
+			if [ $LISTENPORT -gt 6000 ] \
+				&& '.Producers[0].addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | egrep -q -i 'iohk|cardano|emurgo'; then
+				# Listenport is >= 6000; we're a block producer; clobber topology file and only talk to relay
+				echo -e '{ "Producers": [ ] }\n' > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			fi
+			# Append block producer info to topology file
+			BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
+			jq ".Producers[] |= . + $BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+				> "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"  # Overwrite
+		fi
+	fi
+
 	# Set up startup script
 	#
 	SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
-	debug "(Re-)creating cardano-node start-up script: $SYSTEMSTARTUPSCRIPT"
+	debug "(Re)creating cardano-node start-up script: $SYSTEMSTARTUPSCRIPT"
 	[ -f "$NODE_CONFIG_FILE" ] || err_exit 28 "$0: Can't find config.yaml file, "$NODE_CONFIG_FILE"; aborting"
 	#
 	#Usage: cardano-node run [--topology FILEPATH] [--database-path FILEPATH]
@@ -664,7 +706,7 @@ _EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
-debug "Cardano node will be started as follows:  $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
+debug "Cardano node will be started as follows: $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
 systemctl daemon-reload	
 systemctl enable cardano-node 1>> "$BUILDLOG" 2>&1
 systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
@@ -697,14 +739,15 @@ $PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
 $PIP install pip-tools       1>> "$BUILDLOG" 2>&1
 $PIP install python-cardano  1>> "$BUILDLOG" 2>&1
 $PIP install cardano-tools   1>> "$BUILDLOG" \
-    || err_exit 117 "$0: Unable to install cardano tools:  $PIP install cardano-tools; aborting"
+    || err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
 
 debug "Tasks:"
 debug "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
 debug "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
 debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
-debug "  Follow syslogged activity by running:  journalctl --unit=cardano-node --follow"
-debug "  Monitor node activity (pretty) by running:  cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
+debug "  Monitor node activity (pretty) by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "  Hand examine the topology file: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 

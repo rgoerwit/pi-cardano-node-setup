@@ -2,20 +2,33 @@
 
 **pi-cardano-setup.sh**:  Bash script that installs a Cardano relay node on a Raspberry Pi 4 running 64-bit aarch64 Ubuntu LTS
 
-## Code Example
 
-Example invocations follow.
+## Example Invocations
 
-**New (overclocking) mainnet setup on TCP port 3000**:   pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -o 2100 -p 3000 
+**New (overclocking) ARM-based mainnet relay setup on TCP port 3000, with VLAN 5 setup**:
+```
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 
+```
+**New (non-ARM) mainnet relay setup on TCP port 3000**:
+```
+pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ''
+```
+**Refresh of existing mainnet setup (keep existing config files)**:  
+```
+pi-cardano-setup.sh -D -d -b builduser -u cardano -n mainnet
+```
+**(overclocking) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 5 setup**:  
+```
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 -R 192.168.6.238:3000
+```
 
-**Refresh of existing mainnet setup (keep existing config files)**:  pi-cardano-setup.sh -D -d -b builduser -u cardano -n mainnet
-
-Command-line syntax is as follows:
+## Command-line syntax is as follows:
 
 ```
 Usage: pi-cardano-setup.sh [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-G <GCC-arch] [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
+	[-p <port>] [-r] [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
+	[-v <VLAN num> ] [-x]
 ```
 
 Argument explanation:
@@ -34,8 +47,9 @@ Argument explanation:
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
--p    Listen port (default 3000)
+-p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
 -r    Install RDP
+-R    Relay information (ip-address:port, separated by a colon) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
@@ -59,11 +73,13 @@ It is a distillation of many sets of available directions, including:
 >	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
 >	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
 
+
 ## Installation
 
 Simply copy pi-cardano-setup.sh (and optionally pi-cardano-fake-code.sh) onto a fresh Pi 4 running 64-bit aarch64 Ubuntu LTS and execute it.
 
 It may be run subsequently with the -d argument to refresh executables, but leave configuration files untouched.
+
 
 ## Tests
 
@@ -71,9 +87,11 @@ There are no regression tests for this script.  Please do not run it on an alrea
 
 This script is intended for situations where you want a generic, working relay up fast.  ("Fast" by Pi standards, that is.)
 
+
 ## Contributors
 
 Please email the author at achaar@goerwitz.com if you have suggestions or want to help out.
+
 
 ## License
 
