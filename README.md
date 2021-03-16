@@ -13,9 +13,9 @@ Example invocations follow.
 Command-line syntax is as follows:
 
 ```
-Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
-    [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r] [-s <subnet>] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
+Usage: pi-cardano-setup.sh [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
+    [-G <GCC-arch] [-h <SID:password>] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+	[-p <port>] [-r] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-v <VLAN num> ] [-x]
 ```
 
 Argument explanation:
@@ -27,6 +27,8 @@ Argument explanation:
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
+-g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
+-G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -h    Install (naturally, hidden) WiFi; format:  SID:password (only use WiFi on the relay, not block producer)
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
@@ -35,6 +37,7 @@ Argument explanation:
 -p    Listen port (default 3000)
 -r    Install RDP
 -s    Networks to allow SSH from (comma-separated, CIDR)
+-S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface

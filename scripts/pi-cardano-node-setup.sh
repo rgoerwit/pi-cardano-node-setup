@@ -176,9 +176,16 @@ if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL='skip_op'
 fi 
+# A normal x86 box running Ubuntu might download:  https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0-i386-debian-9.tar.xz
+# where CABALARCHITECTURE needs to be "i386" and where CABAL_OS needs to be "debian-9"
 if [ -z "$CABALDOWNLOADPREFIX"]; then
-	(echo "$(arch)" | egrep -q 'arm|aarch') \
-    	&& CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4-'
+	if echo "$(arch)" | egrep -q 'arm|aarch'; then
+    	CABALDOWNLOADPREFIX='http://home.smart-cactus.org/~ben/ghc/cabal-install-3.4.0.0-rc4'
+	else
+	    CABALDOWNLOADPREFIX='https://downloads.haskell.org/~cabal/cabal-install-3.4.0.0/cabal-install-3.4.0.0'
+		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='i386'
+		[ -z "$CABAL_OS" ] && CABAL_OS='debian-9'
+	fi
 fi
 
 # Change default startup user to match OS; usually oldest home is the user we want
@@ -510,7 +517,7 @@ done
 #
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD 1.25.1
 #
-debug "$0:  Downloading, configuring, building source for cardano-node and cardano-cli" 
+debug "$0:  Downloading, configuring, and (depending on -x argument presence) building cardano-node and cardano-cli" 
 cd "$BUILDDIR"
 'rm' -rf cardano-node-OLD
 'mv' -f cardano-node cardano-node-OLD
