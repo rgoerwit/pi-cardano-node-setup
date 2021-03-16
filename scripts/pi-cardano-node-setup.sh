@@ -146,8 +146,8 @@ debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 if [ -z "${HIDDEN_WIFI_INFO}" ]; then
 	: do nothing, all good
 else
-	HIDDENWIFI=$(echo "$HIDDEN_WIFI_INFO" | echo "a:x" | awk -F: '{ print $1 }')
-	HIDDENWIFIPASSWORD=$(echo "$HIDDEN_WIFI_INFO" | echo "a:x" | awk -F: '{ print $2 }')
+	HIDDENWIFI=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $1 }')
+	HIDDENWIFIPASSWORD=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $2 }')
 	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] && err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
 fi
 
@@ -279,7 +279,7 @@ fi
 
 # Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
 #
-if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ] || [ ".$SKIP_FIREWALL_CONFIG" != '.Y' ]; then
+if [ ".$DONT_OVERWRITE" != 'Y' ] || [ ".$LISTENPORT" != '.' ] || [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ]; then
     debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames | egrep -q '^ufw$'; then
