@@ -142,7 +142,6 @@ skip_op() {
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 [ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
-EXTRACABALARGS=''
 if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
 	debug "Running script as root (sadly, yes, this is needed)"
 else
@@ -182,14 +181,14 @@ if [ -z "$GHC_GCC_ARCH" ]; then
 		&& GHC_GCC_ARCH="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
 fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
-CABAL="$INSTALLDIR/cabal"
+CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
 CARDANONODEVERSION="1.25.1"
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
-    CABAL='skip_op'
+    CABAL_EXECUTABLE='skip_op'
 fi 
 
 # Guess which cabal binaries to use
@@ -525,8 +524,8 @@ debug "NODE_BUILD_NUM discovered (used to fetch latest config files): $NODE_BUIL
 for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 	for envvar in 'LD_LIBRARY_PATH' 'PKG_CONFIG_PATH' 'NODE_HOME' 'NODE_CONFIG' 'NODE_BUILD_NUM' 'PATH' 'CARDANO_NODE_SOCKET_PATH'; do
 		case "${envvar}" in
-			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:${INSTALLDIR}/lib:\${LD_LIBRARY_PATH}\"" ;;
-			'PKG_CONFIG_PATH'          ) SUBSTITUTION="\"/usr/local/lib/pkgconfig:${INSTALLDIR}/pkgconfig:\${PKG_CONFIG_PATH}\"" ;;
+			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:\${LD_LIBRARY_PATH}\"" ;;
+			'PKG_CONFIG_PATH'          ) SUBSTITUTION="\"/usr/local/lib/pkgconfig:\${PKG_CONFIG_PATH}\"" ;;
 			'NODE_HOME'                ) SUBSTITUTION="\"${INSTALLDIR}\"" ;;
 			'NODE_CONFIG'              ) SUBSTITUTION="\"${BLOCKCHAINNETWORK}\"" ;;
 			'NODE_BUILD_NUM'           ) SUBSTITUTION="\"${NODE_BUILD_NUM}\"" ;;
@@ -558,25 +557,30 @@ cd cardano-node
 git fetch --all --recurse-submodules --tags  1>> "$BUILDLOG" 2>&1
 git checkout "tags/${CARDANONODEVERSION}"    1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
 #
-# CONFIGURE BUILD OPTIONS
+# CONFIGURE BUILD OPTIONS for cardano-node and cardano-cli
 #
-$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
+$CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 'rm' -rf "$BUILDDIR/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
 echo "package cardano-crypto-praos" >  "${BUILDDIR}/cabal.project.local"
 echo "  flags: -external-libsodium-vrf" >>  "${BUILDDIR}/cabal.project.local"
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
 #
-# BUILD
+# BUILD cardano-node and cardano-cli
 #
-if $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
+if $CABAL_EXECUTABLE build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
 	: all good
 else
 	if [ ".$DEBUG" = '.Y' ]; then
-		# Do some more intense debugging if the build fails
+		# Do some more intense debugging if the build fails, with a more restrictive library search path
 		CARDANOBUILDTMPFILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
-		debug "Failed to build cardano-node; now verbose debugging to: $CARDANOBUILDTMPFILE"
-		strace $CABAL build cardano-cli cardano-node 2>> "$CARDANOBUILDTMPFILE" 1>&2 \
-			|| err_exit 88 "$0: Failed to build cardano-node; check $CARDANOBUILDTMPFILE"
+		debug "Failed to build cardano-node; now verbose debugging (slow!)"
+		OLD_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"; EXPORT LD_LIBRARY_PATH="/usr/local/lib"
+		OLD_PKG_CONFIG_PATH="$PKG_CONFIG_PATH"; EXPORT PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+		strace $CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 | tail -1000 1>> "$CARDANOBUILDTMPFILE" 1>&2 \
+			|| err_exit 88 "$0: Failed to build cardano-node (sometimes rerunning helps!); check $CARDANOBUILDTMPFILE"
+		debug "Built cardano-node successfully with more restrictive LD_LIBRARY_PATH and PKG_CONFIG_PATH"
+		LD_LIBRARY_PATH="$OLD_LD_LIBRARY_PATH"
+		PKG_CONFIG_PATH="$OLD_PKG_CONFIG_PATH"
 		rm -f "$CARDANOBUILDTMPFILE"
 	else
 		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
@@ -598,7 +602,7 @@ killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 # COPY NEW BINARIES
 #
 debug "Installing binaries for cardano-node and cardano-cli" 
-$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
+$CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
     # If we recompiled, remove symlinks if they exist in prep for copying in new binaries
 	[ -L "$INSTALLDIR/cardano-cli" ] && rm -f "$INSTALLDIR/cardano-cli"
