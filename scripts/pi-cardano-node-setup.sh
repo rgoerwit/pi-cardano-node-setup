@@ -492,9 +492,9 @@ chmod 755 "$CABAL"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 	debug "Successfully updated $CABAL"
 else
-	pushd ~  # Stupid bug
+	pushd ~ 1>> "$BUILDLOG" 2>&1 # Work around bug in cabal
 	($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
-	popd
+	popd 	1>> "$BUILDLOG" 2>&1
 fi
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
@@ -549,7 +549,7 @@ done
 #
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD 1.25.1
 #
-debug "Downloading, configuring, and (if no -x argument) building cardano-node and cardano-cli" 
+debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
 'rm' -rf cardano-node-OLD
 'mv' -f cardano-node cardano-node-OLD
@@ -568,7 +568,19 @@ echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUI
 #
 # BUILD
 #
-$CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1 || err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
+if $CABAL build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
+	: all good
+else
+	if [ ".$DEBUG" = '.Y' ]; then
+		# Do some more intense debugging if the build fails
+		CARDANOBUILDTMPFILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
+		debug "Failed to build cardano-node; now verbose debugging to: $CARDANOBUILDTMPFILE"
+		strace $CABAL build cardano-cli cardano-node 2> "$CARDANOBUILDTMPFILE" \
+			|| (rm -f "$CARDANOBUILDTMPFILE"; err_exit 88 "$0: Failed to build cardano-node; check $CARDANOBUILDTMPFILE")
+	else
+		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
+	fi
+fi
 #
 # Stop the node so we can replace binaries
 #
@@ -639,18 +651,24 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "(Re)creating cardano-node start-up script: $SYSTEMSTARTUPSCRIPT"
 	[ -f "$NODE_CONFIG_FILE" ] || err_exit 28 "$0: Can't find config.yaml file, "$NODE_CONFIG_FILE"; aborting"
 	#
-	#Usage: cardano-node run [--topology FILEPATH] [--database-path FILEPATH]
-	#                        [--socket-path FILEPATH]
-	#                        [--byron-delegation-certificate FILEPATH]
-	#                        [--byron-signing-key FILEPATH]
-	#                        [--shelley-kes-key FILEPATH]
-	#                        [--shelley-vrf-key FILEPATH]
-	#                        [--shelley-operational-certificate FILEPATH]
-	#                        [--host-addr IPV4-ADDRESS]
-	#                        [--host-ipv6-addr IPV6-ADDRESS]
-	#                        [--port PORT]
-	#                        [--config NODE-CONFIGURATION] [--validate-db]
-	#
+	# Figure out where special keys, certs are and add them to startup script later on, if need be
+	CERTKEYARGS=''
+	KEYCOUNT=0
+	[ -s "$INSTALLDIR/kes.skey"]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$INSTALLDIR/vrf.skey"]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$INSTALLDIR/node.cert"] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	if [ "${LISTENPORT}" -ge 6000 ]; then
+		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000
+		if [ "$KEYCOUNT" -ge 3 ]; then
+			CERTKEYARGS="--shelley-kes-key $INSTALLDIR/kes.skey --shelley-vrf-key $INSTALLDIR/vrf.skey --shelley-operational-certificate $INSTALLDIR/node.cert"
+		else
+			# Go ahead and configure if key/cert is missing, but don't run the node with them
+			[ "$KEYCOUNT" -ge 1 ] && debug "Not all needed keys/certs are present in $INSTALLDIR; ignoring them (please generate!)"
+		fi
+	else
+		# We assume if port is less than 6000 (usually 3000 or 3001), we're a relay-only node, not a block producer
+		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (port < 6000); ignoring key/cert files in $INSTALLDIR"
+	fi
 	cat << _EOF > "$INSTALLDIR/cardano-node-starting-env.txt"
 PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
 LD_LIBRARY_PATH="/usr/local/lib:$INSTALLDIR/lib:\$LD_LIBRARY_PATH"
@@ -676,7 +694,7 @@ TimeoutStartSec=0
 Type=simple
 KillMode=process
 WorkingDirectory=$INSTALLDIR
-ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/
+ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
 Restart=on-failure
 RestartSec=12s
 LimitNOFILE=32768
