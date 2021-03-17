@@ -489,7 +489,13 @@ tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
 cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
 chmod 755 "$CABAL"
-$CABAL update 1>> "$BUILDLOG" || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
+if $CABAL update 1>> "$BUILDLOG" 2>&1; then
+	debug "Successfully updated $CABAL"
+else
+	pushd ~  # Stupid bug
+	($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
+	popd
+fi
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
