@@ -659,10 +659,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	# Figure out where special keys, certs are and add them to startup script later on, if need be
 	CERTKEYARGS=''
 	KEYCOUNT=0
-	[ -s "$INSTALLDIR/kes.skey"]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	[ -s "$INSTALLDIR/vrf.skey"]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	[ -s "$INSTALLDIR/node.cert"] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	if [ "${LISTENPORT}" -ge 6000 ]; then
+	[ -s "$INSTALLDIR/kes.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$INSTALLDIR/vrf.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$INSTALLDIR/node.cert" ] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	if [ ".${LISTENPORT}" != '.' ] && [ "${LISTENPORT}" -ge 6000 ]; then
 		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000
 		if [ "$KEYCOUNT" -ge 3 ]; then
 			CERTKEYARGS="--shelley-kes-key $INSTALLDIR/kes.skey --shelley-vrf-key $INSTALLDIR/vrf.skey --shelley-operational-certificate $INSTALLDIR/node.cert"
