@@ -142,7 +142,12 @@ skip_op() {
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 [ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
-[ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ] && debug "Running script as root (better to use 'sudo')..."
+EXTRACABALARGS=''
+if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
+	debug "Running script as root (sadly, yes, this is needed)"
+else
+	err_exit 12 "$0: Script must be run as root (eliminates confusion over real vs effective user); aborting"
+fi
 
 debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
 debug "INSTALLDIR is '/home/${INSTALL_USER}'"
@@ -354,7 +359,7 @@ else
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>> "$BUILDLOG"
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'      2>> "$BUILDLOG"
 		dconf update 2>> "$BUILDLOG"
-		sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 1>> "$BUILDLOG" 2>&1
+		systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 1>> "$BUILDLOG" 2>&1
 		ufw allow from "$MY_SUBNETS" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
@@ -478,8 +483,8 @@ debug "Downloading and installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECT
 
 # Now do cabal; we'll pull binaries in this case
 #
-$WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" || \
-    err_exit 48 "$0: Unable to download cabal; aborting"
+$WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" \
+    || err_exit 48 "$0: Unable to download cabal; aborting"
 tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
 cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
@@ -691,8 +696,9 @@ if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
 	fi
 else
 	SUBSCRIPT=''
+	# If we are a block producer (port 6000 or higher - assumed to be a producer node)
 	if [ "${LISTENPORT}" -ge 6000 ]; then
-		[ -z "$RELAY_ADDRESS" ] \
+		[ -z "${RELAY_ADDRESS}" ] \
 			&& err_exit 154 "Block producer really needs -R <relay-ip:port>; rerun with this argument supplied; (for now) aborting"
 		COUNTER=0
 		for keyAndVal in $(jq -r '.Producers[]|{addr}|to_entries[]|(.value)' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
@@ -709,20 +715,25 @@ else
 			cat < /dev/null > "$TMP_TOPOLOGY_FILE"
 		fi
 	fi
-	ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
-	for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
-		if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
-			ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
-			break
-		fi
-	done
-	if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
-	    PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
-		jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
-		cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-		cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+	# Everyone gets to here (block producers and relay nodes alike), to add the relay address to the topology file
+	if [ -z "${RELAY_ADDRESS}" ]; then
+		debug "No -R <relay-ip:port> given (no prob); leaving topology file as is"
 	else
-		debug "Topology file already has a Producers element for ${RELAY_ADDRESS}:${RELAY_PORT}; no need to add"
+		ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
+		for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
+			if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
+				ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
+				break
+			fi
+		done
+		if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
+			PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
+			jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
+			cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+		else
+			debug "Topology file already has a Producers element for ${RELAY_ADDRESS}:${RELAY_PORT}; no need to add"
+		fi
 	fi
 fi
 rm -f "$TMP_TOPOLOGY_FILE"
@@ -736,7 +747,7 @@ systemctl daemon-reload
 systemctl enable cardano-node 1>> "$BUILDLOG" 2>&1
 systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
 (systemctl status cardano-node | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
-    err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
+    || err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
 #
 # UPDATE gLiveView.sh
@@ -768,11 +779,11 @@ $PIP install cardano-tools   1>> "$BUILDLOG" \
 
 debug "Tasks:"
 debug "  You may have to clear ${CARDANO_DBDIR} before running cardano-node again"
-debug "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
-debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
+debug "  It is recommended that the (powerful) $PIUSER account be locked or otherwise secured"
+debug "  Check networking and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
 debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
-debug "  Please examine topology file: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
+debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
