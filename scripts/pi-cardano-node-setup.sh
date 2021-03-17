@@ -576,7 +576,8 @@ else
 		CARDANOBUILDTMPFILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
 		debug "Failed to build cardano-node; now verbose debugging to: $CARDANOBUILDTMPFILE"
 		strace $CABAL build cardano-cli cardano-node 2> "$CARDANOBUILDTMPFILE" \
-			|| (rm -f "$CARDANOBUILDTMPFILE"; err_exit 88 "$0: Failed to build cardano-node; check $CARDANOBUILDTMPFILE")
+			|| err_exit 88 "$0: Failed to build cardano-node; check $CARDANOBUILDTMPFILE"
+		rm -f "$CARDANOBUILDTMPFILE"
 	else
 		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
 	fi
