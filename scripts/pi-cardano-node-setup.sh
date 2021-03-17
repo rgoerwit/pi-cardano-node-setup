@@ -127,7 +127,7 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="$BUILDDIR/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
-CARDANO_DBDIR="${INSTALLDIR}/db"
+CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 
@@ -269,6 +269,7 @@ fi
 
 debug "Making sure SSH service is enabled and started"
 $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
+systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 systemctl start ssh                               1>> "$BUILDLOG" 2>&1
 systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
@@ -590,7 +591,7 @@ debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | he
 debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
-for subdir in 'files' 'db' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
+for subdir in 'files' "db-${BLOCKCHAINNETWORK}" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
     mkdir -p "${INSTALLDIR}/$subdir"
     chown -R "${INSTALL_USER}.${INSTALL_USER}" "${INSTALLDIR}/$subdir" 2>/dev/null
 	find "${INSTALLDIR}/$subdir" -type d -exec chmod "2775" {} \;
@@ -620,36 +621,6 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	fi
 	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": +false/TraceBlockFetchDecisions\": true/g"
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] || err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
-
-    # Modify topology file; add -R <relay-ip:port> information
-	#
-	if [ ".$RELAY_ADDRESS" = '.' ]; then
-		debug "No relay address and port supplied $RELAY_INFO $RELAY_ADDRESS $RELAY_PORT"
-	else
-	    debug "Adding relay ${RELAY_ADDRESS}:${RELAY_PORT} info to ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-		# Have to go through all the elements in .Producers and see if any of them match
-		ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
-		for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
-			if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
-			    ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
-				break
-			fi
-		done
-
-		if [ ".$ALREADY_PRESENT_IN_TOPOLOGY_FILE" = '.Y' ] ; then
-			debug "Topology file already has ${RELAY_ADDRESS}:${RELAY_PORT} information; no need to add it"
-		else
-			if [ $LISTENPORT -gt 6000 ] \
-				&& '.Producers[0].addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | egrep -q -i 'iohk|cardano|emurgo'; then
-				# Listenport is >= 6000; we're a block producer; clobber topology file and only talk to relay
-				echo -e '{ "Producers": [ ] }\n' > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			fi
-			# Append block producer info to topology file
-			BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
-			jq ".Producers[] |= . + $BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
-				> "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"  # Overwrite
-		fi
-	fi
 
 	# Set up startup script
 	#
@@ -706,11 +677,65 @@ _EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
-debug "Cardano node will be started as follows: $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
+debug "Cardano node will be started (later): $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
+
+# Modify topology file; add -R <relay-ip:port> information
+#
+TMP_TOPOLOGY_FILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
+BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
+if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
+	# Topology file is empty; just create the whole thing all at once...
+	if [[ ! -z "${RELAY_ADDRESS}" ]]; then
+		# ...if, that is, we have a relay address (-R argment)
+		echo -e "{ \"Producers\": [ $BLOCKPRODUCERNODE ] }\n" | jq >> "$TMP_TOPOLOGY_FILE"
+	fi
+else
+	SUBSCRIPT=''
+	if [ "${LISTENPORT}" -ge 6000 ]; then
+		[ -z "$RELAY_ADDRESS" ] \
+			&& err_exit 154 "Block producer really needs -R <relay-ip:port>; rerun with this argument supplied; (for now) aborting"
+		COUNTER=0
+		for keyAndVal in $(jq -r '.Producers[]|{addr}|to_entries[]|(.value)' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
+			COUNTER=$(expr $COUNTER + 1)
+			if echo "$keyAndVal" | egrep -q 'iohk|cardano|emurgo'; then
+				SUBSCRIPT=$(expr $COUNTER - 1)
+				break
+			fi
+		done
+		if [[ ! -z "$SUBSCRIPT" ]]; then
+			debug "We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
+			cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+		fi
+	fi
+	ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
+	for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
+		if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
+			ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
+			break
+		fi
+	done
+	if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
+	    PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
+		jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
+		cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+		cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+	else
+		debug "Topology file already has a Producers element for ${RELAY_ADDRESS}:${RELAY_PORT}; no need to add"
+	fi
+fi
+rm -f "$TMP_TOPOLOGY_FILE"
+[ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
+	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
+
+# Ensure cardano-node auto-starts
+#
+debug "Setting up cardano-node as system service"
 systemctl daemon-reload	
 systemctl enable cardano-node 1>> "$BUILDLOG" 2>&1
 systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
-systemctl status cardano-node 1>> "$BUILDLOG" 2>&1 \
+(systemctl status cardano-node | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
     err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
 #
@@ -742,12 +767,12 @@ $PIP install cardano-tools   1>> "$BUILDLOG" \
     || err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
 
 debug "Tasks:"
-debug "  You may have to clear the db-folder (${CARDANO_DBDIR}) before running cardano-node again"
+debug "  You may have to clear ${CARDANO_DBDIR} before running cardano-node again"
 debug "  It is highly recommended that the (powerful) $PIUSER account be locked or otherwise secured"
 debug "  Check networking setup and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
-debug "  Monitor node activity (pretty) by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
-debug "  Hand examine the topology file: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
+debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "  Please examine topology file: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
