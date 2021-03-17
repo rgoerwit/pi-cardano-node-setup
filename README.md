@@ -9,17 +9,17 @@
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 
 ```
+**New (overclocking) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 5 setup, specifying a -R relay-node:port**:  
+```
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 -R 192.168.6.238:3000
+```
 **New (non-ARM) mainnet relay setup on TCP port 3000**:
 ```
 pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ''
 ```
-**Refresh of existing mainnet setup (keep existing config files)**:  
+**Refresh of existing mainnet setup with full recompile (keeping existing config files, but adding a new relay)**:  
 ```
-pi-cardano-setup.sh -D -d -b builduser -u cardano -n mainnet
-```
-**(overclocking) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 5 setup**:  
-```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 -R 192.168.6.238:3000
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -d -R '-R 192.168.6.238:3000'
 ```
 
 ## Command-line syntax is as follows:
