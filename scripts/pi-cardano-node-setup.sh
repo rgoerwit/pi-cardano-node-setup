@@ -560,9 +560,9 @@ for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 			'CARDANO_NODE_SOCKET_PATH' ) SUBSTITUTION="\"${INSTALLDIR}/sockets/core-node.socket\"" ;;
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
-		if egrep -q "^ *export  *${envvar}=" "$bashrcfile"; then
+		if egrep -q "^ *export  *${envvar} *=" "$bashrcfile"; then
 		    debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
-			sed -i "$bashrcfile" -e "s|^ *export  *\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
+			sed -i "$bashrcfile" -e "s|^ *export  *\(${envvar}\) *=.*\$|export \1=${SUBSTITUTION}|g"
 		else
 		    debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
 			echo "export ${envvar}=${SUBSTITUTION}" >> $bashrcfile
@@ -718,6 +718,7 @@ After=multi-user.target
  
 [Service]
 User=$INSTALL_USER
+Environment=LD_LIBRARY_PATH=/usr/local/lib
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 StandardOutput=journal
