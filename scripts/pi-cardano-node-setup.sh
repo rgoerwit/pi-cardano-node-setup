@@ -533,7 +533,7 @@ for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 			'CARDANO_NODE_SOCKET_PATH' ) SUBSTITUTION="\"${INSTALLDIR}/sockets/core-node.socket\"" ;;
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
-		if egrep -q "^ *export +${envvar}=" "$bashrcfile"; then
+		if egrep -q "^ *export  *${envvar}=" "$bashrcfile"; then
 		    debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
 			sed -i "$bashrcfile" -e "s|^ *export +\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
 		else
@@ -647,7 +647,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 	fi
-	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": +false/TraceBlockFetchDecisions\": true/g"
+	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] || err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
 
 	# Set up startup script
