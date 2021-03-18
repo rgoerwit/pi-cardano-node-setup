@@ -345,7 +345,7 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
       - targets: ['node-ip-address-goes-here:12798']
-## Uncomment if you install the node exporter on your relay and open up port 9000
+## Uncomment if you install the node exporter on your relay and open up port 9000 on relay
 #  - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
 #    scrape_interval: 5s
 #    static_configs:
@@ -807,17 +807,26 @@ systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
 (systemctl status cardano-node | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
     || err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
+# UPDATE gLiveView.sh and other guild scripts
 #
-# UPDATE gLiveView.sh
-#
-debug "Downloading gLiveView.sh to: ${CARDANO_SCRIPTDIR}"
+debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
 cd "$INSTALLDIR"
 $WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh" -O "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
     || err_exit 108 "$0: Failed to fetch ${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh; aborting"
 chmod 755 "${CARDANO_SCRIPTDIR}/gLiveView.sh"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	$WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/env" -O "${CARDANO_SCRIPTDIR}/env" \
-		|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/env; aborting"
+	pushd "${TMPDIR:-/tmp}" 1>> "$BUILDLOG" 2>&1; rm -rf 'guild-operators-temp'
+    git init 'guild-operators-temp'     1>> "$BUILDLOG" 2>&1
+    cd 'guild-operators-temp/'
+	git remote add origin "$GUILDREPO"  1>> "$BUILDLOG" 2>&1
+	git config core.sparsecheckout true 1>> "$BUILDLOG" 2>&1
+ 	echo 'scripts/cnode-helper-scripts/*' >> .git/info/sparse-checkout
+ 	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
+	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
+	cd ./scripts/cnode-helper-scripts
+	cp -f * ${CARDANO_SCRIPTDIR}/
+	chown "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}/*"
+	popd 1>> "$BUILDLOG" 2>&1
 	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
 	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
