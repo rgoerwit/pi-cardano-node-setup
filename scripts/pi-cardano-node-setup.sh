@@ -234,7 +234,7 @@ chmod 2755 "$BUILDDIR"
 touch "$BUILDLOG"
 
 [ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this will take several hours now...."
-debug "To monitor progress, run this in another window: tail -f \"$BUILDLOG\""
+debug "To monitor progress, run: tail -f \"$BUILDLOG\""
 
 # Update system, install prerequisites, utilities, etc.
 #
@@ -328,9 +328,36 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
+	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 		ufw allow from "$netw" to any port ssh 1>> "$BUILDLOG" 2>&1
+		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
+			ufw allow from "$netw" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
+		fi
 	done
+	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
+		 echo "Install Prometheus on your monitoring station.  Sample prometheus.yaml file:"
+		 cat << _EOF
+# --------------------------------------------------------------------------------------------
+scrape_configs:
+  - job_name: 'cardano' # To scrape data from the cardano node
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['node-ip-address-goes-here:12798']
+## Uncomment if you install the node exporter on your relay and open up port 9000
+#  - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
+#    scrape_interval: 5s
+#    static_configs:
+#    - targets: ['node-ip-address-goes-here:9090']
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  external_labels:
+    monitor: 'codelab-monitor'
+# --------------------------------------------------------------------------------------------
+_EOF
+	fi
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	# ufw allow 3001/tcp           1>> "$BUILDLOG"
@@ -438,7 +465,7 @@ fi
 if [ ".$VLAN_NUMBER" != '.' ]; then
     NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
 	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
-		debug "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs.  Do this part manually."
+		debug "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs; edit manually."
 	else
     	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
 		cat << _EOF >> "$NETPLAN_FILE"
@@ -478,7 +505,7 @@ debug "Installing: ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
-debug "Downloading and installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+debug "Downloading, installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 
 # Now do cabal; we'll pull binaries in this case
 #
@@ -498,7 +525,7 @@ fi
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
-debug "Downloading and installing libsodium, version $LIBSODIUM_VERSION"
+debug "Downloading, installing libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
 'rm' -rf libsodium
 git clone https://github.com/input-output-hk/libsodium 1>> "$BUILDLOG" 2>&1
@@ -535,7 +562,7 @@ for bashrcfile in "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 		esac
 		if egrep -q "^ *export  *${envvar}=" "$bashrcfile"; then
 		    debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
-			sed -i "$bashrcfile" -e "s|^ *export +\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
+			sed -i "$bashrcfile" -e "s|^ *export  *\(${envvar}\)=.*$\+|export \1=${SUBSTITUTION}|g"
 		else
 		    debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
 			echo "export ${envvar}=${SUBSTITUTION}" >> $bashrcfile
@@ -589,7 +616,7 @@ fi
 #
 # Stop the node so we can replace binaries
 #
-debug "Stopping cardano-node service, if running (need to do this to replace binaries)" 
+debug "Stopping cardano-node service, if running (so we can install or refresh binaries)" 
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
@@ -640,9 +667,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"        -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"   -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
-	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\": false/TraceBlockFetchDecisions\": true/g"
+	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
-	if [ ".$CURRENT_EKG_PORT" != '.' ] && egrep -q 'CURRENT_EKG_PORT' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"; then 
+	if [ ".$CURRENT_EKG_PORT" != '.' ]; then 
+		debug "Restoring old hasEKG, hasPrometheus values"
 		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
@@ -711,17 +739,20 @@ _EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
-debug "Cardano node will be started (later): $INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/"
+debug "Cardano node will be started (later): $INSTALLDIR/cardano-node run \\
+    --socket-path $INSTALLDIR/sockets/core-node.socket \\
+    --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
+    --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
+    --database-path ${CARDANO_DBDIR}/"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
-TMP_TOPOLOGY_FILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
 BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
 	# Topology file is empty; just create the whole thing all at once...
 	if [[ ! -z "${RELAY_ADDRESS}" ]]; then
 		# ...if, that is, we have a relay address (-R argment)
-		echo -e "{ \"Producers\": [ $BLOCKPRODUCERNODE ] }\n" | jq >> "$TMP_TOPOLOGY_FILE"
+		echo -e "{ \"Producers\": [ $BLOCKPRODUCERNODE ] }\n" | jq | sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	fi
 else
 	SUBSCRIPT=''
@@ -739,14 +770,13 @@ else
 		done
 		if [[ ! -z "$SUBSCRIPT" ]]; then
 			debug "We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
-			cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+			jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+				| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 		fi
 	fi
 	# Everyone gets to here (block producers and relay nodes alike), to add the relay address to the topology file
 	if [ -z "${RELAY_ADDRESS}" ]; then
-		debug "No -R <relay-ip:port> given (no prob); leaving topology file as is"
+		debug "No -R <relay-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
 	else
 		ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
 		for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
@@ -757,15 +787,13 @@ else
 		done
 		if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
 			PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
-			jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" >> "$TMP_TOPOLOGY_FILE"
-			cat < "$TMP_TOPOLOGY_FILE" > "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			cat < /dev/null > "$TMP_TOPOLOGY_FILE"
+			jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+				| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 		else
 			debug "Topology file already has a Producers element for ${RELAY_ADDRESS}:${RELAY_PORT}; no need to add"
 		fi
 	fi
 fi
-rm -f "$TMP_TOPOLOGY_FILE"
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
