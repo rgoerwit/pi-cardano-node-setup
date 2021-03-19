@@ -125,6 +125,13 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
 INSTALLDIR="/home/${INSTALL_USER}"
+LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
+if [ ".$LASTRUNCOMMAND" != '.' ]; then
+	debug "Last run:\n  $LASTRUNCOMMAND" 
+	debug "Full command history: ls $INSTALLDIR/logs/build-command-line*log"
+fi
+LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
+echo -n "$0 $* # (not completed)" > $LASTRUNFILE
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="$BUILDDIR/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
@@ -143,7 +150,7 @@ skip_op() {
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 [ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
 if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
-	debug "Running script as root (sadly, yes, this is needed)"
+	debug "Running script as root (not needed; use 'sudo')"
 else
 	err_exit 12 "$0: Script must be run as root (eliminates confusion over real vs effective user); aborting"
 fi
@@ -250,6 +257,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev cython cython3 libnuma-dev \
 	    1>> "$BUILDLOG" 2>&1 \
 	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+snap connect nmap:network-control 1>> "$BUILDLOG" 2>&1
 				
 # Make sure some other basic prerequisites are correctly installed
 $APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
@@ -854,6 +862,7 @@ debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHA
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
+sed -i  "$LASTRUNFILE" 's/ # (not completed)/ # (completed)/'
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
 rm -f "$LOGFILE"      2> /dev/null
