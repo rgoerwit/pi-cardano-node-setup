@@ -34,7 +34,7 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <external IPV4>] [-6 <external IPV6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
+Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
     [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
 	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
 	[-v <VLAN num> ] [-x]
@@ -130,7 +130,7 @@ INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="$BUILDDIR/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
-CARDANO_KEYDIR="${INSTALLDIR}/keys-${BLOCKCHAINNETWORK}"
+CARDANO_KEYDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 
@@ -218,6 +218,7 @@ else
     useradd -m -s /bin/bash "$BUILD_USER"                  1>> /dev/null 2>&1
 	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin 1>> /dev/null 2>&1
     passwd -l "$BUILD_USER"                                1>> /dev/null
+	stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$' || chmod o-rwx "/home/${BUILD_USER}"
 fi
 #
 mkdir "$BUILDDIR" 2> /dev/null
@@ -484,6 +485,8 @@ id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
 # The account for the install user (which will run cardano-node) should be locked
 usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin   1>> "$BUILDLOG" 2>&1
 passwd -l "$INSTALL_USER"                                  1>> "$BUILDLOG"
+stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$' || chmod o-rwx "/home/${INSTALL_USER}""
+
 
 # Install GHC, cabal
 #
@@ -647,11 +650,12 @@ debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | he
 debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
-for subdir in 'files' "db-${BLOCKCHAINNETWORK}" "keys-${BLOCKCHAINNETWORK}" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
-    mkdir -p "${INSTALLDIR}/$subdir"
-    chown -R "${INSTALL_USER}.${INSTALL_USER}" "${INSTALLDIR}/$subdir" 2>/dev/null
-	find "${INSTALLDIR}/$subdir" -type d -exec chmod "2775" {} \;
-	find "${INSTALLDIR}/$subdir" -type f -exec chmod ug+w,ugo+r {} \; -name '*.sh' -exec chmod a+x {} \; 
+for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_KEYDIR" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
+    (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
+	mkdir -p "$INSTALL_SUBDIR"
+    chown -R "${INSTALL_USER}.${INSTALL_USER}" "$INSTALL_SUBDIR" 2>/dev/null
+	find "$INSTALL_SUBDIR" -type d -exec chmod "2775" {} \;
+	find "$INSTALL_SUBDIR" -type f -exec chmod ug+w,ugo+r {} \; -name '*.sh' -exec chmod a+x {} \; 
 done
 
 # UPDATE mainnet-config.json and related files to latest version and start node
