@@ -239,9 +239,12 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev cython cython3 libnuma-dev \
+	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+$APTINSTALLER install cython3 1>> "$BUILDLOG" 2>&1 \
+	|| $APTINSTALLER install cython 1>> "$BUILDLOG" 2>&1 \
+		debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
 snap connect nmap:network-control 1>> "$BUILDLOG" 2>&1
 
 # Make sure some other basic prerequisites are correctly installed
