@@ -215,8 +215,8 @@ if id "$BUILD_USER" 1>> /dev/null; then
 	: do nothing
 else
     # But...if we have to create the build user, lock the password
-    useradd -m -s /bin/bash "$BUILD_USER"                  1>> /dev/null
-	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin 1>> /dev/null
+    useradd -m -s /bin/bash "$BUILD_USER"                  1>> /dev/null 2>&1
+	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin 1>> /dev/null 2>&1
     passwd -l "$BUILD_USER"                                1>> /dev/null
 fi
 #
@@ -482,7 +482,7 @@ debug "Checking and (if need be) making install user: ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
     || useradd -m -s /bin/bash "$INSTALL_USER" 1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
-usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin   1>> "$BUILDLOG"
+usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin   1>> "$BUILDLOG" 2>&1
 passwd -l "$INSTALL_USER"                                  1>> "$BUILDLOG"
 
 # Install GHC, cabal
@@ -643,7 +643,7 @@ debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | he
 debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
-for subdir in 'files' "$CARDANO_DBDIR" "$CARDANO_KEYDIR" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
+for subdir in 'files' "db-${BLOCKCHAINNETWORK}" "keys-${BLOCKCHAINNETWORK}" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
     mkdir -p "${INSTALLDIR}/$subdir"
     chown -R "${INSTALL_USER}.${INSTALL_USER}" "${INSTALLDIR}/$subdir" 2>/dev/null
 	find "${INSTALLDIR}/$subdir" -type d -exec chmod "2775" {} \;
@@ -838,7 +838,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
 	cd ./scripts/cnode-helper-scripts
 	cp -f * ${CARDANO_SCRIPTDIR}/
-	chown "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}/*"
+	chown -R "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}"
 	popd 1>> "$BUILDLOG" 2>&1
 	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
 	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
