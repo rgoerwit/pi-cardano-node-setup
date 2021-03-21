@@ -866,7 +866,7 @@ debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHA
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
-sed -i  "$LASTRUNFILE" 's/ # (not completed)/ # (completed)/'
+sed -i 's/ # (not completed)/ # (completed)/' "$LASTRUNFILE" 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
 rm -f "$TMPFILE"      2> /dev/null
 rm -f "$LOGFILE"      2> /dev/null
