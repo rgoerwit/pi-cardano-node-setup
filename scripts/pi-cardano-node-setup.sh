@@ -531,7 +531,11 @@ git checkout "$LIBSODIUM_VERSION"    1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Fa
 ./autogen.sh                         1>> "$BUILDLOG" 2>&1
 ./configure                          1>> "$BUILDLOG" 2>&1
 $MAKE                                1>> "$BUILDLOG" 2>&1
-$MAKE install                        1>> "$BUILDLOG"      || err_exit 78 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
+$MAKE install                        1>> "$BUILDLOG" || err_exit 78 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
+if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
+	debug "$0: Installing libsodium even though -x argument was supplied; won't work otherwise"
+	make; make install
+fi 
 # Apparent problem with Debian on this front
 if [ -f "/usr/local/lib/libsodium.so.23.3.0" ]; then
     [ -f "/usr/lib/libsodium.so.23" ] || \
