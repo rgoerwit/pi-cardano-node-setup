@@ -37,7 +37,7 @@ usage() {
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] [-d] [-D] \
     [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
 	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-V <cardano-node version>] [-x] [-y <ghc-version>]
+	[-v <VLAN num> ] [-V <cardano-node version>] [-x] [-y <ghc-version>] [-Y]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -72,11 +72,12 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
 -V    Specify Cardano node version (currently defaults to 1.25.1)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
+-Y    Set up cardano-db-sync
 _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy: opt; do
+while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -103,6 +104,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy: opt; do
 	V ) CARDANONODEVERSION="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
+    Y ) SETUP_DBSYNC='Y' ;;
     \? ) usage ;;
     esac
 done
@@ -339,6 +341,7 @@ else
 	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
+	    [ -z "$netw" ] && next
 		ufw allow from "$netw" to any port ssh 1>> "$BUILDLOG" 2>&1
 		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
 			ufw allow from "$netw" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
@@ -899,6 +902,13 @@ debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveVi
 debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
+
+# Read in and run dbsync-installation code
+SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
+if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
+	. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
+		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+fi
 
 sed -i 's/ # (not completed)/ # (completed)/' "$LASTRUNFILE" 
 rm -f "$TEMPLOCKFILE" 2> /dev/null
