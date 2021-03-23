@@ -2,7 +2,7 @@
 #
 #############################################################################
 #
-#  Meant to be sourced by pi-cardano-db-sync-setup.sh
+#  Meant to be sourced by pi-cardano-node-setup.sh
 #
 #############################################################################
 
@@ -19,6 +19,8 @@
 [ -z "${CABAL_EXECUTABLE}" ]  && CABAL_EXECUTABLE="cabal"
 [ -z "${WGET}" ]              && WGET="wget"
 [ -z "${APTINSTALLER}" ]      && APTINSTALLER="apt-get -q --assume-yes"
+
+PROJECTNAME='cardano-db-sync'
 
 if declare -F debug 1> /dev/null; then
 	: do nothing
@@ -39,15 +41,32 @@ err_exit() {
 	}
 fi
 
-$APTINSTALLER postgresql 1>> "$BUILDLOG" 2>&1 \
+$APTINSTALLER install postgresql libpq-dev 1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 72 "$0: Failed to install postgresql; aborting"
+systemctl enable postgresql 1>> "$BUILDLOG" 2>&1 \\
+    || err_exit 81 "$0: Failed to enable postgresql service ('systemctl enable postgresql'); aborting"
 
-PROJECTNAME='cardano-db-sync'
+only do this if database is not yet created...
+hostname:port:database:username:password
+
+
+
+export PGPASSFILE="${BUILDDIR}/${PROJECTNAME}/config/pgpass"
+echo "root:$(strings /dev/urandom | grep -o '[[:alnum:]]' | head -n 16 | tr -d '\n'; echo):cardanodata" > "$PGPPASSFILE"
+su -u "$INSTALL_USER" -c "createuser --createdb --superuser $user"
+chmod go-rwx "$PGPPASSFILE"
+
+
+
 
 cd "${BUILDDIR}"
-git clone "${IOHKREPO}/${PROJECTNAME}" 1>> "$BUILDLOG" 2>&1 \
-    || err_exit 73 "$0:  Failed to clone repository: ${IOHKREPO}/${PROJECTNAME}"
-cd "${PROJECTNAME}"
+if [ -d "${BUILDDIR}/${PROJECTNAME}" ]; then
+    : nothing to do 
+else
+    git clone "${IOHKREPO}/${PROJECTNAME}" 1>> "$BUILDLOG" 2>&1 \
+        || err_exit 73 "$0:  Failed to clone repository: ${IOHKREPO}/${PROJECTNAME}"
+fi
+cd "${BUILDDIR}/${PROJECTNAME}"
 
 git fetch --tags --all 1>> "$BUILDLOG" 2>&1
 git pull               1>> "$BUILDLOG" 2>&1 \

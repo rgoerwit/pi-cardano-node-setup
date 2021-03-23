@@ -177,7 +177,7 @@ if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
 	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] && err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
 fi
 
-[ -z "${IOHKREPO}" ]           && IOHKREPO="https://github.com/input-output-hk/"
+[ -z "${IOHKREPO}" ]           && IOHKREPO="https://github.com/input-output-hk"
 [ -z "${IOHKAPIREPO}" ]        && IOHKAPIREPO="https://api.github.com/repos/input-output-hk"
 [ -z "${GUILDREPO}" ]          && GUILDREPO="https://github.com/cardano-community/guild-operators"
 [ -z "${GUILDREPO_RAW}" ]      && GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
@@ -335,6 +335,7 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
+	# Prometheus settings are preserved if set, even if we later overwrite config.json file
 	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
@@ -342,6 +343,7 @@ else
 		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
 			ufw allow from "$netw" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
 		fi
+		ufw allow from "$netw" to any port 5432 1>> "$BUILDLOG" 2>&1  # assume PostgreSQL
 	done
 	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
 		 echo "Install Prometheus on your monitoring station.  Sample prometheus.yaml file:"
@@ -689,8 +691,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 	fi
+	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] \
+		|| err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
+
+	# Adjust files in various ways - turning off memory monitoring (kills performance as of 1.25.1), turn on block fetch decision tracing
 	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
-	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] || err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
+	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceMempool="false"            "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 
 	# Set up startup script
 	#
@@ -846,25 +853,34 @@ $WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh" -O "${CAR
     || err_exit 108 "$0: Failed to fetch ${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh; aborting"
 chmod 755 "${CARDANO_SCRIPTDIR}/gLiveView.sh"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	pushd "${TMPDIR:-/tmp}" 1>> "$BUILDLOG" 2>&1; rm -rf 'guild-operators-temp'
-    git init 'guild-operators-temp'     1>> "$BUILDLOG" 2>&1
-    cd 'guild-operators-temp/'
+	GUILDOPTEMPDIR='guild-operators-temp'
+	pushd "${TMPDIR:-/tmp}" 1>> "$BUILDLOG" 2>&1; rm -rf "$GUILDOPTEMPDIR"
+    git init "$GUILDOPTEMPDIR"          1>> "$BUILDLOG" 2>&1
+    cd "$GUILDOPTEMPDIR"
 	git remote add origin "$GUILDREPO"  1>> "$BUILDLOG" 2>&1
 	git config core.sparsecheckout true 1>> "$BUILDLOG" 2>&1
- 	echo 'scripts/cnode-helper-scripts/*' >> .git/info/sparse-checkout
+ 	echo 'scripts/cnode-helper-scripts/*' 1>> .git/info/sparse-checkout
  	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
 	cd ./scripts/cnode-helper-scripts
 	cp -f * ${CARDANO_SCRIPTDIR}/
 	chown -R "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}"
 	popd 1>> "$BUILDLOG" 2>&1
-	debug "Setting config file in gLiveView script: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
-	debug "Setting socket in gLiveView script: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
+	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
+		-e 's|^ *NO_INTERNET_MODE="N"|#NO_INTERNET_MODE="N"|' \
+			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
+	debug "Setting config file in Guild env file: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
+	debug "Setting socket in Guild env file: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
-			|| err_exit 109 "$0: Failed to modify gLiveView 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"
+			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"
 fi
+
+# Run this at startup to turn a given workstation into a basic monitoring console
+# Run it as the cardano user if possible
+#
+# cd ~cardano/scripts/; echo "p" | NO_INTERNET_MODE="Y" ./gLiveView.sh 1> /dev/console 2> /dev/null
 
 # install other utilities
 #
