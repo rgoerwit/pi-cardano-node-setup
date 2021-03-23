@@ -34,10 +34,10 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-c <node config filename>] [-d] [-D] \
+Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] [-d] [-D] \
     [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
 	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-x]
+	[-v <VLAN num> ] [-V <cardano-node version>] [-x] [-y <ghc-version>]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -49,17 +49,19 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -4    External IPv4 address (defaults to 0.0.0.0)
 -6    External IPv6 address (defaults to NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
+-B    Branch to use when checking out SPO Guild repo code (defaults to 'master')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
+-y    GHC version (currently defaults to 8.10.4)
 -h    Install (naturally, hidden) WiFi; format: SID:password (only use WiFi on the relay, not block producer)
 -i    Ignore missing dependencies installed by apt-get
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
--o    Overclocking value (should be something like, e.g., 2100 for a Pi 4)
+-o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
 -r    Install RDP
 -R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
@@ -68,21 +70,24 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
+-V    Specify Cardano node version (currently defaults to 1.25.1)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 _EOF
   exit 1
 }
 
-while getopts 4:6:b:c:dDg:G:h:im:n:o:p:rR:s:Su:v:w:x opt; do
+while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy: opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
 	b ) BUILD_USER="${OPTARG}" ;;
+	B ) GUILDREPOBRANCH="${OPTARG}" ;;
 	c ) NODE_CONFIG_FILE="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
 	g ) GHCOS="${OPTARG}" ;;
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
+	y ) GHCVERSION="${OPTARG}" ;;
     h ) HIDDEN_WIFI_INFO="${OPTARG}" ;;
 	i ) IGNORE_MISSING_DEPENDENCIES='--ignore-missing' ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
@@ -95,6 +100,7 @@ while getopts 4:6:b:c:dDg:G:h:im:n:o:p:rR:s:Su:v:w:x opt; do
 	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
 	v ) VLAN_NUMBER="${OPTARG}" ;;
+	V ) CARDANONODEVERSION="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
     \? ) usage ;;
@@ -171,12 +177,15 @@ if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
 	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] && err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
 fi
 
-GUILDREPO="https://github.com/cardano-community/guild-operators"
-GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-GUILDREPO_RAW_URL="${GUILDREPO_RAW}/master"
-WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
+[ -z "${IOHKREPO}" ]           && IOHKREPO="https://github.com/input-output-hk/"
+[ -z "${IOHKAPIREPO}" ]        && IOHKAPIREPO="https://api.github.com/repos/input-output-hk"
+[ -z "${GUILDREPO}" ]          && GUILDREPO="https://github.com/cardano-community/guild-operators"
+[ -z "${GUILDREPO_RAW}" ]      && GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+[ -z "${GUILDREPOBRANCH}" ]    && GUILDREPOBRANCH='master'
+[ -z "${GUILDREPO_RAW_URL}" ]  && GUILDREPO_RAW_URL="${GUILDREPO_RAW}/${GUILDREPOBRANCH}"
+[ -z "${WPA_SUPPLICANT}" ]     && WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
 WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeout $WGET_TIMEOUT -t 5"
-GHCVERSION="8.10.4"
+[ -z "$GHCVERSION" ] && GHCVERSION="8.10.4"
 GHCARCHITECTURE="$(arch)"         # could potentially be aarch64, arm7, arm8, etc. for example; see http://downloads.haskell.org/~ghc/
 GCCMARMARG=""                     # will be -marm for Raspberry Pi OS 32 bit; blank for Ubuntu 64
 if [ -z "$GHC_GCC_ARCH" ]; then
@@ -186,7 +195,7 @@ fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
 CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
-CARDANONODEVERSION="1.25.1"
+[ -z "$CARDANONODEVERSION" ] && CARDANONODEVERSION="1.25.1"
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
@@ -218,7 +227,7 @@ else
     useradd -m -s /bin/bash "$BUILD_USER"                  1>> /dev/null 2>&1
 	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin 1>> /dev/null 2>&1
     passwd -l "$BUILD_USER"                                1>> /dev/null
-	stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$' || chmod o-rwx "/home/${BUILD_USER}"
+	(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
 fi
 #
 mkdir "$BUILDDIR" 2> /dev/null
@@ -485,7 +494,7 @@ id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
 # The account for the install user (which will run cardano-node) should be locked
 usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin   1>> "$BUILDLOG" 2>&1
 passwd -l "$INSTALL_USER"                                  1>> "$BUILDLOG"
-stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$' || chmod o-rwx "/home/${INSTALL_USER}""
+(stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${INSTALL_USER}"
 
 
 # Install GHC, cabal
@@ -528,7 +537,7 @@ fi
 debug "Downloading, installing libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
 'rm' -rf libsodium
-git clone https://github.com/input-output-hk/libsodium 1>> "$BUILDLOG" 2>&1
+git clone "${IOHKREPO}/libsodium"    1>> "$BUILDLOG" 2>&1
 cd libsodium
 git checkout "$LIBSODIUM_VERSION"    1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
 ./autogen.sh                         1>> "$BUILDLOG" 2>&1
@@ -583,7 +592,7 @@ debug "Downloading, configuring, and (if no -x argument) building: cardano-node 
 cd "$BUILDDIR"
 'rm' -rf cardano-node-OLD
 'mv' -f cardano-node cardano-node-OLD
-git clone "https://github.com/input-output-hk/cardano-node.git" 1>> "$BUILDLOG" 2>&1
+git clone "${IOHKREPO}/cardano-node.git" 1>> "$BUILDLOG" 2>&1
 cd cardano-node
 git fetch --all --recurse-submodules --tags  1>> "$BUILDLOG" 2>&1
 git checkout "tags/${CARDANONODEVERSION}"    1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
@@ -749,7 +758,8 @@ debug "Cardano node will be started (later): $INSTALLDIR/cardano-node run \\
     --socket-path $INSTALLDIR/sockets/core-node.socket \\
     --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
     --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
-    --database-path ${CARDANO_DBDIR}/"
+    --database-path ${CARDANO_DBDIR}/ \\
+	$CERTKEYARGS"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
