@@ -908,11 +908,13 @@ debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHA
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
-# Read in and run dbsync-installation code
-SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
-if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
-	. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
-		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+if [ ".$SETUP_DBSYNC" = '.Y' ]; then
+	# Read in and run dbsync-installation code
+	SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
+	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
+		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
+			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+	fi
 fi
 
 sed -i 's/ # (not completed)/ # (completed)/' "$LASTRUNFILE" 

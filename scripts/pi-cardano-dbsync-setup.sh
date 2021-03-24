@@ -149,8 +149,8 @@ service postgresql restart                  1>> "$BUILDLOG" 2>&1 \
 
 cd "${BUILDDIR}/${PROJECTNAME}"
 WHENLASTUPDATED_FILE="${INSTALLDIR}/${PROJECTNAME}/${BLOCKCHAINNETWORK}-cardano-db-sync-isConfigured.txt"
-CARDANOPASSFILE="${INSTALLDIR}/${PROJECTNAME}/config/${BLOCKCHAINNETWORK}-CARDANOPASS" # https://www.postgresql.org/docs/current/libpq-CARDANOPASS.html
-
+CARDANOPASSFILE="${INSTALLDIR}/${PROJECTNAME}/config/${BLOCKCHAINNETWORK}-CARDANOPASS"
+PGPASSFILE="${INSTALLDIR}/${PROJECTNAME}/config/${BLOCKCHAINNETWORK}-pgpass"
 for subdir in 'config' 'schema'; do
     mkdir -p "${INSTALLDIR}/${PROJECTNAME}/${subdir}" 1>> "$BUILDLOG" 2>&1
     if [ "$subdir" = 'schema' ]; then
@@ -169,9 +169,17 @@ if [ ".$DONT_OVERWRITE" != 'Y' ]; then
     else
         debug "Creating new CARDANOPASS file: $CARDANOPASSFILE"
         CARDANOPASS=$(strings /dev/urandom | grep -o '[[:alnum:]]' | head -n 16 | tr -d '\n'; echo)
-        echo "/var/run/postgresql:5432:cexplorer:${INSTALL_USER}:${CARDANOPASS}" > "$CARDANOPASSFILE"
+        echo "/var/run/postgresql:5432:cexplorer-${BLOCKCHAINNETWORK}:${INSTALL_USER}:${CARDANOPASS}" > "$CARDANOPASSFILE"
         chmod go-rwx "$CARDANOPASSFILE"
         echo "Remote PostgreSQL password for $INSTALL_USER is NOW: ${CARDANOPASS}" | tee -a "$BUILDLOG"
+    fi
+    if [ -f "$PGPASSFILE" ]; then
+        echo "PGPASSFILE exists; skipping reconfiguration for $PGPASSFILE"
+    else
+        debug "Creating new PGPASSFILE file: $PGPASSFILE"
+        echo "/var/run/postgresql:5432:cexplorer-${BLOCKCHAINNETWORK}:*:*" > "$PGPASSFILE"
+        chmod go-rwx "$PGPASSFILE"
+        echo "Created new PGPASSFILE: ${PGPASSFILE}" | tee -a "$BUILDLOG"
     fi
 
     debug "Initializing PostgreSQL databases: ${BUILDDIR}/${PROJECTNAME}/scripts/postgresql-setup.sh --createdb"
@@ -180,7 +188,7 @@ if [ ".$DONT_OVERWRITE" != 'Y' ]; then
     createuser --login "$INSTALL_USER"                                  1>> "$BUILDLOG" 2>&1
     echo "ALTER ROLE cardano WITH PASSWORD '$CARDANOPASS';" | psql cexplorer 1> /dev/null
 
-    PGPASSFILE="$CARDANOPASSFILE"; export PGPASSFILE
+    export PGPASSFILE
     scripts/postgresql-setup.sh --dropdb    1>> "$BUILDLOG" 2>&1
     scripts/postgresql-setup.sh --createdb  1>> "$BUILDLOG" 2>&1 \
         || err_exit 83 "$0: Failed to configure PostgreSQL database (Guild postgresql-setup.sh script); aborting"
@@ -198,7 +206,7 @@ After=cardano-node.service
 [Service]
 User=$INSTALL_USER
 Environment=LD_LIBRARY_PATH=/usr/local/lib
-Environment=PGPASSFILE=$CARDANOPASSFILE
+Environment=PGPASSFILE=$PGPASSFILE
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 StandardOutput=journal
@@ -220,8 +228,11 @@ _EOF
 chown root.root "$DBSYNCSTARTUPSCRIPT"
 chmod 0644 "$DBSYNCSTARTUPSCRIPT"
 
-debug "cardano-db-sync will be executed as: \\
-    $INSTALLDIR/${PROJECTNAME}-extended \\
+debug "cardano-db-sync will be executed (at system startup) as: 
+    cd $INSTALLDIR/${PROJECTNAME}
+    export LD_LIBRARY_PATH="/usr/local/lib"
+    export PGPASSFILE="$PGPASSFILE"
+    PGPASSFILE=$CARDANOPASSFILE $INSTALLDIR/${PROJECTNAME}-extended \\
         --socket-path $INSTALLDIR/sockets/core-node.socket \\
         --config ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json \\
         --state-dir $INSTALLDIR/guild-db/ledger-state \\
