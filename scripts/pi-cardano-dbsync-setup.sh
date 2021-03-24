@@ -15,7 +15,8 @@
 [ -z "${BUILDLOG}" ]          && BUILDLOG="${BUILDDIR}/cardano-db-sync/build-$(date '+%Y-%m-%d-%H:%M:%S').log"
 [ -z "${CARDANO_FILEDIR}" ]   && CARDANO_FILEDIR="${INSTALLDIR}/files"
 [ -z "${CARDANO_SCRIPTDIR}" ] && CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
-[ -z "${GUILDREPO_RAW_URL}" ] && GUILDREPO_RAW_URL="https://raw.githubusercontent.com/cardano-community/guild-operators/${GUILDREPOBRANCH}"
+[ -z "${GUILDREPO}" ]         && GUILDREPO="https://github.com/cardano-community/guild-operators"
+[ -z "${GUILDREPO_RAW}" ]     && GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
 [ -z "${IOHKREPO}" ]          && IOHKREPO="https://github.com/input-output-hk/"
 [ -z "${IOHKAPIREPO}" ]       && IOHKAPIREPO="https://api.github.com/repos/input-output-hk"
 [ -z "${CABAL_EXECUTABLE}" ]  && CABAL_EXECUTABLE="cabal"
@@ -79,6 +80,19 @@ debug "Running 'cabal update' to ensure we have latest dependencies"
 $CABAL_EXECUTABLE update     1>> "$BUILDLOG" 2>&1
 $CABAL_EXECUTABLE build all  1>> "$BUILDLOG" 2>&1
 
+debug "Downloading guild dbsync config: ${GUILDREPO_RAW}/alpha/files/config-dbsync.json"
+CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+$WGET --quiet --continue "${GUILDREPO_RAW}/alpha/files/config-dbsync.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
+    || err_exit 75 "$0: Failed to download Guild dbsync config:  ${GUILDREPO_RAW}/blob/alpha/files/config-dbsync.json"
+sed -i "s|mainnet|${BLOCKCHAINNETWORK}|"                   "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
+sed -i "s|/opt/cardano/cnode|${INSTALLDIR}|"               "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
+sed -i "s|/config.json|/${BLOCKCHAINNETWORK}-config.json|" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
+jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""    "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
+    |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"          "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
+    |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+
 # Stop db-sync service and disable, to allow us to recreate database and startup script
 systemctl stop cardano-db-sync      1>> "$BUILDLOG" 2>&1
 systemctl disable cardano-db-sync   1>> "$BUILDLOG" 2>&1
@@ -101,7 +115,7 @@ service postgresql start                    1>> "$BUILDLOG" 2>&1
 
 PSQLVERSION=$(psql --version | sed 's/^.* \([0-9]*[0-9]\.[0-9][0-9]*\) .*$/\1/')
 PSQLSUBVERSION=$(psql --version | sed 's/^.* \([0-9]*[0-9]\)\.[0-9][0-9]* .*$/\1/')
-PGHBA_FILE="/etc/postgresql/${PSQLVERSION}/main/pg_hba.conf"
+PGHBA_FILE="/etc/postgresql/${PSQLVERSION}/main/pg_hba.conf" # See https://www.postgresql.org/docs/current/auth-pg-hba-conf.html
 PGCONF_FILE="/etc/postgresql/${PSQLVERSION}/main/postgresql.conf"  # #listen_addresses = 'localhost'
 [ -f "/etc/postgresql/${PSQLSUBVERSION}/main/pg_hba.conf" ]     && PGHBA_FILE="/etc/postgresql/${PSQLSUBVERSION}/main/pg_hba.conf"
 [ -f "/etc/postgresql/${PSQLSUBVERSION}/main/postgresql.conf" ] && PGCONF_FILE="/etc/postgresql/${PSQLSUBVERSION}/main/postgresql.conf"
@@ -135,7 +149,7 @@ service postgresql restart                  1>> "$BUILDLOG" 2>&1 \
 
 cd "${BUILDDIR}/${PROJECTNAME}"
 WHENLASTUPDATED_FILE="${INSTALLDIR}/${PROJECTNAME}/${BLOCKCHAINNETWORK}-cardano-db-sync-isConfigured.txt"
-PGPASSFILE="${INSTALLDIR}/${PROJECTNAME}/config/${BLOCKCHAINNETWORK}-pgpass" # https://www.postgresql.org/docs/current/libpq-pgpass.html
+CARDANOPASSFILE="${INSTALLDIR}/${PROJECTNAME}/config/${BLOCKCHAINNETWORK}-CARDANOPASS" # https://www.postgresql.org/docs/current/libpq-CARDANOPASS.html
 
 for subdir in 'config' 'schema'; do
     mkdir -p "${INSTALLDIR}/${PROJECTNAME}/${subdir}" 1>> "$BUILDLOG" 2>&1
@@ -149,23 +163,24 @@ done
 if [ ".$DONT_OVERWRITE" != 'Y' ]; then
     debug "Reconfiguring PostgreSQL database; last set up on $(cat $WHENLASTUPDATED_FILE)"
 
-    if [ -f "$PGPASSFILE" ]; then
-        echo "Remote PostgreSQL password for $BUILD_USER is: $(cut -d : -f 5 $PGPASSFILE)" | tee -a "$BUILDLOG"
+    if [ -f "$CARDANOPASSFILE" ]; then
+        CARDANOPASS=$(cut -d : -f 5 "$CARDANOPASSFILE")
+        echo "Remote PostgreSQL password for $INSTALL_USER (unchanged) is: $CARDANOPASS" | tee -a "$BUILDLOG"
     else
-        debug "Creating new pgpass file: $PGPASSFILE"
+        debug "Creating new CARDANOPASS file: $CARDANOPASSFILE"
         CARDANOPASS=$(strings /dev/urandom | grep -o '[[:alnum:]]' | head -n 16 | tr -d '\n'; echo)
-        echo "/var/run/postgresql:5432:cexplorer:${INSTALL_USER}:${CARDANOPASS}" > "$PGPASSFILE"
-        chmod go-rwx "$PGPASSFILE"
-        echo "Remote PostgreSQL password for $BUILD_USER is: ${CARDANOPASS}" | tee -a "$BUILDLOG"
+        echo "/var/run/postgresql:5432:cexplorer:${INSTALL_USER}:${CARDANOPASS}" > "$CARDANOPASSFILE"
+        chmod go-rwx "$CARDANOPASSFILE"
+        echo "Remote PostgreSQL password for $INSTALL_USER is NOW: ${CARDANOPASS}" | tee -a "$BUILDLOG"
     fi
 
     debug "Initializing PostgreSQL databases: ${BUILDDIR}/${PROJECTNAME}/scripts/postgresql-setup.sh --createdb"
     sudo -u "postgres" createuser --createdb --superuser "$(whoami)"    1>> "$BUILDLOG" 2>&1
     dropuser "$INSTALL_USER"                                            1>> "$BUILDLOG" 2>&1
     createuser --login "$INSTALL_USER"                                  1>> "$BUILDLOG" 2>&1
-    echo "ALTER ROLE cardano WITH PASSWORD '82B7GU2IKgrMd9O7';" | psql cexplorer 1> /dev/null
+    echo "ALTER ROLE cardano WITH PASSWORD '$CARDANOPASS';" | psql cexplorer 1> /dev/null
 
-    export PGPASSFILE
+    PGPASSFILE="$CARDANOPASSFILE"; export PGPASSFILE
     scripts/postgresql-setup.sh --dropdb    1>> "$BUILDLOG" 2>&1
     scripts/postgresql-setup.sh --createdb  1>> "$BUILDLOG" 2>&1 \
         || err_exit 83 "$0: Failed to configure PostgreSQL database (Guild postgresql-setup.sh script); aborting"
@@ -183,7 +198,7 @@ After=cardano-node.service
 [Service]
 User=$INSTALL_USER
 Environment=LD_LIBRARY_PATH=/usr/local/lib
-Environment=PGPASSFILE=$PGPASSFILE
+Environment=PGPASSFILE=$CARDANOPASSFILE
 KillSignal=SIGINT
 RestartKillSignal=SIGINT
 StandardOutput=journal
@@ -193,7 +208,7 @@ TimeoutStartSec=0
 Type=simple
 KillMode=process
 WorkingDirectory=$INSTALLDIR/${PROJECTNAME}
-ExecStart=$INSTALLDIR/${PROJECTNAME}-extended --config $CARDANO_FILEDIR/dbsync.json --socket-path $INSTALLDIR/sockets/core-node.socket --state-dir $INSTALLDIR/guild-db/ledger-state --schema-dir schema/
+ExecStart=$INSTALLDIR/${PROJECTNAME}-extended --socket-path $INSTALLDIR/sockets/core-node.socket --config ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json --state-dir $INSTALLDIR/guild-db/ledger-state --schema-dir schema/
 Restart=on-failure
 RestartSec=10s
 LimitNOFILE=32768
@@ -205,11 +220,12 @@ _EOF
 chown root.root "$DBSYNCSTARTUPSCRIPT"
 chmod 0644 "$DBSYNCSTARTUPSCRIPT"
 
-debug "$INSTALLDIR/${PROJECTNAME}-extended \\
-    --config $CARDANO_FILEDIR/dbsync.json \\
-    --socket-path $INSTALLDIR/sockets/core-node.socket \\
-    --state-dir $INSTALLDIR/guild-db/ledger-state \\
-    --schema-dir schema/"
+debug "cardano-db-sync will be executed as: \\
+    $INSTALLDIR/${PROJECTNAME}-extended \\
+        --socket-path $INSTALLDIR/sockets/core-node.socket \\
+        --config ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json \\
+        --state-dir $INSTALLDIR/guild-db/ledger-state \\
+        --schema-dir schema/"
 
 debug "Setting up cardano-db-sync as system service"
 systemctl daemon-reload	
@@ -217,3 +233,20 @@ systemctl enable cardano-db-sync 1>> "$BUILDLOG" 2>&1
 systemctl start cardano-db-sync  1>> "$BUILDLOG" 2>&1
 (systemctl status cardano-db-sync | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
     || err_exit 138 "$0: Problem enabling (or starting) cardano-db-sync service; aborting (run 'systemctl status cardano-db-sync')"
+
+cat << _EOF
+See:  https://github.com/input-output-hk/cardano-db-sync/blob/master/doc/schema-management.md
+Note:
+    Whenever the Haskell schema definition in Cardano.Db.Schema is updated, a schema migration
+    can be generated using the command (schema directory might need a full path):
+
+        cabal run cardano-db-sync-db-tool --create-migration --mdir schema/
+    
+    which will only generate a migration if one is needed. 
+    
+    It is usually best to run the test suite first and then generate the migration.  This is done
+    as follows:
+
+        cabal test cardano-db-sync db 
+        
+_EOF

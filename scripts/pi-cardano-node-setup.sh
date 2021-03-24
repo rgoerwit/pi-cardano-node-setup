@@ -682,14 +682,19 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
-	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"          -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
-	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"        -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"   -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
-	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
+	config-dbsync.json
+	$WGET "${GUILDREPO}/blob/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
+	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
+	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
+	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
 	if [ ".$CURRENT_EKG_PORT" != '.' ]; then 
-		debug "Restoring old hasEKG, hasPrometheus values"
+		debug "Restoring old hasPrometheus values to dbsync.json"
+		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+		debug "Restoring old hasEKG, hasPrometheus values to config.json"
 		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
