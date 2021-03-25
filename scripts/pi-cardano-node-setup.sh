@@ -9,7 +9,7 @@
 #    for any particular purpose.  Use it at your own risk.  For full licensing
 #    information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
 #
-#############################################################################
+############################################################################# 
 #
 #  Builds cardano-node and friends on a Raspberry Pi running
 #  Ubuntu LTS.
