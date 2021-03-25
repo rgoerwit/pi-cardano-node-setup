@@ -110,7 +110,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
 done
 
 APTINSTALLER="apt-get -q --assume-yes $IGNORE_MISSING_DEPENDENCIES"  # could also be "apt --assume-yes" or for other distros, "yum -y"
-$APTINSTALLER install net-tools
+$APTINSTALLER install net-tools 1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install dnsutils 1> /dev/null
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
