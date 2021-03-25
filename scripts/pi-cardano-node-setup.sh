@@ -228,9 +228,9 @@ if id "$BUILD_USER" 1>> /dev/null 2>&1; then
 	: do nothing
 else
     # But...if we have to create the build user, lock the password
-    useradd -m -s /bin/bash "$BUILD_USER"                  1>> /dev/null 2>&1
-	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin 1>> /dev/null 2>&1
-    passwd -l "$BUILD_USER"                                1>> /dev/null
+    useradd -m -U -s /bin/bash "$BUILD_USER"					1>> /dev/null 2>&1
+	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin		1>> /dev/null 2>&1
+    passwd -l "$BUILD_USER"										1>> /dev/null
 	(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
 fi
 #
@@ -339,8 +339,8 @@ else
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
 	# Prometheus settings are preserved if set, even if we later overwrite config.json file
-	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
-	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
+	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		ufw allow from "$netw" to any port ssh 1>> "$BUILDLOG" 2>&1
@@ -488,7 +488,7 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
             link: eth0
             dhcp4: true
 _EOF
-    debug "You will need to run: 'netplan apply' before you can use the vlan${VLAN_NUMBER} interface"
+    	echo "Run 'netplan apply' to use the vlan${VLAN_NUMBER} interface (will cause IP address to change!)" 1>&2
 	fi
 fi
 
@@ -496,10 +496,10 @@ fi
 #
 debug "Checking and (if need be) making install user: ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
-    || useradd -m -s /bin/bash "$INSTALL_USER" 1>> "$BUILDLOG"
+    || useradd -m -U -s /bin/bash "$INSTALL_USER" 			1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
-usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin   1>> "$BUILDLOG" 2>&1
-passwd -l "$INSTALL_USER"                                  1>> "$BUILDLOG"
+usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin	1>> "$BUILDLOG" 2>&1
+passwd -l "$INSTALL_USER"									1>> "$BUILDLOG"
 (stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${INSTALL_USER}"
 
 
@@ -596,9 +596,9 @@ done
 #
 debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
-'rm' -rf cardano-node-OLD
-'mv' -f cardano-node cardano-node-OLD
-git clone "${IOHKREPO}/cardano-node.git" 1>> "$BUILDLOG" 2>&1
+'rm' -rf cardano-node-OLD					1>> "$BUILDLOG" 2>&1
+'mv' -f cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
+git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 cd cardano-node
 git fetch --all --recurse-submodules --tags  1>> "$BUILDLOG" 2>&1
 git checkout "tags/${CARDANONODEVERSION}"    1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
@@ -814,7 +814,7 @@ else
 					fi
 				done
 				if [[ ! -z "$SUBSCRIPT" ]]; then
-					debug "We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+					# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
 					jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 						| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				fi
@@ -848,10 +848,10 @@ fi
 # Ensure cardano-node auto-starts
 #
 debug "Setting up cardano-node as system service"
-systemctl daemon-reload	
-systemctl enable cardano-node 1>> "$BUILDLOG" 2>&1
-systemctl start cardano-node  1>> "$BUILDLOG" 2>&1
-(systemctl status cardano-node | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
+systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
+systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1
+systemctl start cardano-node	1>> "$BUILDLOG" 2>&1
+(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
     || err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 
 # UPDATE gLiveView.sh and other guild scripts
@@ -878,11 +878,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
 		-e 's|^ *NO_INTERNET_MODE="N"|#NO_INTERNET_MODE="N"|' \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
-	debug "Setting config file in Guild env file: ^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json -> CONFIG=\"$NODE_CONFIG_FILE\""
-	debug "Setting socket in Guild env file: ^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket -> SOCKET=\"$INSTALLDIR/sockets/core-node.socket\""
+	debug "Setting config file in Guild env file to: $NODE_CONFIG_FILE"
+	debug "Setting socket in Guild env file to: $INSTALLDIR/sockets/core-node.socket"
+	debug "Setting CNODE_HOME in Guild env file to: $INSTALLDIR"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
+		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\"|g" \
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"
 fi
 
@@ -897,7 +899,7 @@ debug "Installing python-cardano and cardano-tools using $PIP"
 $PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
 $PIP install pip-tools       1>> "$BUILDLOG" 2>&1
 $PIP install python-cardano  1>> "$BUILDLOG" 2>&1
-$PIP install cardano-tools   1>> "$BUILDLOG" \
+$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
     || err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
 
 debug "Tasks:"
