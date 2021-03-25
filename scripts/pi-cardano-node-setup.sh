@@ -233,6 +233,7 @@ else
     passwd -l "$BUILD_USER"										1>> /dev/null
 	(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
 fi
+(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
 #
 mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
@@ -501,7 +502,6 @@ id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
 usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin	1>> "$BUILDLOG" 2>&1
 passwd -l "$INSTALL_USER"									1>> "$BUILDLOG"
 (stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${INSTALL_USER}"
-
 
 # Install GHC, cabal
 #
@@ -907,6 +907,7 @@ debug "  You may have to clear ${CARDANO_DBDIR} before running cardano-node agai
 debug "  Check networking and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
 debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
 debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
 debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
