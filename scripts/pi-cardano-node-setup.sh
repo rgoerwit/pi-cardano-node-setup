@@ -110,6 +110,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
 done
 
 APTINSTALLER="apt-get -q --assume-yes $IGNORE_MISSING_DEPENDENCIES"  # could also be "apt --assume-yes" or for other distros, "yum -y"
+$APTINSTALLER install net-tools
 $APTINSTALLER install dnsutils 1> /dev/null
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
@@ -136,7 +137,8 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
-BUILDLOG="$BUILDDIR/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
+BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
+touch "$BUILDLOG"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_KEYDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
@@ -222,7 +224,7 @@ fi
 # Make sure our build user exists
 #
 debug "Checking and (if need be) making build user: ${BUILD_USER}"
-if id "$BUILD_USER" 1>> /dev/null; then
+if id "$BUILD_USER" 1>> /dev/null 2>&1; then
 	: do nothing
 else
     # But...if we have to create the build user, lock the password
@@ -235,7 +237,6 @@ fi
 mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
-touch "$BUILDLOG"
 
 [ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this will take several hours now...."
 debug "To monitor progress, run: tail -f \"$BUILDLOG\""
@@ -617,7 +618,7 @@ if $CABAL_EXECUTABLE build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
 else
 	if [ ".$DEBUG" = '.Y' ]; then
 		# Do some more intense debugging if the build fails, with a more restrictive library search path
-		CARDANOBUILDTMPFILE=$(mktemp ${TMPDIR:-/tmp}"/${0}.XXXXXXXXXX")
+		CARDANOBUILDTMPFILE=$(mktemp "$TMPDIR/${0}.XXXXXXXXXX")
 		debug "Failed to build cardano-node; now verbose debugging (slow!)"
 		OLD_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"; EXPORT LD_LIBRARY_PATH="/usr/local/lib"
 		OLD_PKG_CONFIG_PATH="$PKG_CONFIG_PATH"; EXPORT PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
