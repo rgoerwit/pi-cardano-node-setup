@@ -212,7 +212,7 @@ KillMode=process
 WorkingDirectory=$INSTALLDIR/${PROJECTNAME}
 ExecStart=$INSTALLDIR/${PROJECTNAME}-extended --socket-path $INSTALLDIR/sockets/core-node.socket --config ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json --state-dir $INSTALLDIR/guild-db/ledger-state --schema-dir schema/
 Restart=on-failure
-RestartSec=10s
+RestartSec=20s
 LimitNOFILE=32768
  
 [Install]
