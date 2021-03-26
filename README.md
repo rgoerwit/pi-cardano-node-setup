@@ -4,23 +4,25 @@
 
 Obtain:  git clone https://github.com/rgoerwit/pi-cardano-node-setup/
 
+Run:  cd pi-cardano-node-setup/scripts; ./pi-cardano-setup.sh ... 
+
 ## Example Invocations
 
 **New (overclocking) ARM-based mainnet relay setup on TCP port 3000, with VLAN 5 setup**:
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 
 ```
-**New (overclocking) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 5 setup, specifying a -R relay-node.port**:  
+**New (overclocking) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 5 setup, with two relay nodes**:  
 ```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 -R 192.168.6.238:3000
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000
 ```
 **New (non-ARM) mainnet relay setup on TCP port 3000**:
 ```
 pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ''
 ```
-**Refresh of existing mainnet setup with full recompile (keeping existing config files, but adding a new relay)**:  
+**Refresh of existing mainnet setup with full recompile (keeping existing config files, but using just a single relay)**:  
 ```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -d -R '-R 192.168.6.238:3000'
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -d -R '192.168.6.238:3000'
 ```
 
 ## Command-line syntax is as follows:
