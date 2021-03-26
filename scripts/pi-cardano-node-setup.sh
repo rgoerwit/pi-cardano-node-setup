@@ -25,8 +25,9 @@ err_exit() {
 }
 
 # Read in trapping and locking code, if present
-SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
-[ -z "$SCRIPT_PATH" ] && SCRIPT_PATH="$(dirname \"$0\" 2> /dev/null)"
+SCRIPT_PATH=$(readlink -e "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
+[ -z "$SCRIPT_PATH" ] && SCRIPT_PATH=$(dirname "$0" 2> /dev/null)
+[ ".$SCRIPT_PATH" = '..' ] && SCRIPT_PATH=$(readlink -e ".")
 if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" ]; then
 	. "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" \
 		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-node-fake-code.sh"
@@ -345,11 +346,12 @@ else
 	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
-		ufw allow from "$netw" to any port ssh 1>> "$BUILDLOG" 2>&1
+		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
+		ufw allow from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
 		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
-			ufw allow from "$netw" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
+			ufw allow from "$NETW" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
 		fi
-		ufw allow from "$netw" to any port 5432 1>> "$BUILDLOG" 2>&1  # assume PostgreSQL
+		ufw allow from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # assume PostgreSQL
 	done
 	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
 		 echo "Install Prometheus on your monitoring station.  Sample prometheus.yaml file:"
