@@ -254,7 +254,7 @@ $APTINSTALLER dist-upgrade  1>> "$BUILDLOG"
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs g++ git git gnupg \
 	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
-	librocksdb-dev rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
+	librocksdb-dev netmask rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
 	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
@@ -682,7 +682,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
 	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
-	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null )
 	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
@@ -916,14 +916,14 @@ debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHA
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
 if [ ".$SETUP_DBSYNC" = '.Y' ]; then
-	# Read in and run dbsync-installation code
-	SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
-	[ -z "$SCRIPT_PATH" ] && SCRIPT_PATH="$(dirname \"$0\" 2> /dev/null)"
-	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
+	# SCRIPT_PATH was set earlier on (beginning of this script)
+	if [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
+		# Run the dbsync script if we managed to find it
+		debug "Running dbsync setup script:  $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
 		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
 			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
 	else
-		debug "Skipping dbsync setup (no -Y arg, or else we can't find dbsync setup script)"
+		debug "Skipping dbsync setup (can't find dbsync setup script, ${SCRIPT_PATH:-.}/pi-cardano-dbsync-setup.sh)"
 	fi
 fi
 

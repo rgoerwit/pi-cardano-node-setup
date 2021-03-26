@@ -106,7 +106,7 @@ else
 fi
 
 debug "Making sure PostgreSQL is installed, enabled, and started"
-$APTINSTALLER install postgresql libpq-dev  1>> "$BUILDLOG" 2>&1 \
+$APTINSTALLER install postgresql libpq-dev netmask 1>> "$BUILDLOG" 2>&1 \
     || err_exit 72 "$0: Failed to install postgresql; aborting"
 systemctl enable postgresql                 1>> "$BUILDLOG" 2>&1
 service postgresql start                    1>> "$BUILDLOG" 2>&1 
@@ -120,25 +120,19 @@ PGCONF_FILE="/etc/postgresql/${PSQLVERSION}/main/postgresql.conf"  # #listen_add
 [ -f "/etc/postgresql/${PSQLSUBVERSION}/main/pg_hba.conf" ]     && PGHBA_FILE="/etc/postgresql/${PSQLSUBVERSION}/main/pg_hba.conf"
 [ -f "/etc/postgresql/${PSQLSUBVERSION}/main/postgresql.conf" ] && PGCONF_FILE="/etc/postgresql/${PSQLSUBVERSION}/main/postgresql.conf"
 sed -i "s/^[[:space:]]*#[[:space:]]*listen_addresses[[:space:]]*=[[:space:]]*'localhost'/listen_addresses='*'/" "$PGCONF_FILE" # listen on all interfaces
-for NETW in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
-    [ -z "$NETW" ] && next
-    MYMASK='/32' # assume IPv4 until proven otherwise
-    if (echo "$NETW" | egrep -q '/[0-9]+'); then
-        : do nothing
-    else
-        # PostgreSQL insists in its pg_hba.conf file that we use only networks, no hosts (e.g., xxx.xxx.xxx.xxx/xxx)
-        (echo "$NETW" | egrep -q ':') && MYMASK='/128' # IPv6
-        NETW="${NETW}${MYMASK}"
-    fi
+for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
+    [ -z "$netw" ] && next
+    NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
+    ufw allow from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
     # if pghba file lacks a line for this NETWork, add it to the end
     if egrep -q "^[[:space:]]*host[[:space:]]*all[[:space:]]*all[[:space:]]*$NETW[[:space:]]*md5[[:space:]]*$" "$PGHBA_FILE"; then
-        debug "Line for remote cardano user, via $NETW, is already present in $PGHBA_FILE"
+        : do nothing already present
     else
         debug "Adding line for remote cardano user, via $NETW, to $PGHBA_FILE"
         echo "host    all             all             $NETW            md5" >> "$PGHBA_FILE"
     fi
     if egrep -q "^[[:space:]]*local[[:space:]]*all[[:space:]]*cardano[[:space:]]*peer[[:space:]]*$" "$PGHBA_FILE"; then
-        debug "Line for local cardano user is already present in $PGHBA_FILE"
+        : do nothing already present
     else
         debug "Adding line for local cardano user to $PGHBA_FILE"
         echo "local   all             cardano                                peer" >> "$PGHBA_FILE"
