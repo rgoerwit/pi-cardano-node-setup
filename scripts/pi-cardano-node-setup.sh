@@ -920,6 +920,8 @@ if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
 		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
 			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+	else
+		debug "Skipping dbsync setup (no -Y arg, or else we can't find dbsync setup script)"
 	fi
 fi
 
