@@ -26,6 +26,7 @@ err_exit() {
 
 # Read in trapping and locking code, if present
 SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
+[ -z "$SCRIPT_PATH" ] && SCRIPT_PATH="$(dirname \"$0\" 2> /dev/null)"
 if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" ]; then
 	. "$SCRIPT_PATH/pi-cardano-node-fake-code.sh" \
 		|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-node-fake-code.sh"
@@ -915,6 +916,7 @@ debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHA
 if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	# Read in and run dbsync-installation code
 	SCRIPT_PATH=$(readlink -e -- "$0" | sed 's:/[^/]*$::' | tr -d '\r\n')
+	[ -z "$SCRIPT_PATH" ] && SCRIPT_PATH="$(dirname \"$0\" 2> /dev/null)"
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
 		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
 			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
