@@ -503,10 +503,11 @@ if [ $(swapon --show | wc -l) -eq 0 ]; then
 	if [ -e "$SWAPFILE" ]; then
 		debug "Swap file already created; skipping"
 	else
-		fallocate -l 8G "$SWAPFILE"
-		chmod 0600 "$SWAPFILE"
-		mkswap "$SWAPFILE"
-		swapon "$SWAPFILE"
+		fallocate -l 8G "$SWAPFILE" 1>> "$BUILDLOG" 2>&1
+		chmod 0600 "$SWAPFILE"		1>> "$BUILDLOG" 2>&1
+		mkswap "$SWAPFILE"			1>> "$BUILDLOG" 2>&1
+		swapon "$SWAPFILE"			1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 32 "$0: Can't enable swap:  swapon $SWAPFILE; aborting"
 	fi
 	if egrep -qi 'swap' '/etc/fstab'; then
 		debug "/etc/fstab already mounts swap file; skipping"
