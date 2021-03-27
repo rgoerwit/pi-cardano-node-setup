@@ -496,6 +496,26 @@ _EOF
 	fi
 fi
 
+# Make sure we have at least some swap
+#
+if [ $(swapon --show | wc -l) -eq 0 ]; then
+	SWAPFILE='/var/swapfile'
+	if [ -e "$SWAPFILE" ]; then
+		debug "Swap file already created; skipping"
+	else
+		fallocate -l 8G "$SWAPFILE"
+		chmod 0600 "$SWAPFILE"
+		mkswap "$SWAPFILE"
+		swapon "$SWAPFILE"
+	fi
+	if egrep -qi 'swap' '/etc/fstab'; then
+		debug "/etc/fstab already mounts swap file; skipping"
+	else
+		debug "Adding swap line to /etc/fstab: $SWAPFILE none swap sw 0 0"
+		echo "$SWAPFILE    none    swap    sw    0    0" >> '/etc/fstab'
+	fi
+fi
+
 # Add cardano user (or whatever install user is used) and lock password
 #
 debug "Checking and (if need be) making install user: ${INSTALL_USER}"
@@ -536,7 +556,9 @@ chmod 755 "$CABAL"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 	debug "Successfully updated $CABAL"
 else
+	debug "Working around bug in $CABAL..."
 	pushd ~ 1>> "$BUILDLOG" 2>&1 # Work around bug in cabal
+	'rm' -rf $HOME/.cabal
 	($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
 	popd 	1>> "$BUILDLOG" 2>&1
 fi
@@ -682,11 +704,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
 	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
-	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null )
+	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
 	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
-	config-dbsync.json
 	$WGET "${GUILDREPO}/blob/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
