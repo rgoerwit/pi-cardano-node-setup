@@ -161,8 +161,6 @@ if [ ".$LASTRUNCOMMAND" != '.' ]; then
 	debug "Last run:\n  $LASTRUNCOMMAND" 
 	debug "Full command history: ls $INSTALLDIR/logs/build-command-line*log"
 fi
-LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
-echo -n "$0 $* # (not completed)" > $LASTRUNFILE
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 [ "${SUDO}" = 'Y' ] && sudo="sudo" || sudo=""
@@ -700,6 +698,8 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_KEYDIR" 'guild-db' 'log
 	find "$INSTALL_SUBDIR" -type d -exec chmod "2775" {} \;
 	find "$INSTALL_SUBDIR" -type f -exec chmod ug+w,ugo+r {} \; -name '*.sh' -exec chmod a+x {} \; 
 done
+LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
+echo -n "$0 $* # (not completed)" > $LASTRUNFILE
 
 # UPDATE mainnet-config.json and related files to latest version and start node
 #
