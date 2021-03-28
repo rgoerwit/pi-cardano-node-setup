@@ -340,8 +340,8 @@ else
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
 	# Prometheus settings are preserved if set, even if we later overwrite config.json file
-	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
-	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
+	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
+	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
@@ -349,7 +349,9 @@ else
 		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
 			ufw allow from "$NETW" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
 		fi
-		ufw allow from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # assume PostgreSQL
+		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
+			ufw allow from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
+		fi
 	done
 	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
 		 echo "Install Prometheus on your monitoring station.  Sample prometheus.yaml file:"
@@ -476,7 +478,8 @@ _EOF
 	dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
 fi
 
-# DHCP to a specifi VLAN if asked (e.g., -v 5)
+# DHCP to a specifi VLAN if asked (e.g., -v 5); disable other interfaces
+#
 if [ ".$VLAN_NUMBER" != '.' ]; then
     NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
 	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
@@ -705,9 +708,9 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
 	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
-	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null)
-	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
-	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
+	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
+	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"		2>> "$BUILDLOG")
+	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
 	$WGET "${GUILDREPO}/blob/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
@@ -717,13 +720,17 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
 	if [ ".$CURRENT_EKG_PORT" != '.' ]; then 
-		debug "Restoring old hasPrometheus values to dbsync.json"
-		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
-		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
-		debug "Restoring old hasEKG, hasPrometheus values to config.json"
-		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
-		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
-		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" |  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
+		debug "Restoring old hasPrometheus, hasEKG values to dbsync.json and config.json files"
+		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
+			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
+			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
+		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
+		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
+		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 	fi
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] \
 		|| err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
@@ -831,15 +838,16 @@ else
 			# If we are a block producer (port 6000 or higher - assumed to be a producer node)
 			if [ "${LISTENPORT}" -ge 6000 ]; then
 				COUNTER=0
-				for keyAndVal in $(jq -r '.Producers[]|{addr}|to_entries[]|(.value)' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
+				for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
 					COUNTER=$(expr $COUNTER + 1)
-					if echo "$keyAndVal" | egrep -q 'iohk|cardano|emurgo'; then
+					if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
 						SUBSCRIPT=$(expr $COUNTER - 1)
 						break
 					fi
 				done
 				if [[ ! -z "$SUBSCRIPT" ]]; then
 					# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
+					debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 					jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 						| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				fi
@@ -857,7 +865,8 @@ else
 				done
 				if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
 					PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
-					jq ".Producers[$PRODUCER_COUNT]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+					debug "Adding ${RELAY_ADDRESS}::${RELAY_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+					jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 						| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				else
 					debug "Topology file already has a Producers element for [${RELAY_ADDRESS}]:${RELAY_PORT}; no need to add"
