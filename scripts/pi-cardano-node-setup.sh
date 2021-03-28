@@ -626,8 +626,8 @@ cd "$BUILDDIR"
 'mv' -f cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
 git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 cd cardano-node
-git fetch --all --recurse-submodules --tags  1>> "$BUILDLOG" 2>&1
-git checkout "tags/${CARDANONODEVERSION}"    1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
+git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
+git checkout "tags/${CARDANONODEVERSION}"   1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
 #
 # CONFIGURE BUILD OPTIONS for cardano-node and cardano-cli
 #
@@ -645,14 +645,12 @@ else
 	if [ ".$DEBUG" = '.Y' ]; then
 		# Do some more intense debugging if the build fails, with a more restrictive library search path
 		CARDANOBUILDTMPFILE=$(mktemp "$TMPDIR/${0}.XXXXXXXXXX")
-		debug "Failed to build cardano-node; now verbose debugging (slow!)"
-		OLD_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"; EXPORT LD_LIBRARY_PATH="/usr/local/lib"
-		OLD_PKG_CONFIG_PATH="$PKG_CONFIG_PATH"; EXPORT PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+		debug "Failed to build cardano-node; truncating LD_LIBRARY_PATH and PKG_CONFIG_PATH to /usr/local..."
+		LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
+		PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
 		$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
 			|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
 		debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
-		LD_LIBRARY_PATH="$OLD_LD_LIBRARY_PATH"
-		PKG_CONFIG_PATH="$OLD_PKG_CONFIG_PATH"
 		rm -f "$CARDANOBUILDTMPFILE"
 	else
 		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
