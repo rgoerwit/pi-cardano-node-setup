@@ -648,9 +648,9 @@ else
 		debug "Failed to build cardano-node; now verbose debugging (slow!)"
 		OLD_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"; EXPORT LD_LIBRARY_PATH="/usr/local/lib"
 		OLD_PKG_CONFIG_PATH="$PKG_CONFIG_PATH"; EXPORT PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
-		strace $CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 | tail -1000 1>> "$CARDANOBUILDTMPFILE" 1>&2 \
-			|| err_exit 88 "$0: Failed to build cardano-node (sometimes rerunning helps!); check $CARDANOBUILDTMPFILE"
-		debug "Built cardano-node successfully with more restrictive LD_LIBRARY_PATH and PKG_CONFIG_PATH"
+		$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
+			|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
+		debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
 		LD_LIBRARY_PATH="$OLD_LD_LIBRARY_PATH"
 		PKG_CONFIG_PATH="$OLD_PKG_CONFIG_PATH"
 		rm -f "$CARDANOBUILDTMPFILE"
@@ -683,8 +683,8 @@ fi
 if [ -x "$INSTALLDIR/cardano-cli" ]; then
     : do nothing
 else
-    cp $(find "$BUILDDIR/cardano-node" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
-    cp $(find "$BUILDDIR/cardano-node" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
+    cp $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
+    cp $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
 fi
 [ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
 debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
