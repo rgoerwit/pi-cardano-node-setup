@@ -72,7 +72,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
--V    Specify Cardano node version (currently defaults to 1.25.1)
+-V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 -Y    Set up cardano-db-sync
 _EOF
@@ -621,7 +621,7 @@ done
 
 # Install cardano-node
 #
-# BACKUP PREVIOUS SOURCES AND DOWNLOAD 1.25.1
+# BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODEVERSION
 #
 debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
