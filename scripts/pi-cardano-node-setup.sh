@@ -917,7 +917,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
 	debug "Resetting variables in Guild env file to; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
-		-e "s@^\#* *CNODE_PORT=[0-9]*@CNODE_PORT=\"$LISTENPORT\" \1@g" \
+		-e "s@^\#* *CNODE_PORT=[0-9]*@CNODE_PORT=\"$LISTENPORT\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
 		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
