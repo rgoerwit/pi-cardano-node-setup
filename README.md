@@ -6,23 +6,28 @@ Obtain:  git clone https://github.com/rgoerwit/pi-cardano-node-setup/
 
 Run:  cd pi-cardano-node-setup/scripts; ./pi-cardano-setup.sh ... 
 
+Assumes:  Relays will be on ports 300x, block producers on ports 600x
 ## Example Invocations
 
-**New overclocking (-o 2100) ARM-based mainnet relay setup on TCP port 3000 (-p 3000), with VLAN 5 setup (-v 5)**:
+**New overclocking (-o 2100) ARM-based mainnet relay setup on TCP port 3000 (-p 3000), with VLAN 5 setup (-v 5); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...):**:
 ```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -o 2100 -p 3000 
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 3000 
 ```
-**New overclocking (-o 2100) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 10 setup (-v 10), with two relay nodes (-R ...)**:  
+**New overclocking (-o 2100) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 10 setup (-v 10), with two relay nodes (-R ...); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...):**:  
 ```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000
 ```
-**New (non-ARM) mainnet relay setup on TCP port 3000, with no firewall configuration (-S)**:
+**New (non-ARM) mainnet relay setup on TCP port 3000, with no firewall configuration (-S):**:
 ```
 pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ''
 ```
-**Refresh of existing mainnet setup with full recompile (keeping existing config files, but using just a single relay)**:  
+**Refresh of existing mainnet block producer setup with full recompile, keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...):**:  
 ```
-pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -d -R '192.168.6.238:3000'
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -d -s '10.100.6.0/24' -R '192.168.6.238:3000'
+```
+**Refresh of existing mainnet block producer setup *without* full recompile (-x), keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...):**:  
+```
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.100.6.0/24' -R '192.168.6.238:3000'
 ```
 
 ## Command-line syntax is as follows:
@@ -61,7 +66,7 @@ Argument explanation:
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
--V    Specify Cardano node version (currently defaults to 1.25.1)
+-V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 -Y    Set up cardano-db-sync
 ```

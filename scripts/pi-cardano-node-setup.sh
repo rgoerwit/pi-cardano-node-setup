@@ -597,6 +597,7 @@ NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/ca
 		err_exit 49 "$0: Unable to fetch node build number; aborting")
 debug "NODE_BUILD_NUM discovered (used to fetch latest config files): $NODE_BUILD_NUM" 
 for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
+	debug "Adding/updating LD_LIBRARY_PATH, etc. env vars in .bashrc file: $bashrcfile"
 	for envvar in 'LD_LIBRARY_PATH' 'PKG_CONFIG_PATH' 'NODE_HOME' 'NODE_CONFIG' 'NODE_BUILD_NUM' 'PATH' 'CARDANO_NODE_SOCKET_PATH'; do
 		case "${envvar}" in
 			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:\${LD_LIBRARY_PATH}\"" ;;
@@ -609,10 +610,10 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
 		if egrep -q "^ *export  *${envvar} *=" "$bashrcfile"; then
-		    debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
+		    # debug "Changing variable in $bashrcfile: export ${envvar}=.*$ -> export ${envvar}=${SUBSTITUTION}"
 			sed -i "$bashrcfile" -e "s|^ *export  *\(${envvar}\) *=.*\$|export \1=${SUBSTITUTION}|g"
 		else
-		    debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
+		    # debug "Appending to $bashrcfile: ${envvar}=${SUBSTITUTION}" 
 			echo "export ${envvar}=${SUBSTITUTION}" >> $bashrcfile
 		fi
     done
@@ -802,7 +803,8 @@ _EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
-debug "Cardano node will be started (later): $INSTALLDIR/cardano-node run \\
+debug "Cardano node will be started (later): 
+$INSTALLDIR/cardano-node run \\
     --socket-path $INSTALLDIR/sockets/core-node.socket \\
     --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
     --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
