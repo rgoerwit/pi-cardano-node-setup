@@ -103,7 +103,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
 	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
 	v ) VLAN_NUMBER="${OPTARG}" ;;
-	V ) CARDANONODEVERSION="${OPTARG}" ;;
+	V ) CARDANONODE_VERSION="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
     Y ) SETUP_DBSYNC='Y' ;;
@@ -199,7 +199,7 @@ fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
 CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
-[ -z "$CARDANONODEVERSION" ] && CARDANONODEVERSION="1.25.1"
+# [ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION="1.25.1"  # DON'T SET DEFAULT HERE; LATER WE'LL JUST DEFAULT TO LATEST
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
@@ -622,7 +622,7 @@ done
 
 # Install cardano-node
 #
-# BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODEVERSION
+# BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
@@ -631,7 +631,12 @@ cd "$BUILDDIR"
 git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 cd cardano-node
 git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
-git checkout "tags/${CARDANONODEVERSION}"   1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node; aborting"
+if [ -z "$CARDANONODE_VERSION" ]; then
+	LATEST_CARDANONODE_VERSION=$(git tag | egrep '[0-9]+\.[0-9]+\.' | sort --numeric-sort -t '.' +1 +2 | tail -1)
+	CARDANONODE_VERSION="$LATEST_CARDANONODE_VERSION"  # Default to latest fully numbered version
+	debug "No cardano-node version specified; defaulting to latest, $LATEST_CARDANONODE_VERSION"
+fi
+git checkout "tags/${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
 #
 # CONFIGURE BUILD OPTIONS for cardano-node and cardano-cli
 #

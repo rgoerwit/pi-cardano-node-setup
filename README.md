@@ -17,9 +17,13 @@ pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -s '192.168.1.0/2
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000
 ```
-**New (non-ARM) mainnet relay setup on TCP port 3000, with no firewall configuration (-S):**:
+**Same as previous, but using specific cardano-node version 1.26.1 (normally we just default to the latest numbered version):**
 ```
-pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ''
+pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000 -V '1.26.1'
+```
+**New (non-ARM; -G ' ') mainnet relay setup on TCP port 3000, with no firewall configuration (-S):**:
+```
+pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ' '
 ```
 **Refresh of existing mainnet block producer setup with full recompile, keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...):**:  
 ```
