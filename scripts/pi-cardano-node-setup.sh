@@ -814,8 +814,8 @@ $INSTALLDIR/cardano-node run \\
 # Modify topology file; add -R <relay-ip:port> information
 #
 # -R argument supplied - this is a block-producing node; parse relay info
-if [ ".${RELAY_INFO}" = '.' ]; then
-	err_exit 154 "Block producer really needs -R <relay-ip:port>; rerun with this argument supplied; (for now) aborting"
+if [ ".${RELAY_INFO}" = '.' ] && [ "${LISTENPORT}" -ge 6000 ]; then
+	err_exit 154 "Assuming we're a block producer (listen port >= 6000); needs -R <relay-ip:port>; rerun with -R ... supplied; (for now) aborting"
 else
 	TOPOLOGY_FILE_WAS_EMPTY=''
 	if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
@@ -911,12 +911,11 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cp -f * ${CARDANO_SCRIPTDIR}/
 	chown -R "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}"
 	popd 1>> "$BUILDLOG" 2>&1
+	debug "Making Guild gLiveView.sh script noninteractive: NO_INTERNET_MODE=Y"
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
-		-e 's|^ *NO_INTERNET_MODE="N"|#NO_INTERNET_MODE="N"|' \
+		-e 's|^#? *NO_INTERNET_MODE="N"|NO_INTERNET_MODE="Y"|' \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
-	debug "Setting config file in Guild env file to: $NODE_CONFIG_FILE"
-	debug "Setting socket in Guild env file to: $INSTALLDIR/sockets/core-node.socket"
-	debug "Setting CNODE_HOME in Guild env file to: $INSTALLDIR"
+	debug "Resetting variables in Guild env file to; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
