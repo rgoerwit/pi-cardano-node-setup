@@ -551,12 +551,11 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 fi
 debug "Installing: ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
-#
-cd "$BUILDDIR"
-debug "Downloading, installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 
 # Now do cabal; we'll pull binaries in this case
 #
+cd "$BUILDDIR"
+debug "Downloading, installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" \
     || err_exit 48 "$0: Unable to download cabal; aborting"
 tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
@@ -575,7 +574,7 @@ fi
 
 # Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
-debug "Downloading, installing libsodium, version $LIBSODIUM_VERSION"
+debug "Downloading (possibly installing if no -x) libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
 'rm' -rf libsodium
 git clone "${IOHKREPO}/libsodium"    1>> "$BUILDLOG" 2>&1
