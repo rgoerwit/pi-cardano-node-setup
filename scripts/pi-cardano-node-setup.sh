@@ -640,13 +640,13 @@ git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 cd cardano-node
 git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	LATEST_CARDANONODE_VERSION="tags/$(git tag | egrep '[0-9]+\.[0-9]+\.' | sort --numeric-sort -t '.' +1 +2 | tail -1)"
-	CARDANONODE_VERSION="$LATEST_CARDANONODE_VERSION"  # Default to latest fully numbered tag
+	CARDANONODE_VERSION="tags/$(git describe --tags `git rev-list --tags --max-count=1`)"
 	debug "No cardano-node version specified; defaulting to latest tag, $CARDANONODE_VERSION"
 fi
-[[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_VERSION="tag/$CARDANONODE_VERSION"
+[[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_VERSION="tags/$CARDANONODE_VERSION"
 debug "Checking out cardano-node: git checkout ${CARDANONODE_VERSION}"
-git checkout "${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
+git checkout "${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 \
+	|| err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
 #
 # Set build options for cardano-node and cardano-cli
 #
