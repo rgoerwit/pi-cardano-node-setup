@@ -9,27 +9,27 @@ Run:  cd pi-cardano-node-setup/scripts; ./pi-cardano-setup.sh ...
 Assumes:  Relays will be on ports 300x, block producers on ports 600x
 ## Example Invocations
 
-**New overclocking (-o 2100) ARM-based mainnet relay setup on TCP port 3000 (-p 3000), with VLAN 5 setup (-v 5); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...):**:
+**New overclocking (-o 2100) ARM-based mainnet relay setup on TCP port 3000 (-p 3000), with VLAN 5 setup (-v 5); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...)**:
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 5 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 3000 
 ```
-**New overclocking (-o 2100) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 10 setup (-v 10), with two relay nodes (-R ...); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...):**:  
+**New overclocking (-o 2100) ARM-based mainnet block producer setup on TCP port 6000, with VLAN 10 setup (-v 10), with two relay nodes (-R ...); ssh allowed from 192.168.1.0/24 and 10.5.0.0/16 (-s ...)**:  
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000
 ```
-**Same as previous, but using specific cardano-node version 1.26.1 (normally we just default to the latest numbered version):**
+**Same as previous, but using specific cardano-node version 1.26.1 (normally we just default to the latest numbered version)**:
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -v 10 -s '192.168.1.0/24,10.5.0.0/16' -o 2100 -p 6000 -R '192.168.6.208:3000,192.168.6.209:3000 -V '1.26.1'
 ```
-**New (non-ARM; -G ' ') mainnet relay setup on TCP port 3000, with no firewall configuration (-S):**:
+**New (non-ARM; -G ' ') mainnet relay setup on TCP port 3000, with no firewall configuration (-S)**:
 ```
 pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet -p 3000 -S -G ' '
 ```
-**Refresh of existing mainnet block producer setup with full recompile, keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...):**:  
+**Refresh of existing mainnet block producer setup with full recompile, keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...)**:  
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -d -s '10.100.6.0/24' -R '192.168.6.238:3000'
 ```
-**Refresh of existing mainnet block producer setup *without* full recompile (-x), keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...):**:  
+**Refresh of existing mainnet block producer setup *without* full recompile (-x), keeping existing config files (-d), but using just a single relay, 192.168.6.238:3000; ssh allowed only from 10.100.6.0/24 (-s ...)**:  
 ```
 pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.100.6.0/24' -R '192.168.6.238:3000'
 ```
@@ -37,10 +37,10 @@ pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.1
 ## Command-line syntax is as follows:
 
 ```
-Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] [-d] [-D] \
-    [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-V <cardano-node version>] [-x] [-y <ghc-version>] [-Y]
+Usage: pi-cardano-node-setup [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
+    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
+	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 ```
 
 Argument explanation:
@@ -63,12 +63,14 @@ Argument explanation:
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
+-P    Pool name (only useful if you've been using CNode Tools and generated a walled inside your INSTALLDIR/priv/pool directory)
 -r    Install RDP
 -R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
+-W    Specify a Guild CNode Tool version (defaults to the latest)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
 -V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
@@ -89,6 +91,7 @@ It is a distillation of many sets of available directions, including:
 >   https://cardano-node-installation.stakepool247.eu/cardano-node-upgrades/upgrade-to-1.25.1
 >	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
 >	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
+>   https://forum.cardano.org/t/how-to-set-up-a-pool-in-a-few-minutes-and-register-using-cntools/48767
 
 
 ## Installation

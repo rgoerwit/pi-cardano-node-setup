@@ -36,10 +36,10 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] [-d] [-D] \
-    [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
-	[-p <port>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-V <cardano-node version>] [-x] [-y <ghc-version>] [-Y]
+Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
+    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
+	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -65,12 +65,14 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
+-P    Pool name, not ticker (only useful if you've been using CNode Tools and generated a walled inside your INSTALLDIR/priv/pool directory)
 -r    Install RDP
 -R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
+-W    Specify a Guild CNode Tool version (defaults to the latest)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
 -V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
@@ -79,7 +81,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
+while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -97,6 +99,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
 	o ) OVERCLOCK_SPEED="${OPTARG}" ;;
     p ) LISTENPORT="${OPTARG}" ;;
+    P ) POOLNAME="${OPTARG}" ;;
     r ) INSTALLRDP='Y' ;;
 	R ) RELAY_INFO="${OPTARG}" ;; 
 	s ) MY_SUBNETS="${OPTARG}" ;;
@@ -105,6 +108,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:rR:s:Su:v:V:w:xy:Y opt; do
 	v ) VLAN_NUMBER="${OPTARG}" ;;
 	V ) CARDANONODE_VERSION="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
+    W ) GUILDSCRIPT_VERSION="${OPTARG}" ;;
     x ) SKIP_RECOMPILE='Y' ;;
     Y ) SETUP_DBSYNC='Y' ;;
     \? ) usage ;;
@@ -142,7 +146,7 @@ BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
 touch "$BUILDLOG"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
-CARDANO_KEYDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
+CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 
@@ -199,7 +203,6 @@ fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
 CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
-# [ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION="1.25.1"  # DON'T SET DEFAULT HERE; LATER WE'LL JUST DEFAULT TO LATEST
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
@@ -249,17 +252,18 @@ $APTINSTALLER update        1>> "$BUILDLOG"
 $APTINSTALLER upgrade       1>> "$BUILDLOG"
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG"
 # Install a bunch of necessary development and support packages
-$APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs g++ git git gnupg \
-	gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
+$APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
+	gnupg gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
-	librocksdb-dev netmask rocksdb-tools rsync secure-delete sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
+	librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
 	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
-$APTINSTALLER install cython3 1>> "$BUILDLOG" 2>&1 \
-	|| $APTINSTALLER install cython 1>> "$BUILDLOG" 2>&1 \
+$APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
+	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
-snap connect nmap:network-control 1>> "$BUILDLOG" 2>&1
+snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
+snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 
 # Make sure some other basic prerequisites are correctly installed
 $APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
@@ -287,7 +291,7 @@ systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 systemctl start ssh                               1>> "$BUILDLOG" 2>&1
 systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
-    err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
+    || err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
 systemctl start ntp                               1>> "$BUILDLOG" 2>&1
 
 if [ ".$OVERCLOCK_SPEED" != '.' ]; then
@@ -406,6 +410,10 @@ _EOF
 		ufw allow from "$MY_SUBNETS" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
+debug "Checking fail2ban status... (will only squawk if NOT okay)"
+systemctl start fail2ban  1>> "$BUILDLOG" 2>&1
+systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
+    || err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
 #
@@ -554,7 +562,7 @@ $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal
 tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
 cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
-chmod 755 "$CABAL"
+chmod 0755 "$CABAL"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 	debug "Successfully updated $CABAL"
 else
@@ -594,7 +602,7 @@ fi
 NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/index.html' 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }')
 [ -z "$NODE_BUILD_NUM" ] && \
     (NODE_BUILD_NUM=$($WGET -S -O- "https://hydra.iohk.io/job/Cardano/iohk-nix/cardano-deployment/latest-finished/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json" 2>&1 | sed -n '/^ *[lL]ocation: / { s|^.*/build/\([^/]*\)/download.*$|\1|ip; q; }') || \
-		err_exit 49 "$0: Unable to fetch node build number; aborting")
+		debug 49 "$0: Unable to fetch node build number; continuing anyway")
 debug "NODE_BUILD_NUM discovered (used to fetch latest config files): $NODE_BUILD_NUM" 
 for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 	debug "Adding/updating LD_LIBRARY_PATH, etc. env vars in .bashrc file: $bashrcfile"
@@ -606,7 +614,7 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 			'NODE_CONFIG'              ) SUBSTITUTION="\"${BLOCKCHAINNETWORK}\"" ;;
 			'NODE_BUILD_NUM'           ) SUBSTITUTION="\"${NODE_BUILD_NUM}\"" ;;
 			'PATH'                     ) SUBSTITUTION="\"/usr/local/bin:${INSTALLDIR}:\${PATH}\"" ;;
-			'CARDANO_NODE_SOCKET_PATH' ) SUBSTITUTION="\"${INSTALLDIR}/sockets/core-node.socket\"" ;;
+			'CARDANO_NODE_SOCKET_PATH' ) SUBSTITUTION="\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"" ;;
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
 		if egrep -q "^ *export  *${envvar} *=" "$bashrcfile"; then
@@ -632,35 +640,36 @@ git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 cd cardano-node
 git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	LATEST_CARDANONODE_VERSION=$(git tag | egrep '[0-9]+\.[0-9]+\.' | sort --numeric-sort -t '.' +1 +2 | tail -1)
-	CARDANONODE_VERSION="$LATEST_CARDANONODE_VERSION"  # Default to latest fully numbered version
-	debug "No cardano-node version specified; defaulting to latest, $LATEST_CARDANONODE_VERSION"
+	LATEST_CARDANONODE_VERSION="tags/$(git tag | egrep '[0-9]+\.[0-9]+\.' | sort --numeric-sort -t '.' +1 +2 | tail -1)"
+	CARDANONODE_VERSION="$LATEST_CARDANONODE_VERSION"  # Default to latest fully numbered tag
+	debug "No cardano-node version specified; defaulting to latest tag, $CARDANONODE_VERSION"
 fi
-git checkout "tags/${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
+[[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_VERSION="tag/$CARDANONODE_VERSION"
+debug "Checking out cardano-node: git checkout ${CARDANONODE_VERSION}"
+git checkout "${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 || err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
 #
-# CONFIGURE BUILD OPTIONS for cardano-node and cardano-cli
+# Set build options for cardano-node and cardano-cli
 #
+$CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
 $CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 'rm' -rf "$BUILDDIR/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
-echo "package cardano-crypto-praos" >  "${BUILDDIR}/cabal.project.local"
-echo "  flags: -external-libsodium-vrf" >>  "${BUILDDIR}/cabal.project.local"
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
 #
-# BUILD cardano-node and cardano-cli
+# Build cardano-node and cardano-cli
 #
-if $CABAL_EXECUTABLE build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
+[ ".SKIP_RECOMPILE" = '.Y' ] || debug "Building all: $CABAL_EXECUTABLE build all (cwd = `pwd`)"
+if $CABAL_EXECUTABLE build all 1>> "$BUILDLOG" 2>&1; then
+# if $CABAL_EXECUTABLE build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
 	: all good
 else
 	if [ ".$DEBUG" = '.Y' ]; then
 		# Do some more intense debugging if the build fails, with a more restrictive library search path
-		CARDANOBUILDTMPFILE=$(mktemp "$TMPDIR/${0}.XXXXXXXXXX")
-		debug "Failed to build cardano-node; truncating LD_LIBRARY_PATH and PKG_CONFIG_PATH to /usr/local..."
+		debug "Failed to build cardano-node; setting LD_LIBRARY_PATH and PKG_CONFIG_PATH to specific /usr/local locations"
 		LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
 		PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
 		$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
 			|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
 		debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
-		rm -f "$CARDANOBUILDTMPFILE"
 	else
 		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
 	fi
@@ -678,7 +687,7 @@ fi
 killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
 killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
-# COPY NEW BINARIES
+# Copy new binaries into final position, in $INSTALLDIR
 #
 debug "Installing binaries for cardano-node and cardano-cli" 
 $CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
@@ -698,12 +707,22 @@ debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | he
 debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
-for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_KEYDIR" 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
+#
+cd "$INSTALLDIR"
+for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
     (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
-	mkdir -p "$INSTALL_SUBDIR"
-    chown -R "${INSTALL_USER}.${INSTALL_USER}" "$INSTALL_SUBDIR" 2>/dev/null
-	find "$INSTALL_SUBDIR" -type d -exec chmod "2775" {} \;
-	find "$INSTALL_SUBDIR" -type f -exec chmod ug+w,ugo+r {} \; -name '*.sh' -exec chmod a+x {} \; 
+	mkdir -p "$INSTALL_SUBDIR"				2>/dev/null
+    chown -R root.cardano "$INSTALL_SUBDIR"	2>/dev/null
+	if [ "$INSTALL_SUBDIR" = "$CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
+		find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
+		find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
+	else
+		find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
+		find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+	fi
+	# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
+	[ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ] \
+		&& find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$0 $* # (not completed)" > $LASTRUNFILE
@@ -744,8 +763,11 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	# Adjust files in various ways - turning off memory monitoring (kills performance as of 1.25.1), turn on block fetch decision tracing
 	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
-	jq .TraceMempool="false"            "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
-
+	TRACEMEMPOOL_SETTING='false'
+	[ "$LISTENPORT" -ge 6000 ] && TRACEMEMPOOL_SETTING='true'
+	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000, assume we're a block producer [true]; otherwise a relay [false])"
+	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	
 	# Set up startup script
 	#
 	SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
@@ -753,22 +775,38 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	[ -f "$NODE_CONFIG_FILE" ] || err_exit 28 "$0: Can't find config.yaml file, "$NODE_CONFIG_FILE"; aborting"
 	#
 	# Figure out where special keys, certs are and add them to startup script later on, if need be
+	if [ ".$POOLNAME" != '.' ]; then
+		POSSIBLE_POOL_CONFIGFILE="${CARDANO_PRIVDIR}/pool/${POOLNAME}/pool.config"
+		if [ -f "$POSSIBLE_POOL_CONFIGFILE" ]; then
+			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE")
+			if [ ".$GUILD_WALLET" != '.' ]; then
+				debug "Using Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
+				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
+				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
+				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
+				chown cardano.cardano "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
+				chmod 0600 "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
+			else
+				err_exit 131 "Can't find guild wallet: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}; aborting"
+			fi
+		fi
+	fi
 	CERTKEYARGS=''
 	KEYCOUNT=0
-	[ -s "$CARDANO_KEYDIR/kes.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	[ -s "$CARDANO_KEYDIR/vrf.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	[ -s "$CARDANO_KEYDIR/node.cert" ] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$CARDANO_PRIVDIR/kes.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$CARDANO_PRIVDIR/vrf.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
+	[ -s "$CARDANO_PRIVDIR/node.cert" ] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
 	if [ ".${LISTENPORT}" != '.' ] && [ "${LISTENPORT}" -ge 6000 ]; then
 		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000
 		if [ "$KEYCOUNT" -ge 3 ]; then
-			CERTKEYARGS="--shelley-kes-key $CARDANO_KEYDIR/kes.skey --shelley-vrf-key $CARDANO_KEYDIR/vrf.skey --shelley-operational-certificate $CARDANO_KEYDIR/node.cert"
+			CERTKEYARGS="--shelley-kes-key $CARDANO_PRIVDIR/kes.skey --shelley-vrf-key $CARDANO_PRIVDIR/vrf.skey --shelley-operational-certificate $CARDANO_PRIVDIR/node.cert"
 		else
 			# Go ahead and configure if key/cert is missing, but don't run the node with them
-			[ "$KEYCOUNT" -ge 1 ] && debug "Not all needed keys/certs are present in $CARDANO_KEYDIR; ignoring them (please generate!)"
+			[ "$KEYCOUNT" -ge 1 ] && debug "Not all needed keys/certs are present in $CARDANO_PRIVDIR; ignoring them (please generate!)"
 		fi
 	else
 		# We assume if port is less than 6000 (usually 3000 or 3001), we're a relay-only node, not a block producer
-		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (port < 6000); ignoring key/cert files in $CARDANO_KEYDIR"
+		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (port < 6000); ignoring key/cert files in $CARDANO_PRIVDIR"
 	fi
 	cat << _EOF > "$INSTALLDIR/cardano-node-starting-env.txt"
 PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
@@ -796,7 +834,7 @@ TimeoutStartSec=0
 Type=simple
 KillMode=process
 WorkingDirectory=$INSTALLDIR
-ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/core-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
+ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
 Restart=on-failure
 RestartSec=12s
 LimitNOFILE=32768
@@ -810,7 +848,7 @@ _EOF
 fi
 debug "Cardano node will be started (later): 
 $INSTALLDIR/cardano-node run \\
-    --socket-path $INSTALLDIR/sockets/core-node.socket \\
+    --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket \\
     --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
     --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
     --database-path ${CARDANO_DBDIR}/ \\
@@ -819,69 +857,68 @@ $INSTALLDIR/cardano-node run \\
 # Modify topology file; add -R <relay-ip:port> information
 #
 # -R argument supplied - this is a block-producing node; parse relay info
-if [ ".${RELAY_INFO}" = '.' ] && [ "${LISTENPORT}" -ge 6000 ]; then
-	err_exit 154 "Assuming we're a block producer (listen port >= 6000); needs -R <relay-ip:port>; rerun with -R ... supplied; (for now) aborting"
-else
-	TOPOLOGY_FILE_WAS_EMPTY=''
-	if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
-		echo -e "{ \"Producers\": [ ] }\n" | jq | sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-		TOPOLOGY_FILE_WAS_EMPTY='Y'
-	fi
-	for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
-		RELAY_ADDRESS=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/') # Take out ip address part
-		RELAY_PORT=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
-		[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: Relay ip-address:port[,ip-address:port...] after -R is malformed; aborting"
+[ ".${RELAY_INFO}" = '.' ] && [ "${LISTENPORT}" -ge 6000 ] \
+	&& debug "Assuming we're a block producer (listen port >= 6000); normally we need a -R <relay-ip:port>; continuing anyway"
 
-		BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
-		if [ ".$TOPOLOGY_FILE_WAS_EMPTY" = '.Y' ]; then
-			# Topology file is empty; just create the whole thing all at once...
-			if [[ ! -z "${RELAY_ADDRESS}" ]]; then
-				# ...if, that is, we have a relay address (-R argment)
-				jq ".Producers[]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+TOPOLOGY_FILE_WAS_EMPTY=''
+if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
+	echo -e "{ \"Producers\": [ ] }\n" | jq | sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+	TOPOLOGY_FILE_WAS_EMPTY='Y'
+fi
+for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
+	RELAY_ADDRESS=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/') # Take out ip address part
+	RELAY_PORT=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
+	[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: Relay ip-address:port[,ip-address:port...] after -R is malformed; aborting"
+
+	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
+	if [ ".$TOPOLOGY_FILE_WAS_EMPTY" = '.Y' ]; then
+		# Topology file is empty; just create the whole thing all at once...
+		if [[ ! -z "${RELAY_ADDRESS}" ]]; then
+			# ...if, that is, we have a relay address (-R argment)
+			jq ".Producers[]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+				| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+		fi
+	else
+		SUBSCRIPT=''
+		# If we are a block producer (port 6000 or higher - assumed to be a producer node)
+		if [ "${LISTENPORT}" -ge 6000 ]; then
+			COUNTER=0
+			for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
+				COUNTER=$(expr $COUNTER + 1)
+				if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
+					SUBSCRIPT=$(expr $COUNTER - 1)
+					break
+				fi
+			done
+			if [[ ! -z "$SUBSCRIPT" ]]; then
+				# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
+				debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+				jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 			fi
+		fi
+		# Everyone gets to here (block producers and relay nodes alike), to add the relay address to the topology file
+		if [ -z "${RELAY_ADDRESS}" ]; then
+			debug "No -R <relay-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
 		else
-			SUBSCRIPT=''
-			# If we are a block producer (port 6000 or higher - assumed to be a producer node)
-			if [ "${LISTENPORT}" -ge 6000 ]; then
-				COUNTER=0
-				for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
-					COUNTER=$(expr $COUNTER + 1)
-					if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
-						SUBSCRIPT=$(expr $COUNTER - 1)
-						break
-					fi
-				done
-				if [[ ! -z "$SUBSCRIPT" ]]; then
-					# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
-					debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-					jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
-						| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
+			for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
+				if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
+					ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
+					break
 				fi
-			fi
-			# Everyone gets to here (block producers and relay nodes alike), to add the relay address to the topology file
-			if [ -z "${RELAY_ADDRESS}" ]; then
-				debug "No -R <relay-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
+			done
+			if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
+				PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
+				debug "Adding ${RELAY_ADDRESS}::${RELAY_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+				jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 			else
-				ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
-				for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
-					if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
-						ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
-						break
-					fi
-				done
-				if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
-					PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
-					debug "Adding ${RELAY_ADDRESS}::${RELAY_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-					jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
-						| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-				else
-					debug "Topology file already has a Producers element for [${RELAY_ADDRESS}]:${RELAY_PORT}; no need to add"
-				fi
+				debug "Topology file already has a Producers element for [${RELAY_ADDRESS}]:${RELAY_PORT}; no need to add"
 			fi
 		fi
-	done
-fi
+	fi
+done
 
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
@@ -897,24 +934,25 @@ systemctl start cardano-node	1>> "$BUILDLOG" 2>&1
 
 # UPDATE gLiveView.sh and other guild scripts
 #
-debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
-cd "$INSTALLDIR"
-$WGET "${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh" -O "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
-    || err_exit 108 "$0: Failed to fetch ${GUILDREPO_RAW_URL}/scripts/cnode-helper-scripts/gLiveView.sh; aborting"
-chmod 755 "${CARDANO_SCRIPTDIR}/gLiveView.sh"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
 	GUILDOPTEMPDIR='guild-operators-temp'
-	pushd "${TMPDIR:-/tmp}" 1>> "$BUILDLOG" 2>&1; rm -rf "$GUILDOPTEMPDIR"
+	pushd "${TMPDIR:-/tmp}" 			1>> "$BUILDLOG" 2>&1; rm -rf "$GUILDOPTEMPDIR"
     git init "$GUILDOPTEMPDIR"          1>> "$BUILDLOG" 2>&1
     cd "$GUILDOPTEMPDIR"
 	git remote add origin "$GUILDREPO"  1>> "$BUILDLOG" 2>&1
 	git config core.sparsecheckout true 1>> "$BUILDLOG" 2>&1
  	echo 'scripts/cnode-helper-scripts/*' 1>> .git/info/sparse-checkout
+	[ -z "$GUILDSCRIPT_VERSION" ] \
+		|| (debug "Checking out cnode tool version $GUILDSCRIPT_VERSION"; \
+			git checkout "$GUILDSCRIPT_VERSION" 1>> "$BUILDLOG" 2>&1 \
+				|| debug "$0: Failed to checkout cnode tool version $GUILDSCRIPT_VERSION; using default")
  	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
 	cd ./scripts/cnode-helper-scripts
 	cp -f * ${CARDANO_SCRIPTDIR}/
-	chown -R "${INSTALL_USER}.${INSTALL_USER}" "${CARDANO_SCRIPTDIR}"
+	chown -R root.root "${CARDANO_SCRIPTDIR}"
+	chmod 0755 "${CARDANO_SCRIPTDIR}/"*.sh
 	popd 1>> "$BUILDLOG" 2>&1
 	debug "Making Guild gLiveView.sh script noninteractive: NO_INTERNET_MODE=Y"
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
@@ -922,27 +960,90 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
 	debug "Resetting variables in Guild env file to; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
-		-e "s@^\#* *CNODE_PORT=[0-9]*@CNODE_PORT=\"$LISTENPORT\"@g" \
+		-e "s@^\#* *CNODE_PORT=['\"]*[0-9]*['\"]*@CNODE_PORT=\"$LISTENPORT\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
-		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/core-node.socket\"|g" \
+		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
 		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
-			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"
+		-e "s|^\#* *TOPOLOGY=[^#]*|TOPOLOGY=\"$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json\" |g" \
+		-e "s|^\#* *LOG_DIR=[^#]*|LOG_DIR=\"${INSTALLDIR}/logs\" |g" \
+		-e "s|^\#* *DB_DIR=[^#]*|DB_DIR=\"$CARDANO_DBDIR\" |g" \
+		-e "s|^\#* *WALLET_FOLDER=[^#]*|WALLET_FOLDER=\"${CARDANO_PRIVDIR}/wallet\" |g" \
+		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
+		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
+			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
+	if [ ".$POOLNAME" != '.' ]; then
+		sed -i "${CARDANO_SCRIPTDIR}/env" \
+			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
+	fi
 fi
+[ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
+    || err_exit 108 "$0: Can't find executable ${CARDANO_SCRIPTDIR}/gLiveView.sh; Guild scripts missing; aborting (drop -d option?)"
+
+# Re-lay-out directories so that CNode Tools work
+debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools work"
+[ -L "$INSTALLDIR/sockets/node0.socket" ] && rm -f "$INSTALLDIR/sockets/node0.socket"
+[ -L "$INSTALLDIR/sockets/node0.socket" ] \
+	|| (ln -sf "$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket" "$INSTALLDIR/sockets/node0.socket" 1>> "$BUILDLOG" 2>&1 \
+		|| debug "Note: Failed to: ln -sf $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket $INSTALLDIR/sockets/node0.socket")
+[ -L "$INSTALLDIR/db" ] && rm -f "$INSTALLDIR/db"
+[ -L "$INSTALLDIR/db" ] \
+	|| (ln -sf "$CARDANO_DBDIR"	"$INSTALLDIR/db" 1>> "$BUILDLOG" 2>&1 \
+		|| debug "Note: Failed to: ln -sf $CARDANO_DBDIR $INSTALLDIR/db")
+[ -L "$INSTALLDIR/priv" ] && rm -f "$INSTALLDIR/priv"
+[ -L "$INSTALLDIR/priv" ] \
+	|| (ln -sf "$CARDANO_PRIVDIR" "$INSTALLDIR/priv" 1>> "$BUILDLOG" 2>&1 \
+		|| debug "Note: Failed to: ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv")
+if [ -e "/opt/cardano/" ]; then
+	: do nothing
+else
+	mkdir -p "/opt/cardano"
+    chown -R root.cardano "/opt/cardano" 2>/dev/null
+	find "/opt/cardano" -type d -exec chmod "2750" {} \;
+fi
+[ -L "/opt/cardano/cnode" ] && rm -f "/opt/cardano/cnode"
+[ -L "/opt/cardano/cnode" ] \
+	|| (ln -sf "$INSTALLDIR" "/opt/cardano/cnode" \
+		|| debug "Note: Failed to: ln -sf $INSTALLDIR /opt/cardano/cnode")
 
 # Run this at startup to turn a given workstation into a basic monitoring console
 # Run it as the cardano user if possible
 #
 # cd ~cardano/scripts/; echo "p" | NO_INTERNET_MODE="Y" ./gLiveView.sh 1> /dev/console 2> /dev/null
 
-# install other utilities
+# build and install other utilities - python, rust-based
 #
-debug "Installing python-cardano and cardano-tools using $PIP"
-$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
-$PIP install pip-tools       1>> "$BUILDLOG" 2>&1
-$PIP install python-cardano  1>> "$BUILDLOG" 2>&1
-$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
-    || err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
+if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+	debug "Installing cncli (optional; if it fails, continuing on)..."
+	cd "$BUILDDIR"
+	[ -e 'cncli' ] && 'rm' -rf 'cncli'
+	if git clone https://github.com/AndrewWestberg/cncli 1>> "$BUILDLOG" 2>&1; then
+		cd 'cncli'
+		debug "Updating Rust in prep for cncli install"
+		if rustup update 1>> "$BUILDLOG" 2>&1; then
+			# Assume user has set default toolchain
+			cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
+				|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
 
+		else
+			# Force the 'stable' toolchain if all else fails
+			rustup install stable	1>> "$BUILDLOG" 2>&1
+			rustup default stable	1>> "$BUILDLOG" 2>&1
+			rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
+			cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
+				|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
+		fi
+	fi
+	#
+	debug "Installing python-cardano and cardano-tools using $PIP"
+	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
+	$PIP install pip-tools       1>> "$BUILDLOG" 2>&1
+	$PIP install python-cardano  1>> "$BUILDLOG" 2>&1
+	$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
+fi
+
+#############################################################################
+#
 debug "Tasks:"
 debug "  You may have to clear ${CARDANO_DBDIR} before running cardano-node again"
 debug "  Check networking and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
