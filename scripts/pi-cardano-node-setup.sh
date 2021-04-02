@@ -708,7 +708,7 @@ debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
 cd "$INSTALLDIR"
-for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'guild-db' 'logs' 'scripts' 'sockets' 'priv' 'pkgconfig'; do
+for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'guild-db' 'logs' 'scripts' 'sockets' 'pkgconfig'; do
     (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
 	mkdir -p "$INSTALL_SUBDIR"				2>/dev/null
     chown -R root.cardano "$INSTALL_SUBDIR"	2>/dev/null
@@ -720,8 +720,9 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 		find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
 	fi
 	# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
-	[ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ] \
-		&& find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
+	if [ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ]; then
+		find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
+	fi
 done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$0 $* # (not completed)" > $LASTRUNFILE
