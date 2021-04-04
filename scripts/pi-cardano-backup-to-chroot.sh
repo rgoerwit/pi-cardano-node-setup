@@ -102,6 +102,12 @@ mkdir -p "$MOUNTPOINT/$INSTALLDIR"
 rsync --delete -av "${INSTALLDIR}" "${MOUNTPOINT}/${INSTALLDIR}" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 19 "$0: Unable rsync ${INSTALLDIR} to ${MOUNTPOINT}${INSTALLDIR}; aborting"
 
+debug "Ensuring resolver will work when we chroot"
+if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
+    mkdir -p '/run/systemd/resolve'
+    echo 'nameserver 1.1.1.1\nnameserver 8.8.8.8' >> "${MOUNTPOINT}/run/systemd/resolve/stub-resolv.conf"
+fi
+
 # Read in trapping and locking code, if present
 if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ]; then
 	CARDANO_NODE_SETUP_SCRIPT="$SCRIPT_PATH/pi-cardano-node-setup.sh"
@@ -112,14 +118,16 @@ if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ];
         LAST_COMPLETED_SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//' | sed 's/^[^ \t]*[ \t][ \t]*//')
         LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
         debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
-        pushd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
         chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
 apt-mark hold linux-image-generic linux-headers-generic
+trap 2 'umount /proc' SIGINT SIGHUP
+mount -t proc proc /proc
 bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
+umount /proc
 apt-mark unhold linux-image-generic linux-headers-generic
 exit
 _EOF
-        popd 1>> "$BUILDLOG" 2>&1 
+        cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
     else   
         err_abort 9 "$0: Can't find or execute last-run command file, (${LAST_COMPLETED_SETUP_COMMAND_FILE:-unknown}); aborting"
     fi

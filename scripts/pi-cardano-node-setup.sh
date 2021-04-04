@@ -238,7 +238,7 @@ else
 	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin				1>> /dev/null 2>&1
     passwd -l "$BUILD_USER"												1>> /dev/null
 fi
-(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') 
+(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') \
 	|| (chown $BUILD_USER.$BUILD_USER "/home/${BUILD_USER}"; chmod o-rwx "/home/${BUILD_USER}")
 #
 mkdir "$BUILDDIR" 2> /dev/null
