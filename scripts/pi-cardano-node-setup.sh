@@ -735,7 +735,7 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 	fi
 done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
-echo -n "$0 $* # (not completed)" > $LASTRUNFILE
+echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $* # (not completed)" > $LASTRUNFILE
 
 # UPDATE mainnet-config.json and related files to latest version and start node
 #
