@@ -599,6 +599,8 @@ $MAKE install                        1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 78 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
 if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
 	debug "$0: Installing libsodium even though -x argument was supplied; won't work otherwise"
+	./autogen.sh	1>> "$BUILDLOG" 2>&1
+	./configure		1>> "$BUILDLOG" 2>&1
 	make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
 fi 
@@ -774,11 +776,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 
 	# Adjust files in various ways - turning off memory monitoring (kills performance as of 1.25.1), turn on block fetch decision tracing
 	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
-	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
+		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	TRACEMEMPOOL_SETTING='false'
 	[ "$LISTENPORT" -ge 6000 ] && TRACEMEMPOOL_SETTING='true'
 	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000, assume we're a block producer [true]; otherwise a relay [false])"
-	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
+		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	
 	# Set up startup script
 	#
@@ -790,7 +794,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	if [ ".$POOLNAME" != '.' ]; then
 		POSSIBLE_POOL_CONFIGFILE="${CARDANO_PRIVDIR}/pool/${POOLNAME}/pool.config"
 		if [ -f "$POSSIBLE_POOL_CONFIGFILE" ]; then
-			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE")
+			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE" 2> /dev/null)
 			if [ ".$GUILD_WALLET" != '.' ]; then
 				debug "Using Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
 				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
@@ -887,7 +891,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 		# Topology file is empty; just create the whole thing all at once...
 		if [[ ! -z "${RELAY_ADDRESS}" ]]; then
 			# ...if, that is, we have a relay address (-R argment)
-			jq ".Producers[]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+			jq ".Producers[]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null \
 				| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 		fi
 	else
@@ -895,7 +899,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 		# If we are a block producer (port 6000 or higher - assumed to be a producer node)
 		if [ "${LISTENPORT}" -ge 6000 ]; then
 			COUNTER=0
-			for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"); do
+			for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
 				COUNTER=$(expr $COUNTER + 1)
 				if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
 					SUBSCRIPT=$(expr $COUNTER - 1)
@@ -914,16 +918,16 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 			debug "No -R <relay-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
 		else
 			ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
-			for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" | xargs | tr ' ' ','); do
+			for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null | xargs | tr ' ' ','); do
 				if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
 					ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
 					break
 				fi
 			done
 			if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
-				PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json")
+				PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null)
 				debug "Adding ${RELAY_ADDRESS}::${RELAY_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-				jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+				jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 			else
 				debug "Topology file already has a Producers element for [${RELAY_ADDRESS}]:${RELAY_PORT}; no need to add"

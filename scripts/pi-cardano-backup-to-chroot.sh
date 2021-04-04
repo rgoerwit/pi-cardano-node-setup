@@ -119,12 +119,12 @@ if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ];
         LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
         debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
         chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
-apt-mark hold linux-image-generic linux-headers-generic
-trap 2 'umount /proc' SIGINT SIGHUP
+apt-mark hold linux-image-generic linux-headers-generic update-initramfs cryptsetup-initramfs flash-kernel flash-kernel:arm64
+trap "umount /proc" SIGTERM SIGINT EXIT
 mount -t proc proc /proc
 bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
 umount /proc
-apt-mark unhold linux-image-generic linux-headers-generic
+apt-mark unhold linux-image-generic linux-headers-generic update-initramfs cryptsetup-initramfs flash-kernel flash-kernel:arm64
 exit
 _EOF
         cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
