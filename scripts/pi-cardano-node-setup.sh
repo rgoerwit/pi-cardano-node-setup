@@ -18,10 +18,10 @@
 #
 
 err_exit() {
-  EXITCODE=$1; shift
-  (printf "$*" && echo -e "") 1>&2; 
-  # pushd -0 >/dev/null && dirs -c
-  exit $EXITCODE 
+	EXITCODE=$1; shift
+	(printf "$*" && echo -e "") 1>&2; 
+	# pushd -0 >/dev/null && dirs -c
+	exit $EXITCODE 
 }
 
 # Read in trapping and locking code, if present
@@ -82,7 +82,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:dDg:G:h:im:n:No:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -98,7 +98,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
 	i ) IGNORE_MISSING_DEPENDENCIES='--ignore-missing' ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
-    n ) START_SERVICES="N" ;;
+    N ) START_SERVICES="N" ;;
 	o ) OVERCLOCK_SPEED="${OPTARG}" ;;
     p ) LISTENPORT="${OPTARG}" ;;
     P ) POOLNAME="${OPTARG}" ;;
@@ -184,7 +184,8 @@ debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
 	HIDDENWIFI=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $1 }')
 	HIDDENWIFIPASSWORD=$(echo "$HIDDEN_WIFI_INFO" | awk -F: '{ print $2 }')
-	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] && err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
+	[ -z "${HIDDENWIFI}" ] && [ -z "${HIDDENWIFIPASSWORD}" ] \
+		&& err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
 fi
 
 [ -z "${IOHKREPO}" ]           && IOHKREPO="https://github.com/input-output-hk"
@@ -233,12 +234,12 @@ if id "$BUILD_USER" 1>> /dev/null 2>&1; then
 	: do nothing
 else
     # But...if we have to create the build user, lock the password
-    useradd -m -U -s /bin/bash "$BUILD_USER"					1>> /dev/null 2>&1
-	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin		1>> /dev/null 2>&1
-    passwd -l "$BUILD_USER"										1>> /dev/null
-	(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
+    useradd -m -U -s /bin/bash -d "/home/$BUILD_USER" "$BUILD_USER"		1>> /dev/null 2>&1
+	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin				1>> /dev/null 2>&1
+    passwd -l "$BUILD_USER"												1>> /dev/null
 fi
-(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${BUILD_USER}"
+(stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') 
+	|| (chown $BUILD_USER.$BUILD_USER "/home/${BUILD_USER}"; chmod o-rwx "/home/${BUILD_USER}")
 #
 mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
@@ -258,12 +259,12 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	gnupg gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
 	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
+	wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
-	        || err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
-$APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+$APTINSTALLER install cython3			1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
-		debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
+		|| debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 
@@ -540,11 +541,12 @@ fi
 #
 debug "Checking and (if need be) making install user: ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
-    || useradd -m -U -s /bin/bash "$INSTALL_USER" 			1>> "$BUILDLOG"
+    || useradd -m -U -s /bin/bash -d "/home/$BUILD_USER" "$INSTALL_USER"	1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
-usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin	1>> "$BUILDLOG" 2>&1
-passwd -l "$INSTALL_USER"									1>> "$BUILDLOG"
-(stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') || chmod o-rwx "/home/${INSTALL_USER}"
+usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin					1>> "$BUILDLOG" 2>&1
+passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
+(stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') \
+	|| (chown $INSTALL_USER.$INSTALL_USER "/home/${INSTALL_USER}"; chmod o-rwx "/home/${INSTALL_USER}")
 
 # Install GHC, cabal
 #
@@ -735,7 +737,7 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 	fi
 done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
-echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $* # (not completed)" > $LASTRUNFILE
+echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
 # UPDATE mainnet-config.json and related files to latest version and start node
 #
