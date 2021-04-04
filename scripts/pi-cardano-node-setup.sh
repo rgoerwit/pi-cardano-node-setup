@@ -37,7 +37,7 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
 	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
 	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
@@ -63,9 +63,10 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
+-N    No start; if this argument is supplied, no startup of any services, including cardano-node, will be attempted
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
--P    Pool name, not ticker (only useful if you've been using CNode Tools and generated a walled inside your INSTALLDIR/priv/pool directory)
+-P    Pool name (not ticker - only useful if you've been using CNode Tools to create a wallet inside your INSTALLDIR/priv/pool directory)
 -r    Install RDP
 -R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
@@ -97,6 +98,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:o:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
 	i ) IGNORE_MISSING_DEPENDENCIES='--ignore-missing' ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
+    n ) START_SERVICES="N" ;;
 	o ) OVERCLOCK_SPEED="${OPTARG}" ;;
     p ) LISTENPORT="${OPTARG}" ;;
     P ) POOLNAME="${OPTARG}" ;;
@@ -285,14 +287,17 @@ if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then
     fi
 fi
 
-debug "Making sure SSH service is enabled and started"
+debug "Making sure SSH service is enabled"
 $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
-systemctl start ssh                               1>> "$BUILDLOG" 2>&1
-systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
-    || err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
-systemctl start ntp                               1>> "$BUILDLOG" 2>&1
+if [ ".$START_SERVICES" != '.N' ]; then
+	debug "Making sure SSH service is actually started; starting NTP service, too"
+	systemctl start ssh                               1>> "$BUILDLOG" 2>&1
+	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
+	systemctl start ntp                               1>> "$BUILDLOG" 2>&1
+fi
 
 if [ ".$OVERCLOCK_SPEED" != '.' ]; then
     debug "Checking and (if need be setting up) overclocking (speed=$OVERCLOCK_SPEED, PIVERSION=$PIVERSION)"
@@ -397,10 +402,11 @@ _EOF
 		$APTINSTALLER install tasksel  1>> "$BUILDLOG" 2>&1
 		tasksel install ubuntu-desktop 1>> "$BUILDLOG" 2>&1
 		systemctl enable xrdp          1>> "$BUILDLOG" 2>&1
-		systemctl start xrdp           1>> "$BUILDLOG" 2>&1
-		systemctl status xrdp   1>> "$BUILDLOG" 2>&1 \
-    		err_exit 137 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
-
+		if [ ".$START_SERVICES" != '.N' ]; then
+			systemctl start xrdp           1>> "$BUILDLOG" 2>&1
+			systemctl status xrdp   1>> "$BUILDLOG" 2>&1 \
+				err_exit 137 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
+		fi
 		RUID=$(who | awk 'FNR == 1 {print $1}')
 		RUSER_UID=$(id -u ${RUID})
 		sudo -u "${RUID}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${RUSER_UID}/bus" gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>> "$BUILDLOG"
@@ -410,10 +416,12 @@ _EOF
 		ufw allow from "$MY_SUBNETS" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
-debug "Checking fail2ban status... (will only squawk if NOT okay)"
-systemctl start fail2ban  1>> "$BUILDLOG" 2>&1
-systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
-    || err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
+if [ ".$START_SERVICES" != '.N' ]; then
+	debug "Checking fail2ban status... (will only squawk if NOT okay)"
+	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1
+	systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
+fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
 #
@@ -479,11 +487,13 @@ _EOF
 	fi
 	systemctl daemon-reload                   1>> "$BUILDLOG"
 	systemctl enable wpa_supplicant.service   1>> "$BUILDLOG"
-	systemctl start wpa_supplicant.service    1>> "$BUILDLOG"
-	systemctl status wpa_supplicant.service   1>> "$BUILDLOG" 2>&1 \
-    	err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
-	# renew DHCP leases
-	dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
+	if [ ".$START_SERVICES" != '.N' ]; then
+		systemctl start wpa_supplicant.service    1>> "$BUILDLOG"
+		systemctl status wpa_supplicant.service   1>> "$BUILDLOG" 2>&1 \
+			err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
+		# renew DHCP leases
+		dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
+	fi
 fi
 
 # DHCP to a specifi VLAN if asked (e.g., -v 5); disable other interfaces
@@ -928,9 +938,11 @@ done
 debug "Setting up cardano-node as system service"
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1
-systemctl start cardano-node	1>> "$BUILDLOG" 2>&1
-(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
-    || err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
+if [ ".$START_SERVICES" != '.N' ]; then
+	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1
+	(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
+		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
+fi
 
 # UPDATE gLiveView.sh and other guild scripts
 #

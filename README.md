@@ -38,7 +38,7 @@ pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.1
 
 ```
 Usage: pi-cardano-node-setup [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-o <overclock speed>] \
+    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
 	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
 	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 ```
@@ -61,9 +61,10 @@ Argument explanation:
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
+-N    No start; if this argument is supplied, no startup of any services, including cardano-node, will be attempted
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
--P    Pool name (only useful if you've been using CNode Tools and generated a walled inside your INSTALLDIR/priv/pool directory)
+-P    Pool name (not ticker - only useful if you've been using CNode Tools to create a wallet inside your INSTALLDIR/priv/pool directory)
 -r    Install RDP
 -R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
