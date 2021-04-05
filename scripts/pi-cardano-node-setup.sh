@@ -541,7 +541,7 @@ fi
 #
 debug "Checking and (if need be) making install user: ${INSTALL_USER}"
 id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
-    || useradd -m -U -s /bin/bash -d "/home/$BUILD_USER" "$INSTALL_USER"	1>> "$BUILDLOG"
+    || useradd -m -U -s /bin/bash -d "/home/$INSTALL_USER" "$INSTALL_USER"	1>> "$BUILDLOG"
 # The account for the install user (which will run cardano-node) should be locked
 usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin					1>> "$BUILDLOG" 2>&1
 passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"

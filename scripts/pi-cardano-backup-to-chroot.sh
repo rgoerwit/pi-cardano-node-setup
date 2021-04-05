@@ -2,7 +2,7 @@
 
 err_exit() {
   EXITCODE=$1; shift
-  (printf "$*" && echo -e "") 1>&2; 
+  (printf "$*" && echo -e "") 1>&2;
   # pushd -0 >/dev/null && dirs -c
   exit $EXITCODE 
 }
@@ -82,7 +82,7 @@ debug() {
 } 
 
 skip_op() {	
-	debug 'Skipping: ' "$@" 
+	debug 'Skipping: ' "$@"
 }
 
 debug "To monitor progress, run: tail -f \"$BUILDLOG\""
@@ -121,13 +121,13 @@ if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ];
         LAST_COMPLETED_SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//' | sed 's/^[^ \t]*[ \t][ \t]*//')
         LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
         debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
-        chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
-trap "umount /proc" SIGTERM SIGINT  1>> /dev/null 2>&1
-mount -t proc proc /proc            1>> /dev/null 2>&1
-apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null 2>&1
+        chroot "${MOUNTPOINT}" /bin/bash -v 2>> "$BUILDLOG" << _EOF 
+trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
+mount -t proc proc /proc            1>> /dev/null
+apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
 bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
-apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null 2>&1
-umount /proc                        1>> /dev/null 2>&1
+apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
+umount /proc                        1>> /dev/null
 exit
 _EOF
         cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
