@@ -101,6 +101,7 @@ debug "Syncing ${MOUNTPOINT}${INSTALLDIR}..."
 mkdir -p "$MOUNTPOINT/$INSTALLDIR"
 rsync --delete -av "${INSTALLDIR}" "${MOUNTPOINT}/${INSTALLDIR}" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 19 "$0: Unable rsync ${INSTALLDIR} to ${MOUNTPOINT}${INSTALLDIR}; aborting"
+cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt
 
 debug "Ensuring resolver will work when we chroot"
 if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
@@ -119,12 +120,12 @@ if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ];
         LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
         debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
         chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
-apt-mark hold linux-image-generic linux-headers-generic update-initramfs cryptsetup-initramfs flash-kernel flash-kernel:arm64
-trap "umount /proc" SIGTERM SIGINT EXIT
+trap "umount /proc" SIGTERM SIGINT
 mount -t proc proc /proc
+apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64
 bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
+apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64
 umount /proc
-apt-mark unhold linux-image-generic linux-headers-generic update-initramfs cryptsetup-initramfs flash-kernel flash-kernel:arm64
 exit
 _EOF
         cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1

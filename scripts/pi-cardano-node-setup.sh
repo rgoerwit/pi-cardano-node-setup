@@ -119,7 +119,7 @@ done
 
 APTINSTALLER="apt-get -q --assume-yes $IGNORE_MISSING_DEPENDENCIES"  # could also be "apt --assume-yes" or for other distros, "yum -y"
 $APTINSTALLER install net-tools 1>> /dev/null 2>&1
-$APTINSTALLER install dnsutils 1> /dev/null
+$APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=10 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 1> /dev/null)" 2> /dev/null
@@ -207,7 +207,7 @@ fi
 CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
-PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]')"; 
+PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]' 2> /dev/null)"; 
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL_EXECUTABLE='skip_op'
@@ -251,9 +251,9 @@ debug "To monitor progress, run: tail -f \"$BUILDLOG\""
 # Update system, install prerequisites, utilities, etc.
 #
 debug "Updating system, eeprom; ensuring necessary prerequisites are installed"
-$APTINSTALLER update        1>> "$BUILDLOG"
-$APTINSTALLER upgrade       1>> "$BUILDLOG"
-$APTINSTALLER dist-upgrade  1>> "$BUILDLOG"
+$APTINSTALLER update        1>> "$BUILDLOG" 2>&1
+$APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
+$APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
@@ -262,7 +262,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 	wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
-$APTINSTALLER install cython3			1>> "$BUILDLOG" 2>&1 \
+$APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
@@ -341,7 +341,7 @@ if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
 else
     debug "Setting up firewall (using ufw)"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
-	if apt-cache pkgnames | egrep -q '^ufw$'; then
+	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
 	else
 		$APTINSTALLER install ufw 1>> "$BUILDLOG" 2>&1
@@ -600,7 +600,8 @@ $MAKE install                        1>> "$BUILDLOG" 2>&1 \
 if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
 	debug "$0: Installing libsodium even though -x argument was supplied; won't work otherwise"
 	./autogen.sh	1>> "$BUILDLOG" 2>&1
-	./configure		1>> "$BUILDLOG" 2>&1
+	./configure		1>> "$BUILDLOG" 2>&1 \
+  		|| ./configure --build=unknown-unknown-linux	1>> "$BUILDLOG" 2>&1
 	make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
 fi 
@@ -619,6 +620,16 @@ NODE_BUILD_NUM=$($WGET -S -O- 'https://hydra.iohk.io/job/Cardano/cardano-node/ca
 debug "NODE_BUILD_NUM discovered (used to fetch latest config files): $NODE_BUILD_NUM" 
 for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.bashrc"; do
 	debug "Adding/updating LD_LIBRARY_PATH, etc. env vars in .bashrc file: $bashrcfile"
+	if [ -f "$bashrcfile" ]; then
+		: do nothing
+	else 
+		if [ -f '/etc/skel/.bashrc' ]; then
+			cp /etc/skel/.bashrc "$bashrcfile"
+			USEROWNER=$(echo "$bashrcfile" | cut -f3 -d/)
+			chown $USEROWNER.$USEROWNER "$bashrcfile"
+			chmod 0640 "$bashrcfile"
+		fi
+	fi
 	for envvar in 'LD_LIBRARY_PATH' 'PKG_CONFIG_PATH' 'NODE_HOME' 'NODE_CONFIG' 'NODE_BUILD_NUM' 'PATH' 'CARDANO_NODE_SOCKET_PATH'; do
 		case "${envvar}" in
 			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:\${LD_LIBRARY_PATH}\"" ;;
