@@ -278,9 +278,9 @@ $APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1 \
 	|| snap install rpi-imager 					  1>> "$BUILDLOG" 2>&1  # If not present, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
 
-EEPROM_UPDATE="$(which rpi-eeprom-update 2>&1)"
+EEPROM_UPDATE="$(which rpi-eeprom-update 2> /dev/null)"
 if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then 
-	if $EEPROM_UPDATE | egrep -q 'BOOTLOADER: *up-to-date'; then
+	if $EEPROM_UPDATE 2> /dev/null | egrep -q 'BOOTLOADER: *up-to-date'; then
 		debug "Eeprom up to date; skipping update"
 	else
 		debug "Updating eeprom: $EEPROM_UPDATE -a"

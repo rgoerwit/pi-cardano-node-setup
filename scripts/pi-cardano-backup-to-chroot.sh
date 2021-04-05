@@ -71,8 +71,8 @@ err_exit() {
     EXITCODE=$1; shift
     (printf "$*" && echo -e "") 1>&2; 
     # pushd -0 >/dev/null && dirs -c
-    umount "$BACKUP_DEVICE"
-    apt-mark unhold linux-image-generic linux-headers-generic
+    umount "$BACKUP_DEVICE"                                     2> /dev/null
+    apt-mark unhold linux-image-generic linux-headers-generic   1> /dev/null 2>&1
     exit $EXITCODE 
 }
 
@@ -87,20 +87,22 @@ skip_op() {
 
 debug "To monitor progress, run: tail -f \"$BUILDLOG\""
 
-debug "Syncing ${MOUNTPOINT}${BUILDDIR}..."
+debug "Creating ${MOUNTPOINT}${BUILDDIR}..."
 mkdir -p "$MOUNTPOINT/$BUILDDIR"    1>> "$BUILDLOG" 2>&1
 cd "${MOUNTPOINT}/${BUILDDIR}"      1>> "$BUILDLOG" 2>&1
-git clone 'https://github.com/rgoerwit/pi-cardano-node-setup/' 1>> "$BUILDLOG" 2>&1
+[ -d 'pi-cardano-node-setup' ] \
+    || git clone 'https://github.com/rgoerwit/pi-cardano-node-setup/' 1>> "$BUILDLOG" 2>&1
 cd 'pi-cardano-node-setup'          1>> "$BUILDLOG" 2>&1
 git reset --hard                    1>> "$BUILDLOG" 2>&1
 git pull                            1>> "$BUILDLOG" 2>&1
+cd "$BUILDDIR"
 
-rsync -av "${BUILDDIR}" "${MOUNTPOINT}/${BUILDDIR}" 1>> "$BUILDLOG" 2>&1 \
-    || err_exit 18 "$0: Unable rsync ${BUILDDIR} to ${MOUNTPOINT}${BUILDDIR}; aborting"
 debug "Syncing ${MOUNTPOINT}${INSTALLDIR}..."
-mkdir -p "$MOUNTPOINT/$INSTALLDIR"
-rsync --delete -av "${INSTALLDIR}" "${MOUNTPOINT}/${INSTALLDIR}" 1>> "$BUILDLOG" 2>&1 \
-    || err_exit 19 "$0: Unable rsync ${INSTALLDIR} to ${MOUNTPOINT}${INSTALLDIR}; aborting"
+mkdir -p "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1
+rsync -av "${BUILDDIR}" "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1 \
+    || err_exit 18 "$0: Unable to rsync ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}; aborting"
+rsync -av "${INSTALLDIR}" "${MOUNTPOINT}/home" 1>> "$BUILDLOG" 2>&1 \
+    || err_exit 19 "$0: Unable to rsync ${INSTALLDIR} to ${MOUNTPOINT}/home; aborting"
 cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt
 
 debug "Ensuring resolver will work when we chroot"
@@ -120,12 +122,12 @@ if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ];
         LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
         debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
         chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
-trap "umount /proc" SIGTERM SIGINT
-mount -t proc proc /proc
-apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64
+trap "umount /proc" SIGTERM SIGINT  1>> /dev/null 2>&1
+mount -t proc proc /proc            1>> /dev/null 2>&1
+apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null 2>&1
 bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
-apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64
-umount /proc
+apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null 2>&1
+umount /proc                        1>> /dev/null 2>&1
 exit
 _EOF
         cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
