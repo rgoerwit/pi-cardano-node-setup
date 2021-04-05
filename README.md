@@ -4,7 +4,7 @@
 
 Obtain:  git clone https://github.com/rgoerwit/pi-cardano-node-setup/
 
-Run:  cd pi-cardano-node-setup/scripts; ./pi-cardano-setup.sh ... 
+Run:  cd pi-cardano-node-setup/scripts; bash ./pi-cardano-setup.sh ... 
 
 Assumes:  Relays will be on ports 300x, block producers on ports 600x
 ## Example Invocations
