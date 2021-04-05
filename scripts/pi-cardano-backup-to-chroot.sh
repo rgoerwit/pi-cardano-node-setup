@@ -19,7 +19,7 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-b <builduser>] [-d <device>] [-D] [-M <mountpoint>] [-u <install-user>]
+Usage: $PROGNAME [-b <builduser>] [-C <node-setup-command>] [-d <device>] [-D] [-M <mountpoint>] [-u <install-user>]
 
 Backs up current node configuration to another drive (-D <device>)
 
@@ -30,6 +30,7 @@ $PROGNAME -D -d /dev/sda2 -u cardano
 Arguments:
 
 -b    Build user - user whose home is used to compile and stage executables
+-C    Command to supply to pi-cardano-node-setup.sh (usually not needed if just backing up; used if upgrading, for example; must include executable name)
 -d    Back setup up to device
 -D    Emit debugging messages
 -M    Mount point for backup device (defaults to /mnt)
@@ -38,9 +39,10 @@ _EOF
   exit 1
 }
 
-while getopts b:d:DM:u: opt; do
+while getopts b:C:d:DM:u: opt; do
     case "${opt}" in
         b ) BUILD_USER="${OPTARG}" ;;
+        C ) PI_CARDANO_NODE_SETUP_CMD="${OPTARG}" ;;
         d ) BACKUP_DEVICE="${OPTARG}" ;;
         D ) DEBUG='Y' ;;
         M ) MOUNTPOINT="${OPTARG}" ;;
@@ -103,7 +105,7 @@ rsync -av "${BUILDDIR}" "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1 
     || err_exit 18 "$0: Unable to rsync ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}; aborting"
 rsync -av "${INSTALLDIR}" "${MOUNTPOINT}/home" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 19 "$0: Unable to rsync ${INSTALLDIR} to ${MOUNTPOINT}/home; aborting"
-cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt
+cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt 1>> "$BUILDLOG" 2>&1
 
 debug "Ensuring resolver will work when we chroot"
 if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
@@ -112,30 +114,30 @@ if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
 fi
 
 # Read in trapping and locking code, if present
-if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-node-setup.sh" ]; then
-	CARDANO_NODE_SETUP_SCRIPT="$SCRIPT_PATH/pi-cardano-node-setup.sh"
+SETUP_COMMAND="$PI_CARDANO_NODE_SETUP_CMD"
+if [ -z "$SETUP_COMMAND" ]; then 
+    debug "No -C <command> supplied; using last-used, completed pi-cardano-node-setup.sh command"
     HOMEDIR_OF_INSTALLUSER=$(getent passwd ${INSTALL_USER:-cardano} | cut -f6 -d:)
     LAST_COMPLETED_SETUP_COMMAND_FILE=$(ls -tR ${HOMEDIR_OF_INSTALLUSER}/logs/build-command-line-* | xargs egrep -l 'completed' | head -1)
-    if [ ".$LAST_COMPLETED_SETUP_COMMAND_FILE" != '.' ] && [ -r "$LAST_COMPLETED_SETUP_COMMAND_FILE" ]; then
-        # Strip out path and executable name, but keep arguments; strip out comment at the end
-        LAST_COMPLETED_SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//' | sed 's/^[^ \t]*[ \t][ \t]*//')
-        LAST_COMPLETED_SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${LAST_COMPLETED_SETUP_COMMAND} -N"
-        debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${LAST_COMPLETED_SETUP_COMMAND}"
-        chroot "${MOUNTPOINT}" /bin/bash -v 2>> "$BUILDLOG" << _EOF 
+    LAST_COMPLETED_SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//')
+fi
+if [ -z "$SETUP_COMMAND" ]; then
+    err_abort 9 "$0: No -C <command> supplied and can't find last pi-cardano-node-setup.sh command-line; aborting"
+else
+    # Strip out path and executable name, but keep arguments; replace with latest downloade above
+    SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[^ \t]*[ \t][ \t]*//' | sed 's/-N[ \t]*$//') # strip executable and -N
+    SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
+fi
+
+debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
+chroot "${MOUNTPOINT}" /bin/bash -v 2>&1 << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
-bash -c "bash $LAST_COMPLETED_SETUP_COMMAND"
+bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null
-exit
-_EOF
-        cd "$SCRIPT_PATH" 1>> "$BUILDLOG" 2>&1
-    else   
-        err_abort 9 "$0: Can't find or execute last-run command file, (${LAST_COMPLETED_SETUP_COMMAND_FILE:-unknown}); aborting"
-    fi
-else
-    err_abort 9 "$0: Aborting; copied files into position, but can't run $LAST_COMPLETED_SETUP_COMMAND_FILE"
-fi
+_EOF | tee -a "$BUILDLOG"
 
-umount "${BACKUP_DEVICE}" 1>> "$BUILDLOG" 2>&1
+cd "$SCRIPT_PATH"           1>> "$BUILDLOG" 2>&1
+umount "${BACKUP_DEVICE}"   1>> "$BUILDLOG" 2>&1
