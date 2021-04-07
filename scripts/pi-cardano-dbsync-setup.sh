@@ -23,7 +23,7 @@
 [ -z "${WGET}" ]              && WGET="wget"
 [ -z "${APTINSTALLER}" ]      && APTINSTALLER="apt-get -q --assume-yes"
 [ -z "${MY_SSH_HOST}" ]       && MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[[:space:]]*\(LISTEN\|ESTABLISHED\) *$/\1/gip' | sed 's/[[:space:]]/,/g')
-[ -z "$MY_SSH_HOST" ] || MY_SUBNETS="$MY_SUBNETS,$MY_SSH_HOST"
+[ -z "${MY_SSH_HOST}" ] || MY_SUBNETS="$MY_SUBNETS,$MY_SSH_HOST"
 
 PROJECTNAME='cardano-db-sync'
 
@@ -65,7 +65,12 @@ git pull               1>> "$BUILDLOG" 2>&1 \
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > cabal.project.local
 
 # Replace tag against checkout if you do not want to build the latest released version
-DBSYNC_LATEST_VERSION=$(curl -s "${IOHKAPIREPO}/${PROJECTNAME}/releases/latest" | jq -r .tag_name)
+DBSYNC_LATEST_VERSION=$(curl -s "${IOHKAPIREPO}/${PROJECTNAME}/releases/latest" 2> /dev/null | jq -r .tag_name)
+if [ -z "$DBSYNC_LATEST_VERSION" ]; then
+     DBSYNC_BRANCH=$(git branch -a | egrep '^[ \t]*remotes.*release/' | sort -t '.' -k 1n,2n | tail -1 | sed 's|^.*/release\(.*\)[ \t]*$|release\1|')
+     git switch "$DBSYNC_BRANCH"
+     DBSYNC_LATEST_VERSION="tags/$(git describe --exact-match --tags --abbrev=0)"
+fi
 debug "Inferred latest version of ${PROJECTNAME}: $DBSYNC_LATEST_VERSION"
 git checkout "$DBSYNC_LATEST_VERSION" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 77 "$0: Failed to checkout ${PROJECTNAME}, version $DBSYNC_LATEST_VERSION"
@@ -80,11 +85,12 @@ debug "Running 'cabal update' to ensure we have latest dependencies"
 $CABAL_EXECUTABLE update     1>> "$BUILDLOG" 2>&1
 $CABAL_EXECUTABLE build all  1>> "$BUILDLOG" 2>&1
 
-debug "Downloading guild dbsync config: ${GUILDREPO_RAW}/alpha/files/config-dbsync.json"
 CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
 CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json")
-$WGET --quiet --continue "${GUILDREPO_RAW}/alpha/files/config-dbsync.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
-    || err_exit 75 "$0: Failed to download Guild dbsync config:  ${GUILDREPO_RAW}/blob/alpha/files/config-dbsync.json"
+debug "Downloading guild dbsync config: ${GUILDREPO_RAW}/files/config-dbsync.json"
+$WGET --quiet --continue "${GUILDREPO_RAW}/files/config-dbsync.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
+    || $WGET --quiet --continue "${GUILDREPO_RAW}/alpha/files/config-dbsync.json" -O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" \
+        || err_exit 75 "$0: Failed to download Guild dbsync config:  ${GUILDREPO_RAW}/files/config-dbsync.json"
 sed -i "s|mainnet|${BLOCKCHAINNETWORK}|"                   "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 sed -i "s|/opt/cardano/cnode|${INSTALLDIR}|"               "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 sed -i "s|/config.json|/${BLOCKCHAINNETWORK}-config.json|" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"

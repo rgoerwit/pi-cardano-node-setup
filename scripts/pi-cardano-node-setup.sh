@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#############################################################################
+###############################################################################
 #
 #  Copyright 2021 Richard L. Goerwitz III
 #
@@ -9,12 +9,12 @@
 #    for any particular purpose.  Use it at your own risk.  For full licensing
 #    information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
 #
-############################################################################# 
+############################################################################### 
 #
 #  Builds cardano-node and friends on a Raspberry Pi running
 #  Ubuntu LTS.
 #
-#############################################################################
+###############################################################################
 #
 
 err_exit() {
@@ -37,9 +37,10 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
+    [-d] [-D] [-f] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
 	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
+	[-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] \
+	[-x] [-y <ghc-version>] [-Y]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -55,6 +56,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
+-f    Re-fetch code from github for libsodium and cardano-node, overwriting previously downloaded repositories
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -y    GHC version (currently defaults to 8.10.4)
@@ -72,17 +74,18 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
+-U    Specify Cardano branch to check out (goes with -V <version>; usually the value will be 'master' or 'bench')
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -W    Specify a Guild CNode Tool version (defaults to the latest)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
--V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
+-V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version); compare -U <branch>
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 -Y    Set up cardano-db-sync
 _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:dDg:G:h:im:n:No:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:dDfg:G:h:im:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -91,6 +94,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:No:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
 	c ) NODE_CONFIG_FILE="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
+	f ) REFETCH_CODE='Y' ;;
 	g ) GHCOS="${OPTARG}" ;;
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
 	y ) GHCVERSION="${OPTARG}" ;;
@@ -107,6 +111,7 @@ while getopts 4:6:b:B:c:dDg:G:h:im:n:No:p:P:rR:s:Su:v:V:w:W:xy:Y opt; do
 	s ) MY_SUBNETS="${OPTARG}" ;;
 	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
+	U ) CARDANOBRANCH="${OPTARG}" ;;
 	v ) VLAN_NUMBER="${OPTARG}" ;;
 	V ) CARDANONODE_VERSION="${OPTARG}" ;;
     w ) LIBSODIUM_VERSION="${OPTARG}" ;;
@@ -179,6 +184,7 @@ debug "INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
+debug "External IPv4: ${EXTERNAL_IPV4_ADDRESS:-unknown}; External IPv6: ${EXTERNAL_IPV6_ADDRESS:-unknown}"
 
 # -h argument supplied - parse WiFi info (WiFi usually not recommended, but OK esp. for relay, in a pinch)
 if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
@@ -256,8 +262,8 @@ $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
-	gnupg gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev libsystemd-dev \
-	libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
+	gnupg \gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev \
+	libsystemd-dev libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
 	librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
 	wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
@@ -267,6 +273,7 @@ $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
+snap install go --classic			1>> "$BUILDLOG" 2>&1
 
 # Make sure some other basic prerequisites are correctly installed
 $APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
@@ -294,7 +301,7 @@ systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Making sure SSH service is actually started; starting NTP service, too"
-	systemctl start ssh                               1>> "$BUILDLOG" 2>&1
+	systemctl start ssh                               1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
 	systemctl start ntp                               1>> "$BUILDLOG" 2>&1
@@ -355,12 +362,13 @@ else
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
-		ufw allow from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
+		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
 		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
-			ufw allow from "$NETW" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1
+			ufw allow proto tcp from "$NETW" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1	# Prometheus
+			ufw allow proto tcp from "$NETW" to any port 9100 1>> "$BUILDLOG" 2>&1		# node exporter
 		fi
 		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
-			ufw allow from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
+			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
 	done
 	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
@@ -372,11 +380,11 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
       - targets: ['node-ip-address-goes-here:12798']
-## Uncomment if you install the node exporter on your relay and open up port 9000 on relay
-#  - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
-#    scrape_interval: 5s
-#    static_configs:
-#    - targets: ['node-ip-address-goes-here:9090']
+# Node exporter uses port 9100 by default
+  - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['node-ip-address-goes-here:9100']
 global:
   scrape_interval:     15s
   evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
@@ -404,9 +412,9 @@ _EOF
 		tasksel install ubuntu-desktop 1>> "$BUILDLOG" 2>&1
 		systemctl enable xrdp          1>> "$BUILDLOG" 2>&1
 		if [ ".$START_SERVICES" != '.N' ]; then
-			systemctl start xrdp           1>> "$BUILDLOG" 2>&1
+			systemctl start xrdp    1>> "$BUILDLOG" 2>&1; sleep 3
 			systemctl status xrdp   1>> "$BUILDLOG" 2>&1 \
-				err_exit 137 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
+				|| err_exit 136 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
 		fi
 		RUID=$(who | awk 'FNR == 1 {print $1}')
 		RUSER_UID=$(id -u ${RUID})
@@ -419,9 +427,46 @@ _EOF
 fi
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Checking fail2ban status... (will only squawk if NOT okay)"
-	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1
+	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
+fi
+
+# If Prometheus is configured, set up node_exporter
+#
+if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
+	debug "Installing (and building, if -x was not supplied) node_exporter"
+	cd $BUILDDIR
+	git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
+	cd node_exporter
+    if [ ".$SKIP_RECOMPILE" != '.Y' ] !! [[ ! -x '/usr/local/sbin/node_exporter' ]]; then
+		make common-all	1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
+	fi
+	useradd node_exporter -s /sbin/nologin   1>> "$BUILDLOG" 2>&1
+	cp node_exporter /usr/local/sbin/		 1>> "$BUILDLOG" 2>&1
+	if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+		cat /etc/systemd/system/node_exporter.service << _EOF
+[Unit]
+Description=Node Exporter
+
+[Service]
+User=node_exporter
+EnvironmentFile=/etc/sysconfig/node_exporter
+ExecStart=/usr/sbin/node_exporter $OPTIONS
+
+[Install]
+WantedBy=multi-user.target
+_EOF
+		cat 'OPTIONS="--collector.textfile.directory /var/lib/node_exporter/textfile_collector"' >> /etc/sysconfig/node_exporter
+	fi
+	systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
+	systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
+	if [ ".$START_SERVICES" != '.N' ]; then
+		systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
+		systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
+	fi
 fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
@@ -489,9 +534,9 @@ _EOF
 	systemctl daemon-reload                   1>> "$BUILDLOG"
 	systemctl enable wpa_supplicant.service   1>> "$BUILDLOG"
 	if [ ".$START_SERVICES" != '.N' ]; then
-		systemctl start wpa_supplicant.service    1>> "$BUILDLOG"
+		systemctl start wpa_supplicant.service    1>> "$BUILDLOG" 2>&1; sleep 3
 		systemctl status wpa_supplicant.service   1>> "$BUILDLOG" 2>&1 \
-			err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
+			|| err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
 		# renew DHCP leases
 		dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
 	fi
@@ -572,7 +617,8 @@ debug "Downloading, installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE
 $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" \
     || err_exit 48 "$0: Unable to download cabal; aborting"
 tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
-cp cabal "$CABAL"             || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
+cp cabal "$CABAL" \
+    || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
 chown root.root "$CABAL"
 chmod 0755 "$CABAL"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
@@ -589,20 +635,23 @@ fi
 #
 debug "Downloading (possibly installing if no -x) libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
-'rm' -rf libsodium
-git clone "${IOHKREPO}/libsodium"    1>> "$BUILDLOG" 2>&1
-cd libsodium
-git checkout "$LIBSODIUM_VERSION"    1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
-./autogen.sh                         1>> "$BUILDLOG" 2>&1
-./configure                          1>> "$BUILDLOG" 2>&1
-$MAKE                                1>> "$BUILDLOG" 2>&1
-$MAKE install                        1>> "$BUILDLOG" 2>&1 \
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]]; then
+	'rm' -rf libsodium 					1>> "$BUILDLOG" 2>&1 # just in case
+	git clone "${IOHKREPO}/libsodium"	1>> "$BUILDLOG" 2>&1
+fi
+cd 'libsodium'
+git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
+git fetch							1>> "$BUILDLOG" 2>&1
+./autogen.sh 						1>> "$BUILDLOG" 2>&1
+./configure							1>> "$BUILDLOG" 2>&1
+$MAKE								1>> "$BUILDLOG" 2>&1
+$MAKE install						1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 78 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
 if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
-	debug "$0: Installing libsodium even though -x argument was supplied; won't work otherwise"
+	debug "$0: Installing libsodium (even if -x argument was supplied; won't work otherwise)"
 	./autogen.sh	1>> "$BUILDLOG" 2>&1
 	./configure		1>> "$BUILDLOG" 2>&1 \
-  		|| ./configure --build=unknown-unknown-linux	1>> "$BUILDLOG" 2>&1
+  		|| ./configure --build=unknown-unknown-linux 1>> "$BUILDLOG" 2>&1
 	make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
 fi 
@@ -659,25 +708,34 @@ done
 #
 debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
-'rm' -rf cardano-node-OLD					1>> "$BUILDLOG" 2>&1
-'mv' -f cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
-git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]]; then
+	'rm' -rf cardano-node-OLD					1>> "$BUILDLOG" 2>&1
+	'mv' -f cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
+	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
+fi
 cd cardano-node
-git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
+# Power move - updates local copies of remote branches (will not update local branches, which track remote branches)
+debug "Updating local copies of cardano-node remote git branches"
+git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
+[ -z "$CARDANOBRANCH" ] && CARDANOBRANCH='master'
+debug "Setting cardano-node branch to:  $CARDANOBRANCH"
+git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	CARDANONODE_VERSION="tags/$(git describe --tags `git rev-list --tags --max-count=1`)"
-	debug "No cardano-node version specified; defaulting to latest tag, $CARDANONODE_VERSION"
+	CARDANONODE_VERSION="tags/$(git describe --exact-match --tags --abbrev=0)"
+	debug "No cardano-node version specified; defaulting to latest tag in the current branch, $CARDANONODE_VERSION"
 fi
 [[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_VERSION="tags/$CARDANONODE_VERSION"
 debug "Checking out cardano-node: git checkout ${CARDANONODE_VERSION}"
-git checkout "${CARDANONODE_VERSION}"  1>> "$BUILDLOG" 2>&1 \
-	|| err_exit 79 "$0: Failed to 'git checkout' cardano-node $CARDANONODE_VERSION; aborting"
+git checkout "${CARDANONODE_VERSION}"		1>> "$BUILDLOG" 2>&1 \
+	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_VERSION}; aborting"
+get fetch						 			1>> "$BUILDLOG" 2>&1
+
 #
 # Set build options for cardano-node and cardano-cli
 #
 $CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
 $CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
-'rm' -rf "$BUILDDIR/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
+'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
 echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
 #
 # Build cardano-node and cardano-cli
@@ -728,8 +786,12 @@ else
     cp $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
 fi
 [ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
+OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
 debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
-debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-cli version | head -1)"
+debug "Installed cardano-cli version: $OBSERVED_CARDANO_NODE_VERSION"
+if [ ".$SKIP_RECOMPILE" = '.Y' ] && [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
+	debug "Rerun without -x? Specified node version, ${CARDANONODE_VERSION}, does not match executable, ${OBSERVED_CARDANO_NODE_VERSION}"
+fi
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
@@ -957,7 +1019,7 @@ debug "Setting up cardano-node as system service"
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1
+	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1; sleep 3
 	(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
 		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 fi
@@ -967,7 +1029,7 @@ fi
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
 	GUILDOPTEMPDIR='guild-operators-temp'
-	pushd "${TMPDIR:-/tmp}" 			1>> "$BUILDLOG" 2>&1; rm -rf "$GUILDOPTEMPDIR"
+	pushd "${TMPDIR:-/tmp}" 			1>> "$BUILDLOG" 2>&1; 'rm' -rf "$GUILDOPTEMPDIR"
     git init "$GUILDOPTEMPDIR"          1>> "$BUILDLOG" 2>&1
     cd "$GUILDOPTEMPDIR"
 	git remote add origin "$GUILDREPO"  1>> "$BUILDLOG" 2>&1
@@ -1019,7 +1081,8 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 [ -L "$INSTALLDIR/db" ] \
 	|| (ln -sf "$CARDANO_DBDIR"	"$INSTALLDIR/db" 1>> "$BUILDLOG" 2>&1 \
 		|| debug "Note: Failed to: ln -sf $CARDANO_DBDIR $INSTALLDIR/db")
-[ -L "$INSTALLDIR/priv" ] && rm -f "$INSTALLDIR/priv"
+[ -d "$INSTALLDIR/priv" ] && [ $(ls -A "$INSTALLDIR/priv" 2> /dev/null | wc -l) -eq 0 ] && rm "$INSTALLDIR/priv"
+[ -L "$INSTALLDIR/priv" ] && rm "$INSTALLDIR/priv"
 [ -L "$INSTALLDIR/priv" ] \
 	|| (ln -sf "$CARDANO_PRIVDIR" "$INSTALLDIR/priv" 1>> "$BUILDLOG" 2>&1 \
 		|| debug "Note: Failed to: ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv")
@@ -1045,7 +1108,7 @@ fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	debug "Installing cncli (optional; if it fails, continuing on)..."
 	cd "$BUILDDIR"
-	[ -e 'cncli' ] && 'rm' -rf 'cncli'
+	[ -e 'cncli' ] && 'rm' -f 'cncli'
 	if git clone https://github.com/AndrewWestberg/cncli 1>> "$BUILDLOG" 2>&1; then
 		cd 'cncli'
 		debug "Updating Rust in prep for cncli install"

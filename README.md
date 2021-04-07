@@ -38,9 +38,10 @@ pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.1
 
 ```
 Usage: pi-cardano-node-setup [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
+    [-d] [-D] [-f] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
 	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
+	[-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] \
+	[-x] [-y <ghc-version>] [-Y]
 ```
 
 Argument explanation:
@@ -53,6 +54,7 @@ Argument explanation:
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
+-f    Re-fetch code from github for libsodium and cardano-node, overwriting previously downloaded repositories
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -y    GHC version (currently defaults to 8.10.4)
@@ -70,10 +72,11 @@ Argument explanation:
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
+-U    Specify Cardano branch to check out (goes with -V <version>; usually the value will be 'master' or 'bench')
 -w    Specify a libsodium version (defaults to the wacky version the Cardano project recommends)
 -W    Specify a Guild CNode Tool version (defaults to the latest)
 -v    Enable vlan <number> on eth0; DHCP to that VLAN; disable eth0 interface
--V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version)
+-V    Specify Cardano node version (for example, 1.25.1; defaults to a recent, stable version); compare -U <branch>
 -x    Don't recompile anything big, like ghc, libsodium, and cardano-node
 -Y    Set up cardano-db-sync
 ```

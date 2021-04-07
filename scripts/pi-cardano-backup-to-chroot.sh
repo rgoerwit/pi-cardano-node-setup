@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#############################################################################
+###############################################################################
 #
 #  Copyright 2021 Richard L. Goerwitz III
 #
@@ -9,7 +9,7 @@
 #    for any particular purpose.  Use it at your own risk.  For full licensing
 #    information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
 #
-############################################################################# 
+###############################################################################
 #
 #  Used to back up a cardano-node running on a Raspberry Pi.  The
 #  backup device is assumed to be a mountable filesystem (identified
@@ -17,7 +17,7 @@
 #  second partition on an SD card, usually an an adapter, and visible
 #  to the operating system as /dev/sda2
 #
-#############################################################################
+###############################################################################
 #
 
 err_exit() {
