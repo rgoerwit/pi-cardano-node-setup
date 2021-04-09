@@ -776,7 +776,7 @@ CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
 debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION}"
 git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
-get fetch						 			1>> "$BUILDLOG" 2>&1
+git fetch						 			1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
