@@ -37,10 +37,10 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-f] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
-	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] \
-	[-x] [-y <ghc-version>] [-Y]
+    [-C <cabal version>] [-d] [-D] [-f] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] \
+	[-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] \
+	[-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] \
+	[-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -49,11 +49,12 @@ Examples:
 New (overclocking) mainnet setup on TCP port 3000:   $PROGNAME -D -b builduser -u cardano -n mainnet -o 2100 -p 3000  
 Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d -b builduser -u cardano -n mainnet
 
--4    External IPv4 address (defaults to 0.0.0.0)
--6    External IPv6 address (defaults to NULL)
+-4    Bind IPv4 address (defaults to 0.0.0.0)
+-6    Bind IPv6 address (defaults to NULL)
 -b    User whose home directory will be used for compiling (defaults to 'builduser')
 -B    Branch to use when checking out SPO Guild repo code (defaults to 'master')
 -c    Node configuration file (defaults to <install user home dir>/<network>-config.json)
+-C    Specific cabal version to use
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
 -f    Re-fetch code from github for libsodium and cardano-node, overwriting previously downloaded repositories
@@ -85,13 +86,14 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:dDfg:G:h:im:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDfg:G:h:im:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
 	b ) BUILD_USER="${OPTARG}" ;;
 	B ) GUILDREPOBRANCH="${OPTARG}" ;;
 	c ) NODE_CONFIG_FILE="${OPTARG}" ;;
+	C ) CABAL_VERSION="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
 	f ) REFETCH_CODE='Y' ;;
@@ -148,6 +150,7 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "${INSTALL_USER}" ] && INSTALL_USER='cardano'
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
+NODE_EXPORTER_PORT=9090
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
@@ -221,17 +224,40 @@ fi
 
 # Guess which cabal binaries to use
 #
-CABAL_VERSION='3.2.0.0'
-if echo "$(arch)" | egrep -q 'arm|aarch'; then
-    CABAL_VERSION='3.4.0.0-rc4'
-	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
-	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
-	[ -z "$CABAL_OS" ] && CABAL_OS='linux' # Could be deb10 as well, if available?
-else
-	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
-	[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
-	[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
+if [ -z "$CABAL_VERSION" ]; then
+	CABAL_VERSION='3.4.0.0'
+	if echo "$(arch)" | egrep -q 'arm|aarch'; then
+		[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
+		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
+		[ -z "$CABAL_OS" ] && CABAL_OS='linux' # Could be deb10 as well, if available?
+	else
+		[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
+		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
+		[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
+	fi
 fi
+
+# In case our own compilations fail, use GHCUP to build ghc and cabal later
+#
+GHCUP_INSTALL_PATH=''
+#
+do_ghcup_install () {
+	debug "Falling back to GHCUP install"
+	BOOTSTRAP_HASKELL_GHC_VERSION="$GHCVERSION"
+	BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION"
+	export BOOTSTRAP_HASKELL_NONINTERACTIVE='Y'
+	GHCUP_INSTALL_PATH="$HOME/.ghcup"
+	pushd "$HOME"							1>> "$BUILDLOG" 2>&1
+	curl --proto '=https' --tlsv1.2 -sSf 'https://get-ghcup.haskell.org' | sh 1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 151 "Failed to build using GHCUP; aborting"
+	PATH="$GHCUP_INSTALL_PATH:$PATH"; export PATH
+	ghcup upgrade							1>> "$BUILDLOG" 2>&1
+	ghcup install ghc "$GHCVERSION" 		1>> "$BUILDLOG" 2>&1
+	ghcup set ghc "$GHCVERSION"				1>> "$BUILDLOG" 2>&1
+	ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
+	ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
+	popd 									1>> "$BUILDLOG" 2>&1
+}
 
 # Make sure our build user exists
 #
@@ -260,12 +286,13 @@ debug "Updating system, eeprom; ensuring necessary prerequisites are installed"
 $APTINSTALLER update        1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
+apt autoremove				1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
-	gnupg \gparted htop iproute2 jq libffi-dev libgmp-dev libncursesw5 libpq-dev libsodium-dev libssl-dev \
-	libsystemd-dev libtinfo-dev libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 python3-pip \
-	librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux zlib1g-dev \
-	wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
+	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libncursesw5 libpq-dev libsodium-dev libssl-dev \
+	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 \
+	python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
+	zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
@@ -356,49 +383,18 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	# Prometheus settings are preserved if set, even if we later overwrite config.json file
-	PIFACE=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
-	PPORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
+	debug "Using node_exporter port, $NODE_EXPORTER_PORT"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
 		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
-		if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
-			ufw allow proto tcp from "$NETW" to any port "$PPORT" 1>> "$BUILDLOG" 2>&1	# Prometheus
-			ufw allow proto tcp from "$NETW" to any port 9100 1>> "$BUILDLOG" 2>&1		# node exporter
-		fi
+		ufw allow proto tcp from "$NETW" to any port "$NODE_EXPORTER_PORT" 1>> "$BUILDLOG" 2>&1		# node exporter
 		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
 	done
-	if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ] && [ ".$DEBUG" = '.Y' ]; then
-		 echo "Install Prometheus on your monitoring station.  Sample prometheus.yaml file:"
-		 cat << _EOF
-# --------------------------------------------------------------------------------------------
-scrape_configs:
-  - job_name: 'cardano' # To scrape data from the cardano node
-    scrape_interval: 5s
-    static_configs:
-      - targets: ['node-ip-address-goes-here:12798']
-# Node exporter uses port 9100 by default
-  - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
-    scrape_interval: 5s
-    static_configs:
-    - targets: ['node-ip-address-goes-here:9100']
-global:
-  scrape_interval:     15s
-  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
-  external_labels:
-    monitor: 'codelab-monitor'
-# --------------------------------------------------------------------------------------------
-_EOF
-	fi
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
-	# ufw allow 3001/tcp           1>> "$BUILDLOG"
-	# ufw allow 6000/tcp           1>> "$BUILDLOG"
-	# ufw deny from [IP.address] to any port [number]
-	# ufw delete [rule_number]
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
 	debug "Firewall configured; rule summary (please check and fix later on):"
 	[ -z "$DEBUG" ] || ufw status numbered  # show what's going on
@@ -432,41 +428,54 @@ if [ ".$START_SERVICES" != '.N' ]; then
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 fi
 
-# If Prometheus is configured, set up node_exporter
+# Set up node_exporter
 #
-if [ ".$PIFACE" != '.' ] && [ "$PIFACE" != '127.0.0.1' ]; then
-	debug "Installing (and building, if -x was not supplied) node_exporter"
-	cd $BUILDDIR
-	git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
-	cd node_exporter
-    if [ ".$SKIP_RECOMPILE" != '.Y' ] !! [[ ! -x '/usr/local/sbin/node_exporter' ]]; then
-		make common-all	1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
-	fi
-	useradd node_exporter -s /sbin/nologin   1>> "$BUILDLOG" 2>&1
-	cp node_exporter /usr/local/sbin/		 1>> "$BUILDLOG" 2>&1
-	if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-		cat /etc/systemd/system/node_exporter.service << _EOF
+debug "Installing (and building, if -x was not supplied) node_exporter"
+cd $BUILDDIR
+git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
+cd node_exporter
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x '/usr/local/sbin/node_exporter' ]]; then
+	make common-all	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
+fi
+if [ -e "/opt/cardano/monitoring/exporters" ]; then
+	: do nothing
+else
+	mkdir -p "/opt/cardano/monitoring/exporters"
+    chown -R root.cardano "/opt/cardano" 					1>> "$BUILDLOG" 2>&1
+	find "/opt/cardano" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
+fi
+useradd node_exporter -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
+cp -f node_exporter '/opt/cardano/monitoring/exporters'		1>> "$BUILDLOG" 2>&1
+if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	# CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
+	# CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
+	cat > '/etc/systemd/system/node_exporter.service' << _EOF
 [Unit]
 Description=Node Exporter
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 User=node_exporter
-EnvironmentFile=/etc/sysconfig/node_exporter
-ExecStart=/usr/sbin/node_exporter $OPTIONS
+Restart=on-failure
+ExecStart=/opt/cardano/monitoring/exporters/node_exporter --web.listen-address=${IPV4_ADDRESS}:${NODE_EXPORTER_PORT}
+WorkingDirectory=/opt/cardano/monitoring/exporters
+LimitNOFILE=3500
 
 [Install]
 WantedBy=multi-user.target
+
+[Unit]
+Description=Node Exporter
 _EOF
-		cat 'OPTIONS="--collector.textfile.directory /var/lib/node_exporter/textfile_collector"' >> /etc/sysconfig/node_exporter
-	fi
-	systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
-	systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
-	if [ ".$START_SERVICES" != '.N' ]; then
-		systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
-		systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
-	fi
+fi
+systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
+systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
+if [ ".$START_SERVICES" != '.N' ]; then
+	systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
 fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
@@ -609,18 +618,32 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 fi
 debug "Installing: ghc-${GHCVERSION}"
 $MAKE install 1>> "$BUILDLOG"
+if [ "$GHCVERSION" != $(ghc --version | awk '{ print $(NF) }' 2> /dev/null) ]; then
+	debug "Requested GHC version $GHCVERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
+	do_ghcup_install
+fi
 
 # Now do cabal; we'll pull binaries in this case
 #
-cd "$BUILDDIR"
-debug "Downloading, installing cabal: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
-$WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" \
-    || err_exit 48 "$0: Unable to download cabal; aborting"
-tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG"
-cp cabal "$CABAL" \
-    || err_exit 66 "$0: Failed to copy cabal into position ($CABAL); aborting"
-chown root.root "$CABAL"
-chmod 0755 "$CABAL"
+if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
+	cd "$BUILDDIR"
+	if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
+		debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+		tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
+			&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
+		chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
+		chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
+	fi
+	[ -x "$CABAL" ] || do_ghcup_install
+	if [ "$CABAL_VERSION" != $(cabal --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
+		debug "Requested cabal version $CABAL_VERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
+		do_ghcup_install
+	fi
+else
+	debug "Skipping cabal install; already done via GHCUP"
+fi
+
+debug "Updating cabal database (using version $(cabal --version | head -1 | awk '{ print $(NF) }'))"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 	debug "Successfully updated $CABAL"
 else
@@ -674,7 +697,7 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 		: do nothing
 	else 
 		if [ -f '/etc/skel/.bashrc' ]; then
-			cp /etc/skel/.bashrc "$bashrcfile"
+			cp -f /etc/skel/.bashrc "$bashrcfile"
 			USEROWNER=$(echo "$bashrcfile" | cut -f3 -d/)
 			chown $USEROWNER.$USEROWNER "$bashrcfile"
 			chmod 0640 "$bashrcfile"
@@ -687,7 +710,7 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 			'NODE_HOME'                ) SUBSTITUTION="\"${INSTALLDIR}\"" ;;
 			'NODE_CONFIG'              ) SUBSTITUTION="\"${BLOCKCHAINNETWORK}\"" ;;
 			'NODE_BUILD_NUM'           ) SUBSTITUTION="\"${NODE_BUILD_NUM}\"" ;;
-			'PATH'                     ) SUBSTITUTION="\"/usr/local/bin:${INSTALLDIR}:\${PATH}\"" ;;
+			'PATH'                     ) SUBSTITUTION="\"${GHCUP_INSTALL_PATH}:/usr/local/bin:${INSTALLDIR}:\${PATH}\"" ;;
 			'CARDANO_NODE_SOCKET_PATH' ) SUBSTITUTION="\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"" ;;
 			\? ) err_exit 91 "0: Coding error in environment variable case statement; aborting" ;;
 		esac
@@ -721,16 +744,16 @@ git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 debug "Setting cardano-node branch to:  $CARDANOBRANCH"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	CARDANONODE_VERSION="tags/$(git describe --exact-match --tags --abbrev=0)"
+	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
 	debug "No cardano-node version specified; defaulting to latest tag in the current branch, $CARDANONODE_VERSION"
 fi
-[[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_VERSION="tags/$CARDANONODE_VERSION"
-debug "Checking out cardano-node: git checkout ${CARDANONODE_VERSION}"
-git checkout "${CARDANONODE_VERSION}"		1>> "$BUILDLOG" 2>&1 \
-	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_VERSION}; aborting"
+CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
+[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
+debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION}"
+git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
+	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
 get fetch						 			1>> "$BUILDLOG" 2>&1
 
-#
 # Set build options for cardano-node and cardano-cli
 #
 $CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
@@ -774,24 +797,23 @@ killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
 debug "Installing binaries for cardano-node and cardano-cli" 
 $CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-    # If we recompiled, remove symlinks if they exist in prep for copying in new binaries
-	[ -L "$INSTALLDIR/cardano-cli" ] && rm -f "$INSTALLDIR/cardano-cli"
-	[ -L "$INSTALLDIR/cardano-node" ] && rm -f "$INSTALLDIR/cardano-node"
+OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
+    # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
+	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"
+	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"
+	rm -f "$INSTALLDIR/cardano-cli"
+	rm -f "$INSTALLDIR/cardano-node"
 fi
-if [ -x "$INSTALLDIR/cardano-cli" ]; then
+if [ -x "$INSTALLDIR/cardano-node" ] && [ -x "$INSTALLDIR/cardano-cli" ]; then
     : do nothing
 else
-    cp $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
-    cp $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
+    cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
+    cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
 fi
 [ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
-OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
 debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
-debug "Installed cardano-cli version: $OBSERVED_CARDANO_NODE_VERSION"
-if [ ".$SKIP_RECOMPILE" = '.Y' ] && [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
-	debug "Rerun without -x? Specified node version, ${CARDANONODE_VERSION}, does not match executable, ${OBSERVED_CARDANO_NODE_VERSION}"
-fi
+debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-node version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
@@ -871,9 +893,9 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE" 2> /dev/null)
 			if [ ".$GUILD_WALLET" != '.' ]; then
 				debug "Using Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
-				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
-				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
-				cp "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
+				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
+				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
+				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
 				chown cardano.cardano "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
 				chmod 0600 "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
 			else
@@ -1050,7 +1072,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
 	    -e "s@^#* *NO_INTERNET_MODE=['\"]*N['\"]*@NO_INTERNET_MODE=\"\${NO_INTERNET_MODE:-Y}\"@" \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
-	debug "Resetting variables in Guild env file to; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
+	debug "Resetting variables in Guild env file to, e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s@^\#* *CNODE_PORT=['\"]*[0-9]*['\"]*@CNODE_PORT=\"$LISTENPORT\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
@@ -1086,22 +1108,14 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 [ -L "$INSTALLDIR/priv" ] \
 	|| (ln -sf "$CARDANO_PRIVDIR" "$INSTALLDIR/priv" 1>> "$BUILDLOG" 2>&1 \
 		|| debug "Note: Failed to: ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv")
-if [ -e "/opt/cardano/" ]; then
-	: do nothing
-else
-	mkdir -p "/opt/cardano"
-    chown -R root.cardano "/opt/cardano" 2>/dev/null
-	find "/opt/cardano" -type d -exec chmod "2750" {} \;
-fi
 [ -L "/opt/cardano/cnode" ] && rm -f "/opt/cardano/cnode"
 [ -L "/opt/cardano/cnode" ] \
 	|| (ln -sf "$INSTALLDIR" "/opt/cardano/cnode" \
 		|| debug "Note: Failed to: ln -sf $INSTALLDIR /opt/cardano/cnode")
-
-# Run this at startup to turn a given workstation into a basic monitoring console
-# Run it as the cardano user if possible
-#
-# cd ~cardano/scripts/; echo "p" | NO_INTERNET_MODE="Y" ./gLiveView.sh 1> /dev/console 2> /dev/null
+[ -L "$INSTALLDIR/monitoring" ] && rm -f "$INSTALLDIR/monitoring"
+[ -L "$INSTALLDIR/monitoring" ] \
+	|| (ln -sf '/opt/cardano/cnode' "$INSTALLDIR/monitoring" \
+		|| debug "Note: Failed to: ln -sf /opt/cardano/cnode $INSTALLDIR/monitoring")
 
 # build and install other utilities - python, rust-based
 #
