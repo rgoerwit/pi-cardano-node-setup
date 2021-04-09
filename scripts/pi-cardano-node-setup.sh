@@ -221,7 +221,7 @@ if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL_EXECUTABLE='skip_op'
 else
-	REFETCH_CODE='N'  # Re-fetch code if we are recompiling
+	REFETCH_CODE='Y'  # Re-fetch code if we are recompiling
 fi 
 
 # Guess which cabal binaries to use
