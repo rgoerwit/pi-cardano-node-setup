@@ -220,6 +220,8 @@ PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c
 if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
     MAKE='skip_op'
     CABAL_EXECUTABLE='skip_op'
+else
+	REFETCH_CODE='N'  # Re-fetch code if we are recompiling
 fi 
 
 # Guess which cabal binaries to use
@@ -251,12 +253,16 @@ do_ghcup_install () {
 	curl --proto '=https' --tlsv1.2 -sSf 'https://get-ghcup.haskell.org' | sh 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 151 "Failed to build using GHCUP; aborting"
 	PATH="$GHCUP_INSTALL_PATH:$PATH"; export PATH
-	ghcup upgrade							1>> "$BUILDLOG" 2>&1
-	ghcup install ghc "$GHCVERSION" 		1>> "$BUILDLOG" 2>&1
-	ghcup set ghc "$GHCVERSION"				1>> "$BUILDLOG" 2>&1
-	ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
-	ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
-	popd 									1>> "$BUILDLOG" 2>&1
+	ghcup upgrade 1>> "$BUILDLOG" 2>&1
+	if [[ ! -z "$GHCVERSION" ]]; then
+		ghcup install ghc "$GHCVERSION" 		1>> "$BUILDLOG" 2>&1
+		ghcup set ghc "$GHCVERSION"				1>> "$BUILDLOG" 2>&1
+	fi
+	if [[ ! -z "$CABAL_VERSION" ]]; then
+		ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
+		ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
+	fi
+	popd 1>> "$BUILDLOG" 2>&1
 }
 
 # Make sure our build user exists
@@ -266,9 +272,9 @@ if id "$BUILD_USER" 1>> /dev/null 2>&1; then
 	: do nothing
 else
     # But...if we have to create the build user, lock the password
-    useradd -m -U -s /bin/bash -d "/home/$BUILD_USER" "$BUILD_USER"		1>> /dev/null 2>&1
-	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin				1>> /dev/null 2>&1
-    passwd -l "$BUILD_USER"												1>> /dev/null
+    useradd -m -U -s /bin/bash -d "/home/$BUILD_USER" "$BUILD_USER"		1>> "$BUILDLOG" 2>&1
+	usermod -a -G users "$BUILD_USER" -s /usr/sbin/nologin				1>> "$BUILDLOG" 2>&1
+    passwd -l "$BUILD_USER"												1>> "$BUILDLOG"
 fi
 (stat "/home/${BUILD_USER}" --format '%A' | egrep -q '\---$') \
 	|| (chown $BUILD_USER.$BUILD_USER "/home/${BUILD_USER}"; chmod o-rwx "/home/${BUILD_USER}")
@@ -322,12 +328,11 @@ if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then
     fi
 fi
 
-debug "Making sure SSH service is enabled"
 $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "Making sure SSH service is actually started; starting NTP service, too"
+	debug "(Re)starting SSH, NTP"
 	systemctl start ssh                               1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
@@ -633,6 +638,8 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
 		chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
 		chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
+	else
+		do_ghcup_install
 	fi
 	[ -x "$CABAL" ] || do_ghcup_install
 	if [ "$CABAL_VERSION" != $(cabal --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
@@ -890,7 +897,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	if [ ".$POOLNAME" != '.' ]; then
 		POSSIBLE_POOL_CONFIGFILE="${CARDANO_PRIVDIR}/pool/${POOLNAME}/pool.config"
 		if [ -f "$POSSIBLE_POOL_CONFIGFILE" ]; then
-			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE" 2> /dev/null)
+			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE" 2> /dev/null | sed 's/^"//' | sed 's/"$//')
 			if [ ".$GUILD_WALLET" != '.' ]; then
 				debug "Using Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
