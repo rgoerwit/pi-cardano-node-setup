@@ -824,14 +824,16 @@ $CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>
 OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
     # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
-	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"
-	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"
+	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"	1>> "$BUILDLOG" 2>&1
+	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"	1>> "$BUILDLOG" 2>&1
 fi
 if [ -x "$INSTALLDIR/cardano-node" ] && [ -x "$INSTALLDIR/cardano-cli" ]; then
     : do nothing
 else
-    cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli"
-    cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node"
+    cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli" 1>> "$BUILDLOG" 2>&1 \
+		|| { mv -f "$INSTALLDIR/cardano-cli.OLD" "$INSTALLDIR/cardano-cli"; err_exit 81 "Failed to build cardano-cli; aborting" }
+    cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node" 1>> "$BUILDLOG" 2>&1 \
+		|| { mv -f "$INSTALLDIR/cardano-node.OLD" "$INSTALLDIR/cardano-node"; err_exit 81 "Failed to build cardano-node; aborting" }
 fi
 [ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
 debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
