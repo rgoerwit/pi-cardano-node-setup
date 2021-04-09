@@ -594,7 +594,7 @@ if [ $(swapon --show | wc -l) -eq 0 ] || ischroot; then
 		mkswap "$SWAPFILE"			1>> "$BUILDLOG" 2>&1
 		ischroot \
 			|| swapon "$SWAPFILE"			1>> "$BUILDLOG" 2>&1 \
-				|| err_exit 32 "$0: Can't enable swap:  swapon $SWAPFILE; aborting"
+				|| err_exit 32 "$0: Can't enable swap: swapon $SWAPFILE; aborting"
 	fi
 	if egrep -qi 'swap' '/etc/fstab'; then
 		debug "/etc/fstab already mounts swap file; skipping"
@@ -765,7 +765,7 @@ cd "$BUILDDIR/cardano-node"
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 [ -z "$CARDANOBRANCH" ] && CARDANOBRANCH='master'
-debug "Setting cardano-node branch to:  $CARDANOBRANCH"
+debug "Setting cardano-node branch to: $CARDANOBRANCH"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
 	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
@@ -780,7 +780,8 @@ get fetch						 			1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
+OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
@@ -805,8 +806,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
 		fi
 	fi
 fi
-#
-# Stop the node so we can replace binaries
+
+# Stop the node so we can replace binaries or update config files
 #
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	debug "Stopping cardano-node service, if running (so we can install or refresh binaries)" 
@@ -817,28 +818,27 @@ if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-
 	killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
 	killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 fi
-#
+
 # Copy new binaries into final position, in $INSTALLDIR
 #
-debug "(Re)installing binaries for cardano-node and cardano-cli" 
-$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
-OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
+	debug "(Re)installing binaries for cardano-node and cardano-cli" 
+	$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
     # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"	1>> "$BUILDLOG" 2>&1
 	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"	1>> "$BUILDLOG" 2>&1
+	if [ -x "$INSTALLDIR/cardano-node" ] && [ -x "$INSTALLDIR/cardano-cli" ] && [ ".${OBSERVED_CARDANO_NODE_VERSION}" = ".${CARDANONODE_VERSION}" ]; then
+		: do nothing
+	else
+		cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli" 1>> "$BUILDLOG" 2>&1 \
+			|| { mv -f "$INSTALLDIR/cardano-cli.OLD" "$INSTALLDIR/cardano-cli"; err_exit 81 "Failed to build cardano-cli; aborting" }
+		cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node" 1>> "$BUILDLOG" 2>&1 \
+			|| { mv -f "$INSTALLDIR/cardano-node.OLD" "$INSTALLDIR/cardano-node"; err_exit 81 "Failed to build cardano-node; aborting" }
+	fi
+	[ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
+	debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
+	debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-node version | head -1)"
 fi
-if [ -x "$INSTALLDIR/cardano-node" ] && [ -x "$INSTALLDIR/cardano-cli" ]; then
-    : do nothing
-else
-    cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli" 1>> "$BUILDLOG" 2>&1 \
-		|| { mv -f "$INSTALLDIR/cardano-cli.OLD" "$INSTALLDIR/cardano-cli"; err_exit 81 "Failed to build cardano-cli; aborting" }
-    cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node" 1>> "$BUILDLOG" 2>&1 \
-		|| { mv -f "$INSTALLDIR/cardano-node.OLD" "$INSTALLDIR/cardano-node"; err_exit 81 "Failed to build cardano-node; aborting" }
-fi
-[ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
-debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
-debug "Installed cardano-cli version: $(${INSTALLDIR}/cardano-node version | head -1)"
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
@@ -1190,7 +1190,7 @@ if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	# SCRIPT_PATH was set earlier on (beginning of this script)
 	if [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
 		# Run the dbsync script if we managed to find it
-		debug "Running dbsync setup script:  $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+		debug "Running dbsync setup script: $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
 		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
 			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
 	else
