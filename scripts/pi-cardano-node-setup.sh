@@ -248,7 +248,7 @@ do_ghcup_install () {
 	BOOTSTRAP_HASKELL_GHC_VERSION="$GHCVERSION"
 	BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION"
 	export BOOTSTRAP_HASKELL_NONINTERACTIVE='Y'
-	GHCUP_INSTALL_PATH="$HOME/.ghcup"
+	GHCUP_INSTALL_PATH="$HOME/.ghcup/bin"
 	pushd "$HOME"							1>> "$BUILDLOG" 2>&1
 	curl --proto '=https' --tlsv1.2 -sSf 'https://get-ghcup.haskell.org' | sh 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 151 "Failed to build using GHCUP; aborting"
@@ -262,6 +262,7 @@ do_ghcup_install () {
 		ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
 		ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
 	fi
+	CABAL="$GHCUP_INSTALL_PATH/cabal"; CABAL_EXECUTABLE="$CABAL"
 	popd 1>> "$BUILDLOG" 2>&1
 }
 
@@ -643,7 +644,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 	fi
 	[ -x "$CABAL" ] || do_ghcup_install
 	if [ "$CABAL_VERSION" != $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
-		debug "Requested cabal version $CABAL_VERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
+		debug "Requested cabal version $CABAL_VERSION != observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
 		do_ghcup_install
 	fi
 else
