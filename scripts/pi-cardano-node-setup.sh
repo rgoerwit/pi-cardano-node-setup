@@ -642,7 +642,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 		do_ghcup_install
 	fi
 	[ -x "$CABAL" ] || do_ghcup_install
-	if [ "$CABAL_VERSION" != $(cabal --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
+	if [ "$CABAL_VERSION" != $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
 		debug "Requested cabal version $CABAL_VERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
 		do_ghcup_install
 	fi
@@ -650,7 +650,7 @@ else
 	debug "Skipping cabal install; already done via GHCUP"
 fi
 
-debug "Updating cabal database (using version $(cabal --version | head -1 | awk '{ print $(NF) }'))"
+debug "Updating cabal database (using version $($CABAL --version | head -1 | awk '{ print $(NF) }'))"
 if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 	debug "Successfully updated $CABAL"
 else
@@ -738,9 +738,11 @@ done
 #
 debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]]; then
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'cardano-node' ]]; then
 	'rm' -rf cardano-node-OLD					1>> "$BUILDLOG" 2>&1
-	'mv' -f cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
+	'cp' -pf cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
+	'rm' -rf cardano-cli-OLD					1>> "$BUILDLOG" 2>&1
+	'cp' -pf cardano-cli cardano-cli-OLD		1>> "$BUILDLOG" 2>&1
 	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 fi
 cd cardano-node
