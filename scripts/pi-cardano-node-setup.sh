@@ -226,16 +226,24 @@ fi
 
 # Guess which cabal binaries to use
 #
-if [ -z "$CABAL_VERSION" ]; then
-	CABAL_VERSION='3.4.0.0'
-	if echo "$(arch)" | egrep -q 'arm|aarch'; then
-		[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
-		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # raspberry pi OS 32-bit is armv7l; ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
-		[ -z "$CABAL_OS" ] && CABAL_OS='linux' # Could be deb10 as well, if available?
+[ -z "$CABAL_VERSION" ] && CABAL_VERSION='3.4.0.0'
+[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
+if echo "$(arch)" | egrep -q 'arm|aarch'; then
+	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
+fi
+[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE="$(arch)" # On a Pi ubuntu 64 is aarch64 See http://home.smart-cactus.org/~ben/ghc/
+[ -z "$CABAL_OS" ] && CABAL_OS=$(lsb_release -a 2> /dev/null | egrep '^(Distributor|Release)' | awk '{ print $(NF) }' | xargs | tr ' ' '-' | tr '[[:upper:]]' '[[:lower:]]')
+if $WGET --method HEAD "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 2>> "$BUILDLOG"; then
+	: yay nothing more needed
+else
+	if echo "$CABAL_OS" | egrep -qi 'ubuntu'; then 
+		DVERSION=$(expr `echo "$CABAL_OS" | cut -f 2 -d'-' | cut -f 1 -d'.'` / 2);
+		CABAL_OS="debian-$DVERSION"; 
+	fi
+	if $WGET --method HEAD "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 2>> "$BUILDLOG"; then
+		: yay nothing more needed
 	else
-		[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
-		[ -z "$CABALARCHITECTURE" ] && CABALARCHITECTURE='x86_64'
-		[ -z "$CABAL_OS" ] && CABAL_OS='unknown-linux'
+		CABAL_OS='unknown-linux'
 	fi
 fi
 
@@ -640,6 +648,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 		chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
 		chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
 	else
+		debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 		do_ghcup_install
 	fi
 	[ -x "$CABAL" ] || do_ghcup_install
