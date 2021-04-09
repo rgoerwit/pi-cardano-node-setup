@@ -213,7 +213,7 @@ if [ -z "$GHC_GCC_ARCH" ]; then
 		&& GHC_GCC_ARCH="-march=Armv8-A"  # will be -march=armv7-a for Raspberry Pi OS 32 bit; -march=Armv8-A for Ubuntu 64
 fi
 [ -z "$GHCOS" ] && GHCOS="deb10"  # could potentially be deb9, etc, for example; see http://downloads.haskell.org/~ghc/
-CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
+CABAL="$INSTALLDIR/cabal"
 MAKE='make'
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]' 2> /dev/null)"; 
@@ -445,19 +445,20 @@ debug "Installing (and building, if -x was not supplied) node_exporter"
 cd $BUILDDIR
 git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 cd node_exporter
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x '/usr/local/sbin/node_exporter' ]]; then
-	make common-all	1>> "$BUILDLOG" 2>&1 \
+NODE_EXPORTER_DIR='/opt/cardano/monitoring/exporters'
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
+	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
 if [ -e "/opt/cardano/monitoring/exporters" ]; then
 	: do nothing
 else
-	mkdir -p "/opt/cardano/monitoring/exporters"
+	mkdir -p "$NODE_EXPORTER_DIR"
     chown -R root.cardano "/opt/cardano" 					1>> "$BUILDLOG" 2>&1
 	find "/opt/cardano" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 useradd node_exporter -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
-cp -f node_exporter '/opt/cardano/monitoring/exporters'		1>> "$BUILDLOG" 2>&1
+cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"		1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	# CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
 	# CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
@@ -470,7 +471,7 @@ After=network-online.target
 [Service]
 User=node_exporter
 Restart=on-failure
-ExecStart=/opt/cardano/monitoring/exporters/node_exporter --web.listen-address=${IPV4_ADDRESS}:${NODE_EXPORTER_PORT}
+ExecStart=$NODE_EXPORTER_DIR/node_exporter --web.listen-address=${IPV4_ADDRESS}:${NODE_EXPORTER_PORT}
 WorkingDirectory=/opt/cardano/monitoring/exporters
 LimitNOFILE=3500
 
@@ -780,15 +781,15 @@ get fetch						 			1>> "$BUILDLOG" 2>&1
 # Set build options for cardano-node and cardano-cli
 #
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
-	$CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
-	$CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
+	$CABAL clean 1>> "$BUILDLOG"  2>&1
+	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
 	echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
 	#
 	# Build cardano-node and cardano-cli
 	#
-	debug "Building all: $CABAL_EXECUTABLE build all (cwd = `pwd`)"
-	if $CABAL_EXECUTABLE build all 1>> "$BUILDLOG" 2>&1; then
+	debug "Building all: $CABAL build all (cwd = `pwd`)"
+	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
 		: all good
 	else
 		if [ ".$DEBUG" = '.Y' ]; then
@@ -796,8 +797,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
 			debug "Failed to build cardano-node; setting LD_LIBRARY_PATH and PKG_CONFIG_PATH to specific /usr/local locations"
 			LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
 			PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
-			$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
-				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
+			$CABAL build cardano-cli cardano-node 2>&1 \
+				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL build cardano-cli cardano-node"
 			debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
 		else
 			err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
@@ -820,7 +821,7 @@ fi
 # Copy new binaries into final position, in $INSTALLDIR
 #
 debug "(Re)installing binaries for cardano-node and cardano-cli" 
-$CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
+$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
 OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
     # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
