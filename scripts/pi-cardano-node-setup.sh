@@ -217,10 +217,7 @@ CABAL="$INSTALLDIR/cabal"; CABAL_EXECUTABLE="$CABAL"
 MAKE='make'
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]' 2> /dev/null)"; 
-if [ ".$SKIP_RECOMPILE" = '.Y' ]; then
-    MAKE='skip_op'
-    CABAL_EXECUTABLE='skip_op'
-else
+if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	REFETCH_CODE='Y'  # Re-fetch code if we are recompiling
 fi 
 
@@ -629,9 +626,9 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	cd "ghc-${GHCVERSION}"
 	debug "Running: ./configure CONF_CC_OPTS_STAGE2=\"$GCCMARMARG $GHC_GCC_ARCH\" CFLAGS=\"$GCCMARMARG $GHC_GCC_ARCH\""
 	./configure CONF_CC_OPTS_STAGE2="$GCCMARMARG $GHC_GCC_ARCH" CFLAGS="$GCCMARMARG $GHC_GCC_ARCH" 1>> "$BUILDLOG"
+	debug "Installing: ghc-${GHCVERSION}"
+	$MAKE install 1>> "$BUILDLOG"
 fi
-debug "Installing: ghc-${GHCVERSION}"
-$MAKE install 1>> "$BUILDLOG"
 if [ "$GHCVERSION" != $(ghc --version | awk '{ print $(NF) }' 2> /dev/null) ]; then
 	debug "Requested GHC version $GHCVERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
 	do_ghcup_install
@@ -640,61 +637,72 @@ fi
 # Now do cabal; we'll pull binaries in this case
 #
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
-	cd "$BUILDDIR"
-	if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
-		debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
-		tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
-			&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
-		chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
-		chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
-	else
-		debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+		cd "$BUILDDIR"
+		if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
+			debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+			tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
+				&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
+			chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
+			chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
+		else
+			debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+			do_ghcup_install
+		fi
+	fi
+	if [ -x "$CABAL" ]; then
+		debug "No $CABAL executable found; correcting"
 		do_ghcup_install
 	fi
-	[ -x "$CABAL" ] || do_ghcup_install
 	if [ "$CABAL_VERSION" != $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
-		debug "Requested cabal version $CABAL_VERSION != observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
+		debug "Requested cabal version $CABAL_VERSION != observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
 		do_ghcup_install
 	fi
 else
-	debug "Skipping cabal install; already done via GHCUP"
+	[ ".$SKIP_RECOMPILE" = '.Y' ] \
+		|| debug "Skipping cabal install; already done via GHCUP"
 fi
 
-debug "Updating cabal database (using version $($CABAL --version | head -1 | awk '{ print $(NF) }'))"
-if $CABAL update 1>> "$BUILDLOG" 2>&1; then
-	debug "Successfully updated $CABAL"
-else
-	debug "Working around bug in $CABAL..."
-	pushd ~ 1>> "$BUILDLOG" 2>&1 # Work around bug in cabal
-	'rm' -rf $HOME/.cabal
-	($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
-	popd 	1>> "$BUILDLOG" 2>&1
+if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+	debug "Updating cabal database (using version $CABAL_VERSION)"
+	if $CABAL update 1>> "$BUILDLOG" 2>&1; then
+		debug "Successfully updated $CABAL"
+	else
+		debug "Working around bug in $CABAL..."
+		pushd ~ 1>> "$BUILDLOG" 2>&1 # Work around bug in cabal
+		'rm' -rf $HOME/.cabal
+		($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
+		popd 	1>> "$BUILDLOG" 2>&1
+	fi
 fi
 
-# Install wacky Cardano version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
+# Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
-debug "Downloading (possibly installing if no -x) libsodium, version $LIBSODIUM_VERSION"
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]]; then
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
+	debug "Fetching libsodium code"
 	'rm' -rf libsodium 					1>> "$BUILDLOG" 2>&1 # just in case
 	git clone "${IOHKREPO}/libsodium"	1>> "$BUILDLOG" 2>&1
 fi
-cd 'libsodium'
-git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
-git fetch							1>> "$BUILDLOG" 2>&1
-./autogen.sh 						1>> "$BUILDLOG" 2>&1
-./configure							1>> "$BUILDLOG" 2>&1
-$MAKE								1>> "$BUILDLOG" 2>&1
-$MAKE install						1>> "$BUILDLOG" 2>&1 \
-	|| err_exit 78 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
-if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
-	debug "$0: Installing libsodium (even if -x argument was supplied; won't work otherwise)"
-	./autogen.sh	1>> "$BUILDLOG" 2>&1
-	./configure		1>> "$BUILDLOG" 2>&1 \
-  		|| ./configure --build=unknown-unknown-linux 1>> "$BUILDLOG" 2>&1
-	make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
-fi 
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
+	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
+	cd 'libsodium'
+	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
+	git fetch							1>> "$BUILDLOG" 2>&1
+	./autogen.sh 						1>> "$BUILDLOG" 2>&1
+	./configure							1>> "$BUILDLOG" 2>&1
+	$MAKE								1>> "$BUILDLOG" 2>&1
+	$MAKE install						1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 78 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
+	if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
+		debug "$0: Installing libsodium (even if -x argument was supplied; won't work otherwise)"
+		./autogen.sh	1>> "$BUILDLOG" 2>&1
+		./configure		1>> "$BUILDLOG" 2>&1 \
+			|| ./configure --build=unknown-unknown-linux 1>> "$BUILDLOG" 2>&1
+		make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
+	fi 
+fi
 # Apparent problem with Debian on this front
 if [ -f "/usr/local/lib/libsodium.so.23.3.0" ]; then
     [ -f "/usr/lib/libsodium.so.23" ] || \
@@ -746,16 +754,12 @@ done
 #
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
-debug "Downloading, configuring, and (if no -x argument) building: cardano-node and cardano-cli" 
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'cardano-node' ]]; then
-	'rm' -rf cardano-node-OLD					1>> "$BUILDLOG" 2>&1
-	'cp' -pf cardano-node cardano-node-OLD		1>> "$BUILDLOG" 2>&1
-	'rm' -rf cardano-cli-OLD					1>> "$BUILDLOG" 2>&1
-	'cp' -pf cardano-cli cardano-cli-OLD		1>> "$BUILDLOG" 2>&1
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
+	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node.git"
 	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 fi
-cd cardano-node
+cd "$BUILDDIR/cardano-node"
 # Power move - updates local copies of remote branches (will not update local branches, which track remote branches)
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
@@ -775,54 +779,53 @@ get fetch						 			1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
-$CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
-$CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
-'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
-echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
-#
-# Build cardano-node and cardano-cli
-#
-[ ".SKIP_RECOMPILE" = '.Y' ] || debug "Building all: $CABAL_EXECUTABLE build all (cwd = `pwd`)"
-if $CABAL_EXECUTABLE build all 1>> "$BUILDLOG" 2>&1; then
-# if $CABAL_EXECUTABLE build cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1; then
-	: all good
-else
-	if [ ".$DEBUG" = '.Y' ]; then
-		# Do some more intense debugging if the build fails, with a more restrictive library search path
-		debug "Failed to build cardano-node; setting LD_LIBRARY_PATH and PKG_CONFIG_PATH to specific /usr/local locations"
-		LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
-		PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
-		$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
-			|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
-		debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
+	$CABAL_EXECUTABLE clean 1>> "$BUILDLOG"  2>&1
+	$CABAL_EXECUTABLE configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
+	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
+	echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
+	#
+	# Build cardano-node and cardano-cli
+	#
+	debug "Building all: $CABAL_EXECUTABLE build all (cwd = `pwd`)"
+	if $CABAL_EXECUTABLE build all 1>> "$BUILDLOG" 2>&1; then
+		: all good
 	else
-		err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
+		if [ ".$DEBUG" = '.Y' ]; then
+			# Do some more intense debugging if the build fails, with a more restrictive library search path
+			debug "Failed to build cardano-node; setting LD_LIBRARY_PATH and PKG_CONFIG_PATH to specific /usr/local locations"
+			LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
+			PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
+			$CABAL_EXECUTABLE build cardano-cli cardano-node 2>&1 \
+				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL_EXECUTABLE build cardano-cli cardano-node"
+			debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
+		else
+			err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
+		fi
 	fi
 fi
 #
 # Stop the node so we can replace binaries
 #
-debug "Stopping cardano-node service, if running (so we can install or refresh binaries)" 
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
+	debug "Stopping cardano-node service, if running (so we can install or refresh binaries)" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
+	# Just in case, kill everything run by the install user
+	killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
+	killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 fi
-# Just in case, kill everything run by the install user
-killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
-killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
 #
 # Copy new binaries into final position, in $INSTALLDIR
 #
-debug "Installing binaries for cardano-node and cardano-cli" 
+debug "(Re)installing binaries for cardano-node and cardano-cli" 
 $CABAL_EXECUTABLE install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
 OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [ "${OBSERVED_CARDANO_NODE_VERSION}" != "${CARDANONODE_VERSION}" ]; then
     # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"
 	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"
-	rm -f "$INSTALLDIR/cardano-cli"
-	rm -f "$INSTALLDIR/cardano-node"
 fi
 if [ -x "$INSTALLDIR/cardano-node" ] && [ -x "$INSTALLDIR/cardano-cli" ]; then
     : do nothing
