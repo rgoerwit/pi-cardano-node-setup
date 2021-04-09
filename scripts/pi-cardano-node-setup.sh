@@ -831,9 +831,9 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ 
 		: do nothing
 	else
 		cp -f $(find "$BUILDDIR" -type f -name cardano-cli ! -path '*OLD*') "$INSTALLDIR/cardano-cli" 1>> "$BUILDLOG" 2>&1 \
-			|| { mv -f "$INSTALLDIR/cardano-cli.OLD" "$INSTALLDIR/cardano-cli"; err_exit 81 "Failed to build cardano-cli; aborting" }
+			|| { mv -f "$INSTALLDIR/cardano-cli.OLD" "$INSTALLDIR/cardano-cli"; err_exit 81 "Failed to build cardano-cli; aborting"; }
 		cp -f $(find "$BUILDDIR" -type f -name cardano-node ! -path '*OLD*') "$INSTALLDIR/cardano-node" 1>> "$BUILDLOG" 2>&1 \
-			|| { mv -f "$INSTALLDIR/cardano-node.OLD" "$INSTALLDIR/cardano-node"; err_exit 81 "Failed to build cardano-node; aborting" }
+			|| { mv -f "$INSTALLDIR/cardano-node.OLD" "$INSTALLDIR/cardano-node"; err_exit 81 "Failed to build cardano-node; aborting"; }
 	fi
 	[ -x "$INSTALLDIR/cardano-node" ] || err_exit 147 "$0: Failed to install $INSTALLDIR/cardano-node; aborting"
 	debug "Installed cardano-node version: $(${INSTALLDIR}/cardano-node version | head -1)"
