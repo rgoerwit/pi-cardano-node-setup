@@ -656,7 +656,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			do_ghcup_install
 		fi
 	fi
-	if [ -x "$CABAL" ]; then
+	if [[ ! -x "$CABAL" ]]; then
 		debug "No $CABAL executable found; correcting"
 		do_ghcup_install
 	fi
@@ -1121,10 +1121,11 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
 	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000
+		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST}) to topologyUpdater.sh file"
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
-			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"${RELAY_LIST}/asset\" |g" \
+			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST/asset\" |g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"	
 	fi
 fi
