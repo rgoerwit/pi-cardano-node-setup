@@ -186,7 +186,7 @@ if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
 	debug "Running script as root (not needed; use 'sudo')"
 fi
 
-debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh with 'git pull')"
+debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh: 'git pull')"
 debug "INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
@@ -785,7 +785,7 @@ git fetch						 			1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
-OBSERVED_CARDANO_NODE_VERSION="$(${INSTALLDIR}/cardano-node version | head -1)"
+OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }')
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
