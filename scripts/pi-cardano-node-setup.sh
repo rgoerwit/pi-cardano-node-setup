@@ -279,7 +279,7 @@ do_ghcup_install () {
 		ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
 		ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
 	fi
-	( [ -x "$CABAL" ] || [ "$CABAL_VERSION" = $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ] ) \
+	( [ -x "$CABAL" ] && [ "$CABAL_VERSION" = $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ] ) \
 		|| 'cp' -f "$GHCUP_INSTALL_PATH/cabal" "$CABAL"
 	CABAL="$GHCUP_INSTALL_PATH/cabal"
 	popd 1>> "$BUILDLOG" 2>&1
