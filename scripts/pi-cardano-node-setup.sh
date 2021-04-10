@@ -130,6 +130,8 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=10 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 1> /dev/null)" 2> /dev/null
+EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x ${IPV4_ADDRESS} 2> /dev/null | sed 's/\.$//')
+[ -z "$EXTERNAL_HOSTNAME" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x ${IPV6_ADDRESS} 2> /dev/null | sed 's/\.$//')
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
 if [ -z "${MY_SUBNETS}" ]; then
@@ -187,7 +189,7 @@ debug "INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
-debug "External IPv4: ${EXTERNAL_IPV4_ADDRESS:-unknown}; External IPv6: ${EXTERNAL_IPV6_ADDRESS:-unknown}"
+debug "External hostname, ${EXTERNAL_HOSTNAME}: IPv4 = ${EXTERNAL_IPV4_ADDRESS:-unknown}; IPv6 = ${EXTERNAL_IPV6_ADDRESS:-unknown}"
 
 # -h argument supplied - parse WiFi info (WiFi usually not recommended, but OK esp. for relay, in a pinch)
 if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
@@ -1113,6 +1115,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	if [ ".$POOLNAME" != '.' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
+	fi
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000
+		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
+		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
+			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
+			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"${RELAY_LIST}/asset\" |g" \
+				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"	
 	fi
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
