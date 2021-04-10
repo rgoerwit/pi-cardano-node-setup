@@ -916,7 +916,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	TRACEMEMPOOL_SETTING='false'
 	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACEMEMPOOL_SETTING='true'
-	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000, assume we're a block producer [true]; otherwise a relay [false])"
+	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000 or pool name provided, assume we're a BP [true]; otherwise relay [false])"
 	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
 		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	
@@ -1129,7 +1129,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && ( [ "$LISTENPORT" -lt 6000 ] || [ ".$POOLNAME" = '.' ] ); then   # Assume relay if port < 6000 and no pool name
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000 and no pool name
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
