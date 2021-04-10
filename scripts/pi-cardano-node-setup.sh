@@ -173,6 +173,9 @@ skip_op() {
 	debug 'Skipping: ' "$@" 
 }
 
+(egrep -qi 'ubuntu' /etc/issue || egrep -qi 'raspbian|ubuntu|debian' /etc/os-release) \
+	|| debug "We're built for Debian/Ubuntu, mainly for the Pi (will try anyway, but YMMV)"
+
 # Display information on last run
 LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
 if [ ".$LASTRUNCOMMAND" != '.' ]; then
@@ -247,17 +250,18 @@ else
 		CABAL_OS='unknown-linux'
 	fi
 fi
+debug "Guessed which cabal tarball to download: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 
 # In case our own compilations fail, use GHCUP to build ghc and cabal later
 #
 GHCUP_INSTALL_PATH=''
 #
 do_ghcup_install () {
-	debug "Falling back to GHCUP install"
 	BOOTSTRAP_HASKELL_GHC_VERSION="$GHCVERSION"
 	BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION"
 	export BOOTSTRAP_HASKELL_NONINTERACTIVE='Y'
 	GHCUP_INSTALL_PATH="$HOME/.ghcup/bin"
+	debug "Falling back to GHCUP install, in $GHCUP_INSTALL_PATH"
 	pushd "$HOME"							1>> "$BUILDLOG" 2>&1
 	curl --proto '=https' --tlsv1.2 -sSf 'https://get-ghcup.haskell.org' | sh 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 151 "Failed to build using GHCUP; aborting"
@@ -294,12 +298,12 @@ mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 
-[ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this will take several hours now...."
+[ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this may take a long time...."
 debug "To monitor progress, run: tail -f \"$BUILDLOG\""
 
 # Update system, install prerequisites, utilities, etc.
 #
-debug "Updating system, eeprom; ensuring necessary prerequisites are installed"
+debug "Updating system; ensuring necessary prerequisites are installed"
 $APTINSTALLER update        1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
@@ -314,7 +318,8 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
-		|| debug "$0: Cython could not be installed with '$APTINSTALLER' install; may cause problems later"
+		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
+debug "$0: Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
@@ -343,7 +348,7 @@ $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "(Re)starting SSH, NTP"
+	debug "(Re)starting SSH, NTP (the latter will fail, e.g., in GCP; that's OK)"
 	systemctl start ssh                               1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
@@ -389,7 +394,7 @@ fi
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
     debug "Skipping firewall configuration at user request"
 else
-    debug "Setting up firewall (using ufw)"
+    debug "Setting up firewall (ufw); allowing node_exporter and SSH from $MY_SUBNETS"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
@@ -399,7 +404,7 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	debug "Using node_exporter port, $NODE_EXPORTER_PORT"
+	debug "Using $NODE_EXPORTER_PORT as node_exporter port"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
@@ -409,6 +414,7 @@ else
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
 	done
+	debug "Allowing all traffic to $LISTENPORT/tcp"
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
@@ -438,7 +444,7 @@ else
 	fi
 fi
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "Checking fail2ban status... (will only squawk if NOT okay)"
+	debug "Checking fail2ban status... (will squawk if NOT OK); please also leverage ISP DDOS protection"
 	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
@@ -490,6 +496,7 @@ fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
+	debug "Starting node_exporter service (for use with Grafana on another host)"
 	systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
 	systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
@@ -568,7 +575,7 @@ _EOF
 	fi
 fi
 
-# DHCP to a specifi VLAN if asked (e.g., -v 5); disable other interfaces
+# DHCP to a specifi VLAN if asked (e.g., -v 5 for VLAN.5); disable other interfaces
 #
 if [ ".$VLAN_NUMBER" != '.' ]; then
     NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
@@ -583,7 +590,9 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
             link: eth0
             dhcp4: true
 _EOF
-    	echo "Run 'netplan apply' to use the vlan${VLAN_NUMBER} interface (will cause IP address to change!)" 1>&2
+    	echo "Configuring eth0 for VLAN.${VLAN_NUMBER}; check by hand and run 'netplan apply' (addresses may change!)" 1>&2
+	else
+		debug "Can't find netplan file; skipping (note that we're really built for Debian/Ubuntu)"
 	fi
 fi
 
@@ -594,6 +603,7 @@ if [ $(swapon --show | wc -l) -eq 0 ] || ischroot; then
 	if [ -e "$SWAPFILE" ]; then
 		debug "Swap file already created; skipping"
 	else
+		debug "Allocating 8G swapfile, $SWAPFILE"
 		fallocate -l 8G "$SWAPFILE" 1>> "$BUILDLOG" 2>&1
 		chmod 0600 "$SWAPFILE"		1>> "$BUILDLOG" 2>&1
 		mkswap "$SWAPFILE"			1>> "$BUILDLOG" 2>&1
@@ -770,7 +780,7 @@ cd "$BUILDDIR/cardano-node"
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 [ -z "$CARDANOBRANCH" ] && CARDANOBRANCH='master'
-debug "Setting cardano-node branch to: $CARDANOBRANCH"
+debug "Setting working cardano-node branch to: $CARDANOBRANCH (specified with -U <branch>)"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
 	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
@@ -778,7 +788,7 @@ if [ -z "$CARDANONODE_VERSION" ]; then
 fi
 CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
 [[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
-debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION}"
+debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION} (specified with -V <version>)"
 git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
 git fetch						 			1>> "$BUILDLOG" 2>&1
@@ -787,14 +797,11 @@ git fetch						 			1>> "$BUILDLOG" 2>&1
 #
 OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }')
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
-	debug "Building cabal; already installed version: ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
+	debug "Building cabal; already installed version is ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
 	echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
-	#
-	# Build cardano-node and cardano-cli
-	#
 	debug "Building all: $CABAL build all (cwd = `pwd`)"
 	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
 		: all good
@@ -816,7 +823,7 @@ fi
 # Stop the node so we can replace binaries or update config files
 #
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
-	debug "Stopping cardano-node service, if running (so we can install or refresh binaries)" 
+	debug "Stopping cardano-node service, if running (to install/refresh binaries - and possibly config files, if no -d)" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
@@ -848,11 +855,12 @@ fi
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
+debug "Checking/building cardano-node directory structure in $INSTALLDIR"
 cd "$INSTALLDIR"
 for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'guild-db' 'logs' 'scripts' 'sockets' 'pkgconfig'; do
     (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
 	mkdir -p "$INSTALL_SUBDIR"				2>/dev/null
-    chown -R root.cardano "$INSTALL_SUBDIR"	2>/dev/null
+    chown -R root.$INSTALL_USER "$INSTALL_SUBDIR"	2>/dev/null
 	if [ "$INSTALL_SUBDIR" = "$CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
 		find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
 		find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
@@ -862,6 +870,7 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 	fi
 	# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
 	if [ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ]; then
+		debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
 		find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 	fi
 done
@@ -927,7 +936,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
-				chown cardano.cardano "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
+				chown $INSTALL_USER.$INSTALL_USER "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
 				chmod 0600 "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
 			else
 				err_exit 131 "Can't find guild wallet: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}; aborting"
@@ -1121,7 +1130,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
 	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000
-		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST}) to topologyUpdater.sh file"
+		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
