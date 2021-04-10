@@ -130,8 +130,10 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=10 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 1> /dev/null)" 2> /dev/null
-EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x ${IPV4_ADDRESS} 2> /dev/null | sed 's/\.$//')
-[ -z "$EXTERNAL_HOSTNAME" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x ${IPV6_ADDRESS} 2> /dev/null | sed 's/\.$//')
+EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${IPV4_ADDRESS}" 2> /dev/null | sed 's/\.$//')
+[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${IPV6_ADDRESS}" 2> /dev/null | sed 's/\.$//')
+[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV4_ADDRESS}"
+[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
 if [ -z "${MY_SUBNETS}" ]; then
