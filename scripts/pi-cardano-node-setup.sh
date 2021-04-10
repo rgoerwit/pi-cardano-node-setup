@@ -787,6 +787,7 @@ git fetch						 			1>> "$BUILDLOG" 2>&1
 #
 OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }')
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
+	debug "Building cabal; already installed version: ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
