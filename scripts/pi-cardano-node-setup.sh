@@ -130,8 +130,8 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0' 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=30 +short myip.opendns.com @resolver1.opendns.com)" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=10 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 1> /dev/null)" 2> /dev/null
-EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${IPV4_ADDRESS}" 2> /dev/null | sed 's/\.$//')
-[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${IPV6_ADDRESS}" 2> /dev/null | sed 's/\.$//')
+EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV4_ADDRESS}" 2> /dev/null | sed 's/\.$//')
+[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV6_ADDRESS}" 2> /dev/null | sed 's/\.$//')
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV4_ADDRESS}"
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
@@ -277,7 +277,8 @@ do_ghcup_install () {
 		ghcup install cabal "$CABAL_VERSION"	1>> "$BUILDLOG" 2>&1
 		ghcup set cabal "$CABAL_VERSION"		1>> "$BUILDLOG" 2>&1
 	fi
-	[ -x "$CABAL" ] || 'cp' -f "$GHCUP_INSTALL_PATH/cabal" "$CABAL"
+	( [ -x "$CABAL" ] || [ "$CABAL_VERSION" = $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ] ) \
+		|| 'cp' -f "$GHCUP_INSTALL_PATH/cabal" "$CABAL"
 	CABAL="$GHCUP_INSTALL_PATH/cabal"
 	popd 1>> "$BUILDLOG" 2>&1
 }
@@ -1129,7 +1130,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000 and no pool name
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000 
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
@@ -1137,7 +1138,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST\" |g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
 	else
-		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000 and no pool name)"
+		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000)"
 	fi
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
