@@ -173,7 +173,7 @@ skip_op() {
 	debug 'Skipping: ' "$@" 
 }
 
-(egrep -qi 'ubuntu' /etc/issue || egrep -qi 'raspbian|ubuntu|debian' /etc/os-release) \
+(egrep -qi 'ubuntu' /etc/issue || egrep -qi 'raspbian|ubuntu|debian' /etc/os-release) 2> /dev/null \
 	|| debug "We're built for Debian/Ubuntu, mainly for the Pi (will try anyway, but YMMV)"
 
 # Display information on last run
@@ -195,6 +195,8 @@ debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 debug "External hostname, ${EXTERNAL_HOSTNAME}: IPv4 = ${EXTERNAL_IPV4_ADDRESS:-unknown}; IPv6 = ${EXTERNAL_IPV6_ADDRESS:-unknown}"
+[ "$LISTENPORT" -lt 6000 ] && [ ".$POOLNAME" != '.' ]	&& debug "Note: Use ports >= 6000 for block producers (helps keep stuff straight)"
+[ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" = '.' ]	&& debug "Note: Use ports < 6000 for relays (helps keep stuff straight)"
 
 # -h argument supplied - parse WiFi info (WiFi usually not recommended, but OK esp. for relay, in a pinch)
 if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
@@ -915,7 +917,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
 		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	TRACEMEMPOOL_SETTING='false'
-	[ "$LISTENPORT" -ge 6000 ] && TRACEMEMPOOL_SETTING='true'
+	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACEMEMPOOL_SETTING='true'
 	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000, assume we're a block producer [true]; otherwise a relay [false])"
 	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
 		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
@@ -948,8 +950,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	[ -s "$CARDANO_PRIVDIR/kes.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
 	[ -s "$CARDANO_PRIVDIR/vrf.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
 	[ -s "$CARDANO_PRIVDIR/node.cert" ] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	if [ ".${LISTENPORT}" != '.' ] && [ "${LISTENPORT}" -ge 6000 ]; then
-		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000
+	if [ "${LISTENPORT}" -ge 6000 ] || [ ".$POOLNAME" != '.' ]; then
+		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000 or we have a pool name
 		if [ "$KEYCOUNT" -ge 3 ]; then
 			CERTKEYARGS="--shelley-kes-key $CARDANO_PRIVDIR/kes.skey --shelley-vrf-key $CARDANO_PRIVDIR/vrf.skey --shelley-operational-certificate $CARDANO_PRIVDIR/node.cert"
 		else
@@ -1009,8 +1011,8 @@ $INSTALLDIR/cardano-node run \\
 # Modify topology file; add -R <relay-ip:port> information
 #
 # -R argument supplied - this is a block-producing node; parse relay info
-[ ".${RELAY_INFO}" = '.' ] && [ "${LISTENPORT}" -ge 6000 ] \
-	&& debug "Assuming we're a block producer (listen port >= 6000); normally we need a -R <relay-ip:port>; continuing anyway"
+[ ".${RELAY_INFO}" = '.' ] && ( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) \
+	&& debug "Assuming block producer (listen port >= 6000 or pool-name supplied); normally we need a -R <relay-ip:port>; continuing anyway"
 
 TOPOLOGY_FILE_WAS_EMPTY=''
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
@@ -1033,7 +1035,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 	else
 		SUBSCRIPT=''
 		# If we are a block producer (port 6000 or higher - assumed to be a producer node)
-		if [ "${LISTENPORT}" -ge 6000 ]; then
+		if [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ]; then
 			COUNTER=0
 			for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
 				COUNTER=$(expr $COUNTER + 1)
@@ -1129,13 +1131,15 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000
-		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ] && [ ".$POOLNAME" = '.' ]; then   # Assume relay if port < 6000 and no pool name
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
+		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
 			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST/asset\" |g" \
-				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"	
+				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
+	else
+		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000 and no pool name)"
 	fi
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
