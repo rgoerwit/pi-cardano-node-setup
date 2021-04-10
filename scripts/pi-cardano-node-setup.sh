@@ -321,7 +321,7 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
-debug "$0: Ensuring nmap, rustup, and go are current (using 'snap' for this)"
+debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
@@ -396,7 +396,7 @@ fi
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
     debug "Skipping firewall configuration at user request"
 else
-    debug "Setting up firewall (ufw); allowing node_exporter and SSH from $MY_SUBNETS"
+    debug "Creating firewall; allowing node_exporter/SSH from $MY_SUBNETS"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
@@ -582,7 +582,7 @@ fi
 if [ ".$VLAN_NUMBER" != '.' ]; then
     NETPLAN_FILE=$(egrep -l eth0 /etc/netplan/* | head -1)
 	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
-		debug "Skipping VLAN $VLAN_NUMBER interface configuration; $NETPLAN_FILE already has VLANs; edit manually."
+		debug "Skipping VLAN.$VLAN_NUMBER configuration; $NETPLAN_FILE missing, or has VLANs; edit manually."
 	else
     	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
 		cat << _EOF >> "$NETPLAN_FILE"
@@ -593,8 +593,6 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
             dhcp4: true
 _EOF
     	echo "Configuring eth0 for VLAN.${VLAN_NUMBER}; check by hand and run 'netplan apply' (addresses may change!)" 1>&2
-	else
-		debug "Can't find netplan file; skipping (note that we're really built for Debian/Ubuntu)"
 	fi
 fi
 
