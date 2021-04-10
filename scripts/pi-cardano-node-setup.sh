@@ -252,7 +252,7 @@ else
 		CABAL_OS='unknown-linux'
 	fi
 fi
-debug "Guessed which cabal tarball to download: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+# debug "Guessing cabal tarball: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 
 # In case our own compilations fail, use GHCUP to build ghc and cabal later
 #
@@ -446,7 +446,7 @@ else
 	fi
 fi
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "Checking fail2ban status... (will squawk if NOT OK); please also leverage ISP DDOS protection"
+	debug "Checking fail2ban status (will squawk if NOT OK); please also leverage ISP DDOS protection"
 	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
@@ -1129,7 +1129,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ] && [ ".$POOLNAME" = '.' ]; then   # Assume relay if port < 6000 and no pool name
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && ( [ "$LISTENPORT" -lt 6000 ] || [ ".$POOLNAME" = '.' ] ); then   # Assume relay if port < 6000 and no pool name
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
