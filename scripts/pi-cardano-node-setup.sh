@@ -317,7 +317,7 @@ debug "Updating system; ensuring necessary prerequisites are installed"
 $APTINSTALLER update        1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
-apt autoremove				1>> "$BUILDLOG" 2>&1
+$APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libncursesw5 libpq-dev libsodium-dev libssl-dev \
@@ -339,7 +339,7 @@ if which node && which yarn; then
 else
 	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
 	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
-	$APTINSTALLER install -y nodejs	1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | gpg --dearmor 1> '/usr/share/keyrings/yarnpkg-archive-keyring.gpg' 2>> "$BUILDLOG"
 	# curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1
 	echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
