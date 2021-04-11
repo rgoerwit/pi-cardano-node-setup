@@ -19,6 +19,15 @@
 #
 ###############################################################################
 #
+#  Example:
+#
+#  ./pi-cardano-backup-to-chroot.sh -D -d /dev/sda2 \
+#      -C 'pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet \
+#         -p 6001 -v 5 -s 192.168.1.0/24 \
+#         -R relay-1.mydomain.net:3000,relay-2.mydomain.net:3000 \
+#         -V 1.26.1'
+#
+###############################################################################
 
 err_exit() {
   EXITCODE=$1; shift
@@ -157,7 +166,7 @@ apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs fla
 bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null
-_EOF | tee -a "$BUILDLOG"
+_EOF
 
 cd "$SCRIPT_PATH"           1>> "$BUILDLOG" 2>&1
 umount "${BACKUP_DEVICE}"   1>> "$BUILDLOG" 2>&1
