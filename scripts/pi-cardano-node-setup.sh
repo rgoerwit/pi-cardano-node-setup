@@ -502,7 +502,8 @@ else
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
-cp -f prometheus promtool "$PROMETHEUS_DIR/prometheus"	1>> "$BUILDLOG" 2>&1
+systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
+cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > "$PROMETHEUS_DIR/prometheus/prometheus-cardano.yaml" << _EOF
@@ -574,6 +575,7 @@ else
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
+systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
 cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > '/etc/systemd/system/node_exporter.service' << _EOF
