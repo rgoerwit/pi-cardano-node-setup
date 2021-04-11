@@ -156,7 +156,11 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "${INSTALL_USER}" ] && INSTALL_USER='cardano'
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
-NODE_EXPORTER_PORT=9090
+[ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=9090
+EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )
+EXTERNAL_NODE_EXPORTER_LISTEN='localhost'
+CARDANO_PROMETHEUS_PORT=12798       	# Port where cardano-node provides data TO prometheus (not actual prometheus port)
+CARDANO_PROMETHEUS_LISTEN='localhost' 	# IP address where cardano-node provides data TO prometheus
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
@@ -165,6 +169,7 @@ CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
+[[ "$PATH" =~ /usr/local/bin ]] || PATH="/usr/local/bin:$PATH"
 
 # Sends output to console as well as the $BUILDLOG file
 debug() {
@@ -328,6 +333,19 @@ debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
+debug "Using npm to install yarn (could be installed with apt, but version would be old)"
+if which node && which yarn; then
+	debug "Skipping node and yarn install; already present"
+else
+	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
+	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install -y nodejs	1>> "$BUILDLOG" 2>&1
+	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | gpg --dearmor 1> '/usr/share/keyrings/yarnpkg-archive-keyring.gpg' 2>> "$BUILDLOG"
+	# curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1
+	echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
+	$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1
+fi
 
 # Make sure some other basic prerequisites are correctly installed
 $APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
@@ -399,7 +417,7 @@ fi
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
     debug "Skipping firewall configuration at user request"
 else
-    debug "Creating firewall; allowing node_exporter/SSH from $MY_SUBNETS"
+    debug "Configuring firewall for prometheus/SSH from $MY_SUBNETS"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
@@ -409,12 +427,12 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	debug "Using $NODE_EXPORTER_PORT as node_exporter port"
+	debug "Using $EXTERNAL_PROMETHEUS_PORT as external prometheus port"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
 		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
-		ufw allow proto tcp from "$NETW" to any port "$NODE_EXPORTER_PORT" 1>> "$BUILDLOG" 2>&1		# node exporter
+		ufw allow proto tcp from "$NETW" to any port "$EXTERNAL_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
 		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
@@ -455,29 +473,109 @@ if [ ".$START_SERVICES" != '.N' ]; then
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 fi
 
+# Set up Prometheus
+#
+debug "Installing (and building, if -x was not supplied) prometheus"
+cd $BUILDDIR
+OPTCARDANO_DIR='/opt/cardano'
+if [ -d "$OPTCARDANO_DIR" ]; then
+	: already created
+else
+	mkdir -p "$OPTCARDANO_DIR"								1>> "$BUILDLOG" 2>&1
+    chown -R root.cardano "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
+	find "$OPTCARDANO_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
+fi
+git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
+cd prometheus
+PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
+	$MAKE build	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
+fi
+if [ -e "$PROMETHEUS_DIR" ]; then
+	: do nothing
+else
+	mkdir -p "$PROMETHEUS_DIR/data"							1>> "$BUILDLOG" 2>&1
+    chown -R root.cardano "$PROMETHEUS_DIR"			 		1>> "$BUILDLOG" 2>&1
+	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
+	chgrp prometheus "$PROMETHEUS_DIR/data"					1>> "$BUILDLOG" 2>&1
+	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
+fi
+useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
+cp -f prometheus promtool "$PROMETHEUS_DIR/prometheus"	1>> "$BUILDLOG" 2>&1
+
+if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	cat > "$PROMETHEUS_DIR/prometheus/prometheus-cardano.yaml" << _EOF
+global:
+   scrape_interval:     15s
+   external_labels:
+     monitor: 'codelab-monitor'
+
+ scrape_configs:
+   - job_name: 'cardano' # To scrape data from the cardano node
+     scrape_interval: 5s
+     static_configs:
+       - targets: ['localhost:$CARDANO_PROMETHEUS_PORT']
+   - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
+     scrape_interval: 5s
+     static_configs:
+       - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
+_EOF
+	cat > '/etc/systemd/system/prometheus.service' << _EOF
+[Unit]
+Description=Prometheus Server
+Documentation=https://prometheus.io/docs/introduction/overview/
+After=network-online.target
+
+[Service]
+User=prometheus
+Restart=on-failure
+ExecStart=$PROMETHEUS_DIR/prometheus \
+	--config.file=$PROMETHEUS_DIR/prometheus.yml \
+	--storage.tsdb.path=$PROMETHEUS_DIR/data \
+	--web.listen-address=$CARDANO_PROMETHEUS_LISTEN:$PROMETHEUS_PORT
+WorkingDirectory=$PROMETHEUS_DIR
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Prometheus
+_EOF
+fi
+systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
+systemctl enable prometheus	1>> "$BUILDLOG" 2>&1
+if [ ".$START_SERVICES" != '.N' ]; then
+	debug "Starting prometheus service (for use with Grafana on another host)"
+	systemctl start prometheus	1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl status prometheus	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 37 "$0: Problem enabling (or starting) prometheus service; aborting (run 'systemctl status prometheus')"
+fi
+
+
+
 # Set up node_exporter
 #
 debug "Installing (and building, if -x was not supplied) node_exporter"
 cd $BUILDDIR
 git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 cd node_exporter
-NODE_EXPORTER_DIR='/opt/cardano/monitoring/exporters'
+NODE_EXPORTER_DIR="$OPTCARDANO_DIR/monitoring/exporters"
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
-if [ -e "/opt/cardano/monitoring/exporters" ]; then
+if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
 else
-	mkdir -p "$NODE_EXPORTER_DIR"
-    chown -R root.cardano "/opt/cardano" 					1>> "$BUILDLOG" 2>&1
-	find "/opt/cardano" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
+	mkdir -p "$NODE_EXPORTER_DIR"								1>> "$BUILDLOG" 2>&1
+    chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
+	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-useradd node_exporter -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
-cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"		1>> "$BUILDLOG" 2>&1
+useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
+cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	# CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
-	# CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
 	cat > '/etc/systemd/system/node_exporter.service' << _EOF
 [Unit]
 Description=Node Exporter
@@ -487,8 +585,9 @@ After=network-online.target
 [Service]
 User=node_exporter
 Restart=on-failure
-ExecStart=$NODE_EXPORTER_DIR/node_exporter --web.listen-address=${IPV4_ADDRESS}:${NODE_EXPORTER_PORT}
-WorkingDirectory=/opt/cardano/monitoring/exporters
+ExecStart=$NODE_EXPORTER_DIR/node_exporter \
+	--web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
+WorkingDirectory=$NODE_EXPORTER_DIR
 LimitNOFILE=3500
 
 [Install]
@@ -886,9 +985,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
 	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
-	export CURRENT_EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
-	export CURRENT_PROMETHEUS_PORT=$(jq -r .hasPrometheus[1] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"		2>> "$BUILDLOG")
-	export CURRENT_PROMETHEUS_LISTEN=$(jq -r .hasPrometheus[0] "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"	2>> "$BUILDLOG")
+	export EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
 	$WGET "${GUILDREPO}/blob/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
@@ -897,17 +994,17 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
-	if [ ".$CURRENT_EKG_PORT" != '.' ]; then 
+	if [ ".$EKG_PORT" != '.' ]; then 
 		debug "Restoring old hasPrometheus, hasEKG values to dbsync.json and config.json files"
-		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
+		jq .hasPrometheus[0]="\"${CARDANO_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
-		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
+		jq .hasPrometheus[1]="${CARDANO_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
-		jq .hasEKG="${CURRENT_EKG_PORT}"                         "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+		jq .hasEKG="${EKG_PORT}"                        		 "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
-		jq .hasPrometheus[0]="\"${CURRENT_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+		jq .hasPrometheus[0]="\"${CARDANO_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
-		jq .hasPrometheus[1]="${CURRENT_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
+		jq .hasPrometheus[1]="${CARDANO_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" 
 	fi
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] \
@@ -1161,14 +1258,14 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 [ -L "$INSTALLDIR/priv" ] \
 	|| (ln -sf "$CARDANO_PRIVDIR" "$INSTALLDIR/priv" 1>> "$BUILDLOG" 2>&1 \
 		|| debug "Note: Failed to: ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv")
-[ -L "/opt/cardano/cnode" ] && rm -f "/opt/cardano/cnode"
-[ -L "/opt/cardano/cnode" ] \
-	|| (ln -sf "$INSTALLDIR" "/opt/cardano/cnode" \
-		|| debug "Note: Failed to: ln -sf $INSTALLDIR /opt/cardano/cnode")
+[ -L "$OPTCARDANO_DIR/cnode" ] && rm -f "$OPTCARDANO_DIR/cnode"
+[ -L "$OPTCARDANO_DIR/cnode" ] \
+	|| (ln -sf "$INSTALLDIR" "$OPTCARDANO_DIR/cnode" \
+		|| debug "Note: Failed to: ln -sf $INSTALLDIR $OPTCARDANO_DIR/cnode")
 [ -L "$INSTALLDIR/monitoring" ] && rm -f "$INSTALLDIR/monitoring"
 [ -L "$INSTALLDIR/monitoring" ] \
-	|| (ln -sf '/opt/cardano/cnode' "$INSTALLDIR/monitoring" \
-		|| debug "Note: Failed to: ln -sf /opt/cardano/cnode $INSTALLDIR/monitoring")
+	|| (ln -sf "$OPTCARDANO_DIR/cnode" "$INSTALLDIR/monitoring" \
+		|| debug "Note: Failed to: ln -sf $OPTCARDANO_DIR/cnode $INSTALLDIR/monitoring")
 
 # build and install other utilities - python, rust-based
 #
