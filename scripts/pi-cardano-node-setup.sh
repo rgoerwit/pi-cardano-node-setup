@@ -1120,7 +1120,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 	RELAY_PORT=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
 	[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: Relay ip-address:port[,ip-address:port...] after -R is malformed; aborting"
 
-	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 8 }"
+	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
 	if [ ".$TOPOLOGY_FILE_WAS_EMPTY" = '.Y' ]; then
 		# Topology file is empty; just create the whole thing all at once...
 		if [[ ! -z "${RELAY_ADDRESS}" ]]; then
