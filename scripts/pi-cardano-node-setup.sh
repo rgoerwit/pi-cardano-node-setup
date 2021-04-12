@@ -339,8 +339,8 @@ else
 	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
 	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
 	$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
-	debug "Adding yarnkey stable main repository: /etc/apt/sources.list.d/yarn.list"
-	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | sudo apt-key add -
+	debug "Adding yarnpkg stable main repository: /etc/apt/sources.list.d/yarn.list"
+	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | sudo apt-key add - 1>> "$BUILDLOG" 2>&1
 	# echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
 	echo 'deb https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
 	$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
@@ -482,6 +482,7 @@ OPTCARDANO_DIR='/opt/cardano'
 if [ -d "$OPTCARDANO_DIR" ]; then
 	: already created
 else
+	debug "Creating /opt/cardano working monitoring, and general Cardano, directory"
 	mkdir -p "$OPTCARDANO_DIR"								1>> "$BUILDLOG" 2>&1
     chown -R root.cardano "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$OPTCARDANO_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
@@ -489,6 +490,7 @@ fi
 git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
 cd prometheus
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
+useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
@@ -496,13 +498,13 @@ fi
 if [ -e "$PROMETHEUS_DIR/data" ]; then
 	: do nothing
 else
+	debug "Creating $PROMETHEUS_DIR/data directory, group=prometheus"
 	mkdir -p "$PROMETHEUS_DIR/data"							1>> "$BUILDLOG" 2>&1
     chown -R root.cardano "$PROMETHEUS_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 	chgrp prometheus "$PROMETHEUS_DIR/data"					1>> "$BUILDLOG" 2>&1
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
-useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
 systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 
@@ -564,6 +566,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" 
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
+useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
 if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
 else
@@ -571,7 +574,6 @@ else
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
 cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -958,7 +960,7 @@ debug "Checking/building cardano-node directory structure in $INSTALLDIR"
 cd "$INSTALLDIR"
 for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'guild-db' 'logs' 'scripts' 'sockets' 'pkgconfig'; do
     (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
-	mkdir -p "$INSTALL_SUBDIR"				2>/dev/null
+	mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
     chown -R root.$INSTALL_USER "$INSTALL_SUBDIR"	2>/dev/null
 	if [ "$INSTALL_SUBDIR" = "$CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
 		find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
