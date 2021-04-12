@@ -506,7 +506,7 @@ systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	cat > "$PROMETHEUS_DIR/prometheus/prometheus-cardano.yaml" << _EOF
+	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
    scrape_interval:     15s
    external_labels:
@@ -532,7 +532,7 @@ After=network-online.target
 User=prometheus
 Restart=on-failure
 ExecStart=$PROMETHEUS_DIR/prometheus \
-	--config.file=$PROMETHEUS_DIR/prometheus.yml \
+	--config.file=$PROMETHEUS_DIR/prometheus-cardano.yaml \
 	--storage.tsdb.path=$PROMETHEUS_DIR/data \
 	--web.listen-address=$CARDANO_PROMETHEUS_LISTEN:$PROMETHEUS_PORT
 WorkingDirectory=$PROMETHEUS_DIR
@@ -986,7 +986,6 @@ echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNF
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
     debug "Downloading new versions of various files, including: $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	cd "$INSTALLDIR"
-	debug "Saving the configuration of the EKG port, PROMETHEUS port, and listening address (if extant)"
 	export EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
 	$WGET "${GUILDREPO}/blob/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
@@ -997,7 +996,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
 	# Restoring previous parameters to the config file:
 	if [ ".$EKG_PORT" != '.' ]; then 
-		debug "Restoring old hasPrometheus, hasEKG values to dbsync.json and config.json files"
+		debug "Restoring old hasEKG value, setting Prometheus values, in dbsync.json and config.json files"
 		jq .hasPrometheus[0]="\"${CARDANO_PROMETHEUS_LISTEN}\""  "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
 			|  sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-dbsync.json" 
 		jq .hasPrometheus[1]="${CARDANO_PROMETHEUS_PORT}"        "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" 2>> "$BUILDLOG" \
