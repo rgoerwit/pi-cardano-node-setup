@@ -1145,6 +1145,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 				debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			fi
 		else
 			if [[ ! -z "$SUBSCRIPT" ]]; then
 				debug "We're a relay; setting valency of IOHK relay to 8; will leave others alone"
