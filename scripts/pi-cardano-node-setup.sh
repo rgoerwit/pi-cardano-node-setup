@@ -343,7 +343,8 @@ else
 	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1
 	echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
 	$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
-	$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
+		|| err_abort 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
 fi
 
 # Make sure some other basic prerequisites are correctly installed
