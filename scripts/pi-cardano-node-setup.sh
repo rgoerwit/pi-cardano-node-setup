@@ -340,7 +340,7 @@ else
 	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
 	$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | gpg --dearmor 1> '/usr/share/keyrings/yarnpkg-archive-keyring.gpg' 2>> "$BUILDLOG"
-	# curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1
+	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1
 	echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
 	$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
 	$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1
