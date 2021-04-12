@@ -524,7 +524,6 @@ global:
 _EOF
 	cat > '/etc/systemd/system/prometheus.service' << _EOF
 [Unit]
-Description=Prometheus Server
 Documentation=https://prometheus.io/docs/introduction/overview/
 After=network-online.target
 
@@ -536,13 +535,14 @@ ExecStart=$PROMETHEUS_DIR/prometheus \
 	--storage.tsdb.path=$PROMETHEUS_DIR/data \
 	--web.listen-address=$CARDANO_PROMETHEUS_LISTEN:$PROMETHEUS_PORT
 WorkingDirectory=$PROMETHEUS_DIR
+RestartSec=6s
 LimitNOFILE=10000
 
 [Install]
 WantedBy=multi-user.target
 
 [Unit]
-Description=Prometheus
+Description=Prometheus Server
 _EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
@@ -580,7 +580,6 @@ cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > '/etc/systemd/system/node_exporter.service' << _EOF
 [Unit]
-Description=Node Exporter
 Wants=network-online.target
 After=network-online.target
 
@@ -590,6 +589,7 @@ Restart=on-failure
 ExecStart=$NODE_EXPORTER_DIR/node_exporter \
 	--web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
 WorkingDirectory=$NODE_EXPORTER_DIR
+RestartSec=6s
 LimitNOFILE=3500
 
 [Install]
@@ -1089,7 +1089,7 @@ KillMode=process
 WorkingDirectory=$INSTALLDIR
 ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
 Restart=on-failure
-RestartSec=12s
+RestartSec=10s
 LimitNOFILE=32768
  
 [Install]
