@@ -334,7 +334,7 @@ snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
 debug "Using npm to install yarn (could be installed with apt, but version would be old)"
-if which node && which yarn; then
+if (which node && which yarn) 1>> "$BUILDLOG" 2>&1; then
 	debug "Skipping node and yarn install; already present"
 else
 	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
@@ -508,19 +508,19 @@ cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
-   scrape_interval:     15s
-   external_labels:
-     monitor: 'codelab-monitor'
+  scrape_interval:     15s
+  external_labels:
+    monitor: 'codelab-monitor'
 
- scrape_configs:
-   - job_name: 'cardano' # To scrape data from the cardano node
-     scrape_interval: 5s
-     static_configs:
-       - targets: ['localhost:$CARDANO_PROMETHEUS_PORT']
-   - job_name: 'node' # To scrape data from a node exporter to monitor your linux host metrics.
-     scrape_interval: 5s
-     static_configs:
-       - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
+scrape_configs:
+  - job_name: '${EXTERNAL_HOSTNAME}_cardano_node' # To scrape data from the cardano node
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['localhost:$CARDANO_PROMETHEUS_PORT']
+  - job_name: '${EXTERNAL_HOSTNAME}_node_exporter' # To scrape data from a node exporter - linux host metrics
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
 _EOF
 	cat > '/etc/systemd/system/prometheus.service' << _EOF
 [Unit]
@@ -551,8 +551,6 @@ if [ ".$START_SERVICES" != '.N' ]; then
 	systemctl status prometheus	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 37 "$0: Problem enabling (or starting) prometheus service; aborting (run 'systemctl status prometheus')"
 fi
-
-
 
 # Set up node_exporter
 #
