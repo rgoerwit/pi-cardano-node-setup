@@ -524,6 +524,7 @@ global:
 _EOF
 	cat > '/etc/systemd/system/prometheus.service' << _EOF
 [Unit]
+Description=Prometheus Server
 Documentation=https://prometheus.io/docs/introduction/overview/
 After=network-online.target
 
@@ -540,9 +541,6 @@ LimitNOFILE=10000
 
 [Install]
 WantedBy=multi-user.target
-
-[Unit]
-Description=Prometheus Server
 _EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
@@ -580,6 +578,7 @@ cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > '/etc/systemd/system/node_exporter.service' << _EOF
 [Unit]
+Description=Node Exporter
 Wants=network-online.target
 After=network-online.target
 
@@ -594,9 +593,6 @@ LimitNOFILE=3500
 
 [Install]
 WantedBy=multi-user.target
-
-[Unit]
-Description=Node Exporter
 _EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
