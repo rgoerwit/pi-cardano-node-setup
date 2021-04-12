@@ -333,7 +333,6 @@ debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
-debug "Using npm to install yarn (could be installed with apt, but version would be old)"
 if (which node && which yarn) 1>> "$BUILDLOG" 2>&1; then
 	debug "Skipping node and yarn install; already present"
 else
@@ -492,7 +491,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 fi
-if [ -e "$PROMETHEUS_DIR" ]; then
+if [ -e "$PROMETHEUS_DIR/data" ]; then
 	: do nothing
 else
 	mkdir -p "$PROMETHEUS_DIR/data"							1>> "$BUILDLOG" 2>&1
