@@ -158,9 +158,9 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
 [ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=9090
 EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )
-EXTERNAL_NODE_EXPORTER_LISTEN='localhost'
+EXTERNAL_NODE_EXPORTER_LISTEN='127.0.0.1'
 CARDANO_PROMETHEUS_PORT=12798       	# Port where cardano-node provides data TO prometheus (not actual prometheus port)
-CARDANO_PROMETHEUS_LISTEN='localhost' 	# IP address where cardano-node provides data TO prometheus
+CARDANO_PROMETHEUS_LISTEN='127.0.0.1' 	# IP address where cardano-node provides data TO prometheus
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
@@ -515,7 +515,7 @@ scrape_configs:
   - job_name: '${EXTERNAL_HOSTNAME}_cardano_node' # To scrape data from the cardano node
     scrape_interval: 5s
     static_configs:
-    - targets: ['localhost:$CARDANO_PROMETHEUS_PORT']
+    - targets: ['$CARDANO_PROMETHEUS_LISTEN:$CARDANO_PROMETHEUS_PORT']
   - job_name: '${EXTERNAL_HOSTNAME}_node_exporter' # To scrape data from a node exporter - linux host metrics
     scrape_interval: 5s
     static_configs:
