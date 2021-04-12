@@ -333,10 +333,10 @@ debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
-if which node 1>> "$BUILDLOG" 2>&1 && ( [ -x '/usr/local/bin/yarn' ] || [[ ! ".$(/usr/bin/yarn --version)" =~ ^\.[0-9]+\. ]] ); then
-	debug "Skipping node and yarn install; already present"
+if which node 1>> "$BUILDLOG" 2>&1 && ( [ -x '/usr/local/bin/yarn' ] || [[ ".$(/usr/bin/yarn --version)" =~ ^\.[0-9]+\. ]] ); then
+	debug "Skipping node and yarn install; already present in /usr/local/bin or version high enough"
 else
-	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
+	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories (adding key for latter)"
 	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
 	$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 	debug "Adding yarnpkg stable main repository: /etc/apt/sources.list.d/yarn.list"
