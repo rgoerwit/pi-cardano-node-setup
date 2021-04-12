@@ -1120,7 +1120,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 	RELAY_PORT=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
 	[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: Relay ip-address:port[,ip-address:port...] after -R is malformed; aborting"
 
-	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
+	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 8 }"
 	if [ ".$TOPOLOGY_FILE_WAS_EMPTY" = '.Y' ]; then
 		# Topology file is empty; just create the whole thing all at once...
 		if [[ ! -z "${RELAY_ADDRESS}" ]]; then
@@ -1131,22 +1131,23 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 	else
 		SUBSCRIPT=''
 		# If we are a block producer (port 6000 or higher - assumed to be a producer node)
+		COUNTER=0
+		for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
+			COUNTER=$(expr $COUNTER + 1)
+			if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
+				SUBSCRIPT=$(expr $COUNTER - 1)
+				break
+			fi
+		done
 		if [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ]; then
-			COUNTER=0
-			for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
-				COUNTER=$(expr $COUNTER + 1)
-				if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
-					SUBSCRIPT=$(expr $COUNTER - 1)
-					break
-				fi
-			done
 			if [[ ! -z "$SUBSCRIPT" ]]; then
 				# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
 				debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			else
-				debug "Setting valency of IOHK relay to 8; will leave others alone"
+		else
+			if [[ ! -z "$SUBSCRIPT" ]]; then
+				debug "We're a relay; setting valency of IOHK relay to 8; will leave others alone"
 				jq ".Producers[${SUBSCRIPT}].valency|=8" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 			fi
