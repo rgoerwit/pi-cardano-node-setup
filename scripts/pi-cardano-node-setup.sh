@@ -333,7 +333,7 @@ debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
-if (which node && which yarn) 1>> "$BUILDLOG" 2>&1; then
+if which node 1>> "$BUILDLOG" 2>&1 && [ -x '/usr/local/bin/yarn' ]; then
 	debug "Skipping node and yarn install; already present"
 else
 	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories"
