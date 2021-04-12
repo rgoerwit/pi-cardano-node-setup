@@ -169,7 +169,9 @@ CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
-[[ "$PATH" =~ /usr/local/bin ]] || PATH="/usr/local/bin:$PATH"
+
+# Make sure the path has the locations in it that we'll be needing
+( [[ "$PATH" =~ /usr/local/bin ]] && [[ "$PATH" =~ /snap/bin ]] ) || PATH="/usr/local/bin:/snap/bin:$PATH"
 
 # Sends output to console as well as the $BUILDLOG file
 debug() {
