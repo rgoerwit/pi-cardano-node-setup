@@ -619,10 +619,11 @@ fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "Starting node_exporter service (for use with Grafana on another host)"
+	debug "Starting node_exporter service (Prometheus will read data from here)"
 	systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
 	systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
+	systemctl restart prometheus	1>> "$BUILDLOG" 2>&1; 
 fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
