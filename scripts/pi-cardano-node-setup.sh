@@ -37,7 +37,7 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-C <cabal version>] [-d] [-D] [-f] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] \
+    [-C <cabal version>] [-d] [-D] [-f] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] \
 	[-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] \
 	[-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] \
 	[-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
@@ -62,6 +62,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -y    GHC version (currently defaults to 8.10.4)
 -h    Install (naturally, hidden) WiFi; format: SID:password (only use WiFi on the relay, not block producer)
+-H    Hosted Grafana analytics being used - alter firewall to allow appropriate access to Prometheus port (may also require network/router ACLs or port forwarding)
 -i    Ignore missing dependencies installed by apt-get
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
@@ -86,7 +87,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:C:dDfg:G:h:im:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDfg:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -101,6 +102,7 @@ while getopts 4:6:b:B:c:C:dDfg:G:h:im:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
 	y ) GHCVERSION="${OPTARG}" ;;
     h ) HIDDEN_WIFI_INFO="${OPTARG}" ;;
+	H ) HOSTED_GRAFANA='Y' ;;
 	i ) IGNORE_MISSING_DEPENDENCIES='--ignore-missing' ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
@@ -419,6 +421,8 @@ fi
 #
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
     debug "Skipping firewall configuration at user request"
+	[ ".$HOSTED_GRAFANA" = '.Y' ] \
+		&& debug "Note: Grafana traffic may require network ACL or policy changes"
 else
     debug "Configuring firewall for prometheus/SSH from $MY_SUBNETS"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
@@ -440,12 +444,23 @@ else
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
 	done
+	if [ ".$HOSTED_GRAFANA" = '.Y' ]; then
+		debug "Granting hosted Grafana IPs access to Prometheus port, $EXTERNAL_PROMETHEUS_PORT"
+	    GRAFANAIP_TEMPFILE='grafana-iplist-temp'
+		'rm' -rf "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE"
+		$WGET -S 'https://grafana.com/api/hosted-grafana/source-ips' -O "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE" 1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 9 "$0: Unable to download Grafana cloud IP list: https://grafana.com/api/hosted-grafana/source-ips"
+		for GRAFIP in $(jq -c '.[]' "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE" | sed 's/^"\(.*\)"$/\1/g'); do
+			ufw allow proto tcp from "$GRAFIP" to any port "$EXTERNAL_PROMETHEUS_PORT" 1>> "$BUILDLOG" 2>&1 \
+				|| err_exit 10 "$0: Aborting; failed to add firewall rule: ufw allow proto tcp from $GRAFIP to any port $EXTERNAL_PROMETHEUS_PORT"
+		done
+	fi
 	debug "Allowing all traffic to $LISTENPORT/tcp"
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
-	debug "Firewall configured; rule summary (please check and fix later on):"
-	[ -z "$DEBUG" ] || ufw status numbered  # show what's going on
+	debug "Firewall enabled; to check the configuration: ufw status numbered"
+	# [ -z "$DEBUG" ] || ufw status numbered  # show what's going on
 
 	# Add RDP service if INSTALLRDP is Y
 	#
