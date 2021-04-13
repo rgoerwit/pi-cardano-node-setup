@@ -38,10 +38,10 @@ pi-cardano-setup.sh -D -b builduser -u cardano -n mainnet -p 6000 -x -d -s '10.1
 
 ```
 Usage: pi-cardano-node-setup [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-d] [-D] [-f] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] \
-	[-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] \
-	[-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] \
-	[-x] [-y <ghc-version>] [-Y]
+    [-C <cabal version>] [-d] [-D] [-f] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] \
+	[-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] \
+	[-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] \
+	[-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 ```
 
 Argument explanation:

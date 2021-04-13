@@ -129,7 +129,7 @@ git pull                            1>> "$BUILDLOG" 2>&1
 cd "$BUILDDIR"
 
 mkdir -p "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1
-debug "Syncing ${BUILDDIR} to ${MOUNTPOINT}/home"
+debug "Syncing ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}"
 rsync -av "${BUILDDIR}" "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 18 "$0: Unable to rsync ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}; aborting"
 debug "Syncing ${INSTALLDIR} to ${MOUNTPOINT}/home"
