@@ -500,7 +500,7 @@ else
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
-	debug "Installing (and building, if -x was not supplied) prometheus"
+	debug "Building and installing prometheus; SKIP_RECOMPILE=$SKIP_RECOMPILE"
 	git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
 	cd prometheus
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
