@@ -331,7 +331,6 @@ $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
-debug "Ensuring nmap, rustup, and go are current (using 'snap' for this)"
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
@@ -493,10 +492,6 @@ git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
 cd prometheus
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
 useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
-	$MAKE build	1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
-fi
 if [ -e "$PROMETHEUS_DIR/data" ]; then
 	: do nothing
 else
@@ -506,6 +501,10 @@ else
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 	chgrp prometheus "$PROMETHEUS_DIR/data"					1>> "$BUILDLOG" 2>&1
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
+fi
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
+	$MAKE build	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 fi
 systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
@@ -564,10 +563,6 @@ cd $BUILDDIR
 git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 cd node_exporter
 NODE_EXPORTER_DIR="$OPTCARDANO_DIR/monitoring/exporters"
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
-	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
-fi
 useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
 if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
@@ -575,6 +570,10 @@ else
 	mkdir -p "$NODE_EXPORTER_DIR"								1>> "$BUILDLOG" 2>&1
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
+fi
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
+	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
 cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
