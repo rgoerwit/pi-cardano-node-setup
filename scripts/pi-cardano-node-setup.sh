@@ -477,7 +477,6 @@ fi
 
 # Set up Prometheus
 #
-debug "Installing (and building, if -x was not supplied) prometheus"
 cd $BUILDDIR
 OPTCARDANO_DIR='/opt/cardano'
 if [ -d "$OPTCARDANO_DIR" ]; then
@@ -488,8 +487,6 @@ else
     chown -R root.cardano "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$OPTCARDANO_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
-cd prometheus
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
 useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
 if [ -e "$PROMETHEUS_DIR/data" ]; then
@@ -503,11 +500,14 @@ else
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
+	debug "Installing (and building, if -x was not supplied) prometheus"
+	git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
+	cd prometheus
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
+	systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
+	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 fi
-systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
-cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
