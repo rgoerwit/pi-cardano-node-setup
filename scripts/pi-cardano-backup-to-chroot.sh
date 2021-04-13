@@ -160,6 +160,9 @@ else
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
 fi
 
+debug "Making /run visible to chroot: mount –bind /run /mnt/run"
+mount –bind /run /mnt/run 1>> "$BUILDLOG" 2>&1
+
 debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
 chroot "${MOUNTPOINT}" /bin/bash -v 2>&1 << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
@@ -170,5 +173,6 @@ apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs f
 umount /proc                        1>> /dev/null
 _EOF
 
+umount /mnt/run
 cd "$SCRIPT_PATH"           1>> "$BUILDLOG" 2>&1
 umount "${BACKUP_DEVICE}"   1>> "$BUILDLOG" 2>&1
