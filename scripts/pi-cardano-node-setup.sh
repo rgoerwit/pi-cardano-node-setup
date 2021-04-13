@@ -192,7 +192,7 @@ skip_op() {
 LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
 if [ ".$LASTRUNCOMMAND" != '.' ]; then
 	debug "Last run:\n  $LASTRUNCOMMAND" 
-	debug "Full command history: ls $INSTALLDIR/logs/build-command-line*log"
+	debug "For full command history: less $INSTALLDIR/logs/build-command-line*log"
 fi
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
@@ -508,12 +508,12 @@ useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
 if [ -e "$PROMETHEUS_DIR/data" ]; then
 	: do nothing
 else
-	debug "Creating $PROMETHEUS_DIR/data directory, group=prometheus"
-	mkdir -p "$PROMETHEUS_DIR/data"							1>> "$BUILDLOG" 2>&1
+	debug "Creating $PROMETHEUS_DIR/{data,logs} directories, group=prometheus"
+	mkdir -p "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
     chown -R root.cardano "$PROMETHEUS_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
-	chgrp prometheus "$PROMETHEUS_DIR/data"					1>> "$BUILDLOG" 2>&1
-	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
+	chgrp prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
+	chmod g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings ($SKIP_RECOMPILE)"
@@ -531,7 +531,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
   scrape_interval:     15s
-  query_log_file: $PROMETHEUS_DIR/query.log
+  query_log_file: $PROMETHEUS_DIR/logs/query.log
   external_labels:
     monitor: 'codelab-monitor'
 
