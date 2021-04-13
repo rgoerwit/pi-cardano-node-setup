@@ -501,13 +501,15 @@ else
 	chmod g+w "$PROMETHEUS_DIR/data"						1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
-	debug "Building and installing prometheus; SKIP_RECOMPILE=$SKIP_RECOMPILE"
+	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings ($SKIP_RECOMPILE)"
 	git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
 	cd prometheus
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 	systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
+else
+	systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 fi
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -701,7 +703,7 @@ fi
 
 # Make sure we have at least some swap
 #
-if [ $(swapon --show | wc -l) -eq 0 ] || ischroot; then
+if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 	SWAPFILE='/var/swapfile'
 	if [ -e "$SWAPFILE" ]; then
 		debug "Swap file already created; skipping"
