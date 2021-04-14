@@ -425,7 +425,9 @@ if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
 	[ ".$HOSTED_GRAFANA" = '.Y' ] \
 		&& debug "Note: Grafana traffic may require network ACL or policy changes"
 else
-    debug "Configuring firewall for prometheus/SSH from $MY_SUBNETS"
+	debug "Prometheus is unauthenticated; ensuring it's stopped while configuring firewall"
+	systemctl stop prometheus 1>> "$BUILDLOG" 2>&1
+    debug "Configuring firewall for prometheus, SSH; subnets:\n    $MY_SUBNETS"
 	ufw --force reset            1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
@@ -522,10 +524,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 	cd prometheus
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
-	systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 else
-	systemctl stop prometheus								1>> "$BUILDLOG" 2>&1
 fi
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -546,6 +546,7 @@ scrape_configs:
     static_configs:
     - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
 _EOF
+	debug "Creating prometheus.service file; will listen on $EXTERNAL_PROMETHEUS_LISTEN:$EXTERNAL_PROMETHEUS_PORT"
 	cat > '/etc/systemd/system/prometheus.service' << _EOF
 [Unit]
 Description=Prometheus Server
