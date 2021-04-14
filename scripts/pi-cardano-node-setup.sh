@@ -557,7 +557,7 @@ Restart=on-failure
 ExecStart=$PROMETHEUS_DIR/prometheus \
 	--config.file=$PROMETHEUS_DIR/prometheus-cardano.yaml \
 	--storage.tsdb.path=$PROMETHEUS_DIR/data \
-	--web.listen-address=$CARDANO_PROMETHEUS_LISTEN:$PROMETHEUS_PORT
+	--web.listen-address=$CARDANO_PROMETHEUS_LISTEN:$EXTERNAL_PROMETHEUS_PORT
 WorkingDirectory=$PROMETHEUS_DIR
 RestartSec=6s
 LimitNOFILE=10000
@@ -1327,13 +1327,13 @@ fi
 #############################################################################
 #
 debug "Tasks:"
-debug "  You may have to clear ${CARDANO_DBDIR} before running cardano-node again"
-debug "  Check networking and firewall configuration (run 'ifconfig' and 'ufw status numbered')"
+debug "  You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
+debug "  Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
 debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
 debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
 debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
 debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
-debug "  DDClient installed; if needed edit /etc/ddclient.conf then restart: systemctl restard ddclient"
+debug "  DDClient installed; if needed edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
