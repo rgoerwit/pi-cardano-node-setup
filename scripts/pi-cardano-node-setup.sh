@@ -755,9 +755,9 @@ passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
 # Install GHC, cabal
 #
 cd "$BUILDDIR"
-debug "Downloading: ghc-${GHCVERSION}"
 $WGET "http://downloads.haskell.org/~ghc/${GHCVERSION}/ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" -O "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz"
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+	debug "Downloading: ghc-${GHCVERSION}"
     debug "Building: ghc-${GHCVERSION}"
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
@@ -1334,6 +1334,7 @@ debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveVi
 debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
 debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
 debug "  DDClient installed; if needed edit /etc/ddclient.conf then restart: systemctl restart ddclient"
+debug "  Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
 
