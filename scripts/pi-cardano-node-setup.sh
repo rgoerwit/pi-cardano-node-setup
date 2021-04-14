@@ -209,7 +209,7 @@ debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 debug "External hostname, ${EXTERNAL_HOSTNAME}: IPv4 = ${EXTERNAL_IPV4_ADDRESS:-unknown}; IPv6 = ${EXTERNAL_IPV6_ADDRESS:-unknown}"
 [ "$LISTENPORT" -lt 6000 ] && [ ".$POOLNAME" != '.' ]	&& debug "Note: Use ports >= 6000 for block producers (helps keep stuff straight)"
-[ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" = '.' ]	&& debug "Note: Use ports < 6000 for relays (helps keep stuff straight)"
+[ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" = '.' ]	&& debug "Note: Use ports < 6000 for relays, >= 6000 for BPs (helps keep stuff straight)"
 
 # -h argument supplied - parse WiFi info (WiFi usually not recommended, but OK esp. for relay, in a pinch)
 if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
