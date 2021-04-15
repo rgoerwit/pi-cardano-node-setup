@@ -330,7 +330,7 @@ $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
-$APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl ddclient dialog emacs fail2ban g++ git \
+$APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl ddclient dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
 	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils openssl nginx pkg-config python3 python3 \
 	python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
@@ -371,7 +371,7 @@ $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might 
 EEPROM_UPDATE="$(which rpi-eeprom-update 2> /dev/null)"
 if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then 
 	if $EEPROM_UPDATE 2> /dev/null | egrep -q 'BOOTLOADER: *up-to-date'; then
-		debug "Eeprom up to date; skipping update"
+		: Eeprom up to date
 	else
 		debug "Updating eeprom: $EEPROM_UPDATE -a"
 		$EEPROM_UPDATE -a 1>> "$BUILDLOG" 2>&1
@@ -546,7 +546,11 @@ $EXTERNAL_HOSTNAME
 self-signed-cert@local-company.local
 _EOF
 	NGINX_CONF_DIR='/usr/local/etc/nginx/conf.d'
-	debug "Writing nginx reverse proxy conf for http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/"
+	debug "Writing nginx reverse proxy conf for http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/"
+	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
+		|| echo -n -e "stats\n$(openssl rand -base64 14)" > "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
+	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt)"
+	debug "Prometheus credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt)"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
     server {
@@ -556,9 +560,12 @@ _EOF
         ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
 
         location / {
+            auth_basic "Restricted Content";
+            auth_basic_user_file ${PROMETHEUS_DIR}/nginx-htpasswd;
             proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
         }
     }
+	${PROMETHEUS_DIR}/nginx-htpasswd
 _EOF
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
