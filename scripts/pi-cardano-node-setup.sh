@@ -531,7 +531,6 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 	$MAKE build	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
-else
 fi
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
