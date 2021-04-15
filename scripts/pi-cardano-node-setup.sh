@@ -37,10 +37,10 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-C <cabal version>] [-d] [-D] [-f] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] [-n <mainnet|testnet|launchpad|guild|staging>] \
-	[-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] [-s <subnet>] [-S] [-u <installuser>] \
-	[-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] [-V <cardano-node version>] [-w <libsodium-version>] \
-	[-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
+    [-C <cabal version>] [-d] [-D] [-f] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
+	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] \
+	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
+	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -58,6 +58,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
 -f    Re-fetch code from github for libsodium and cardano-node, overwriting previously downloaded repositories
+-F    Force <hostname> as external DNS name (mainly relevant if using hosted Grafana and you're on dynamic DNS)
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -y    GHC version (currently defaults to 8.10.4)
@@ -87,7 +88,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:C:dDfg:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDfF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -98,6 +99,7 @@ while getopts 4:6:b:B:c:C:dDfg:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
 	f ) REFETCH_CODE='Y' ;;
+	F ) EXTERNAL_HOSTNAME="${OPTARG}" ;;
 	g ) GHCOS="${OPTARG}" ;;
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
 	y ) GHCVERSION="${OPTARG}" ;;
@@ -135,7 +137,7 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(host -4 myip.opendns.com resolver1.opendns.com 2> /dev/null | tail -1 | awk '{ print $(NF) }')" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ')" 2> /dev/null
 [ -z "${EXTERNAL_IPV6_ADDRESS}" ] && EXTERNAL_IPV6_ADDRESS="$(host -6 myip.opendns.com resolver1.opendns.com 2> /dev/null | tail -1 | awk '{ print $(NF) }')" 2> /dev/null
-EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV4_ADDRESS}" 2> /dev/null | sed 's/\.$//')
+[ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV4_ADDRESS}" 2> /dev/null | sed 's/\.$//')
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV6_ADDRESS}" 2> /dev/null | sed 's/\.$//')
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV4_ADDRESS}"
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
@@ -159,8 +161,10 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "${INSTALL_USER}" ] && INSTALL_USER='cardano'
 [ -z "${SUDO}" ] && SUDO='Y'
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
-[ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=9090
-[ -z "$EXTERNAL_PROMETHEUS_LISTEN" ] && EXTERNAL_PROMETHEUS_LISTEN="${IPV4_ADDRESS:-$IPV6_ADDRESS}"
+[ -z "$PREPROXY_PROMETHEUS_PORT" ] && PREPROXY_PROMETHEUS_PORT=9089
+[ -z "$PREPROXY_PROMETHEUS_LISTEN" ] && PREPROXY_PROMETHEUS_LISTEN="${IPV4_ADDRESS:-$IPV6_ADDRESS}"
+[ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=$(( $PREPROXY_PROMETHEUS_PORT + 1 ))
+[ -z "$EXTERNAL_PROMETHEUS_LISTEN" ] && EXTERNAL_PROMETHEUS_LISTEN="${EXTERNAL_HOSTNAME}"
 EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )
 EXTERNAL_NODE_EXPORTER_LISTEN='127.0.0.1'
 CARDANO_PROMETHEUS_PORT=12798       	# Port where cardano-node provides data TO prometheus (not actual prometheus port)
@@ -202,12 +206,14 @@ if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
 	debug "Running script as root (not needed; use 'sudo')"
 fi
 
+debug "Please DOUBLE CHECK THE FOLLOWING DATA:"
 debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh: 'git pull')"
 debug "INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "CARDANO_FILEDIR is '${INSTALLDIR}/files'"
 debug "NODE_CONFIG_FILE is '${NODE_CONFIG_FILE}'"
 debug "External hostname, ${EXTERNAL_HOSTNAME}: IPv4 = ${EXTERNAL_IPV4_ADDRESS:-unknown}; IPv6 = ${EXTERNAL_IPV6_ADDRESS:-unknown}"
+sleep 5
 [ "$LISTENPORT" -lt 6000 ] && [ ".$POOLNAME" != '.' ]	&& debug "Note: Use ports >= 6000 for block producers (helps keep stuff straight)"
 [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" = '.' ]	&& debug "Note: Use ports < 6000 for relays, >= 6000 for BPs (helps keep stuff straight)"
 
@@ -327,7 +333,7 @@ $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl ddclient dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
-	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils pkg-config python3 python3 \
+	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils nginx pkg-config python3 python3 \
 	python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
 	zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
@@ -437,12 +443,12 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	debug "Using $EXTERNAL_PROMETHEUS_PORT as external prometheus port"
+	debug "Using $PREPROXY_PROMETHEUS_PORT as pre-proxy prometheus port"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
 		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
-		ufw allow proto tcp from "$NETW" to any port "$EXTERNAL_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
+		ufw allow proto tcp from "$NETW" to any port "$PREPROXY_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
 		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
@@ -546,7 +552,7 @@ scrape_configs:
     static_configs:
     - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
 _EOF
-	debug "Creating prometheus.service file; will listen on $EXTERNAL_PROMETHEUS_LISTEN:$EXTERNAL_PROMETHEUS_PORT"
+	debug "Creating prometheus.service file; will listen on $PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT"
 	cat > '/etc/systemd/system/prometheus.service' << _EOF
 [Unit]
 Description=Prometheus Server
@@ -559,7 +565,9 @@ Restart=on-failure
 ExecStart=$PROMETHEUS_DIR/prometheus \
 	--config.file=$PROMETHEUS_DIR/prometheus-cardano.yaml \
 	--storage.tsdb.path=$PROMETHEUS_DIR/data \
-	--web.listen-address=$EXTERNAL_PROMETHEUS_LISTEN:$EXTERNAL_PROMETHEUS_PORT
+	--web.listen-address=$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT \
+	--web.external-url=https://${EXTERNAL_HOSTNAME}:${EXTERNAL_PROMETHEUS_PORT}/ \
+	--web.route-prefix="/"
 WorkingDirectory=$PROMETHEUS_DIR
 RestartSec=6s
 LimitNOFILE=10000
