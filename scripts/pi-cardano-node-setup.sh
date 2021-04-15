@@ -521,8 +521,8 @@ else
 	mkdir -p "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
     chown -R root.cardano "$PROMETHEUS_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
-	chgrp prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
-	chmod g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
+	chgrp -R prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
+	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings ($SKIP_RECOMPILE)"
