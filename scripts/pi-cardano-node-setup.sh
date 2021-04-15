@@ -514,7 +514,7 @@ else
 fi
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
 useradd prometheus -s /sbin/nologin						1>> "$BUILDLOG" 2>&1
-if [ -e "$PROMETHEUS_DIR/data" ]; then
+if [ -e "$PROMETHEUS_DIR/logs" ] && [ -e "$PROMETHEUS_DIR/data" ]; then
 	: do nothing
 else
 	debug "Creating $PROMETHEUS_DIR/{data,logs} directories, group=prometheus"
@@ -534,9 +534,17 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 fi
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	openssl req -x509 -newkey rsa:4096 -nodes \
+	openssl req -x509 -newkey rsa:4096 -nodes -days 999 \
 		-keyout "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key" \
-		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt"
+		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt" 1>> "$BUILDLOG" 2>&1 << _EOF
+US
+Minnesota
+Rural
+Local Company
+Local Company
+$EXTERNAL_HOSTNAME
+self-signed-cert@local-company.local
+_EOF
 	NGINX_CONF_DIR='/usr/local/etc/nginx/conf.d'
 	debug "Writing nginx reverse proxy conf for http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
