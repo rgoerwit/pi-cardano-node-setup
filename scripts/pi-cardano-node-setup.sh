@@ -164,7 +164,6 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "$PREPROXY_PROMETHEUS_PORT" ] && PREPROXY_PROMETHEUS_PORT=9089
 [ -z "$PREPROXY_PROMETHEUS_LISTEN" ] && PREPROXY_PROMETHEUS_LISTEN="${IPV4_ADDRESS:-$IPV6_ADDRESS}"
 [ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=$(( $PREPROXY_PROMETHEUS_PORT + 1 ))
-[ -z "$EXTERNAL_PROMETHEUS_LISTEN" ] && EXTERNAL_PROMETHEUS_LISTEN="${EXTERNAL_HOSTNAME}"
 EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )
 EXTERNAL_NODE_EXPORTER_LISTEN='127.0.0.1'
 CARDANO_PROMETHEUS_PORT=12798       	# Port where cardano-node provides data TO prometheus (not actual prometheus port)
@@ -549,7 +548,6 @@ _EOF
 	debug "Writing nginx reverse proxy conf for http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
-http {
     server {
         listen              $EXTERNAL_PROMETHEUS_PORT ssl;
         server_name         example.com;
@@ -557,10 +555,9 @@ http {
         ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
 
         location / {
-            proxy_pass http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/;
+            proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
         }
     }
-}
 _EOF
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
@@ -665,6 +662,7 @@ if [ ".$START_SERVICES" != '.N' ]; then
 	systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
 	systemctl restart prometheus	1>> "$BUILDLOG" 2>&1; 
+	systemctl restart nginx			1>> "$BUILDLOG" 2>&1; 
 fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
