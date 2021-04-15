@@ -442,7 +442,7 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
 	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
-	debug "Using $PREPROXY_PROMETHEUS_PORT as pre-proxy prometheus port"
+	debug "Using $PREPROXY_PROMETHEUS_PORT as pre-proxy prometheus port (proxy port = $EXTERNAL_PROMETHEUS_PORT)"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
@@ -464,7 +464,7 @@ else
 				|| err_exit 10 "$0: Aborting; failed to add firewall rule: ufw allow proto tcp from $GRAFIP to any port $EXTERNAL_PROMETHEUS_PORT"
 		done
 	fi
-	debug "Allowing all traffic to $LISTENPORT/tcp"
+	debug "Allowing all traffic to cardano-relay port, $LISTENPORT/tcp"
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
@@ -549,8 +549,8 @@ _EOF
 	debug "Writing nginx reverse proxy conf for http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/"
 	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
 		|| echo -n -e "stats\n$(openssl rand -base64 14)" > "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
-	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt)"
-	debug "Prometheus credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt)"
+	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
+	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
     server {
