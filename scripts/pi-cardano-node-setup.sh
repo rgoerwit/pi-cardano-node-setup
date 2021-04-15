@@ -163,8 +163,8 @@ MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[
 [ -z "$LIBSODIUM_VERSION" ] && LIBSODIUM_VERSION='66f017f1'
 [ -z "$PREPROXY_PROMETHEUS_PORT" ] && PREPROXY_PROMETHEUS_PORT=9089
 [ -z "$PREPROXY_PROMETHEUS_LISTEN" ] && PREPROXY_PROMETHEUS_LISTEN="${IPV4_ADDRESS:-$IPV6_ADDRESS}"
-[ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=$(( $PREPROXY_PROMETHEUS_PORT + 1 ))
-EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )
+[ -z "$EXTERNAL_PROMETHEUS_PORT" ] && EXTERNAL_PROMETHEUS_PORT=$( expr "$PREPROXY_PROMETHEUS_PORT" + 1 )	# The order matters here
+EXTERNAL_NODE_EXPORTER_PORT=$(expr "$EXTERNAL_PROMETHEUS_PORT" + 1 )										# The order matters here
 EXTERNAL_NODE_EXPORTER_LISTEN='127.0.0.1'
 CARDANO_PROMETHEUS_PORT=12798       	# Port where cardano-node provides data TO prometheus (not actual prometheus port)
 CARDANO_PROMETHEUS_LISTEN='127.0.0.1' 	# IP address where cardano-node provides data TO prometheus
@@ -448,6 +448,7 @@ else
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
 		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
 		ufw allow proto tcp from "$NETW" to any port "$PREPROXY_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
+		ufw allow proto tcp from "$NETW" to any port "$EXTERNAL_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
 		if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 			ufw allow proto tcp from "$NETW" to any port 5432 1>> "$BUILDLOG" 2>&1  # dbsync requires PostgreSQL
 		fi
