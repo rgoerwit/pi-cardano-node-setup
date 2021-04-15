@@ -549,6 +549,7 @@ _EOF
 	debug "Writing nginx reverse proxy conf for http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/"
 	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
 		|| echo -n -e "stats\n$(openssl rand -base64 14)" > "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
+	chmod o-rwx "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
 	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
