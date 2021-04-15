@@ -382,7 +382,7 @@ $APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
 systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
 systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "(Re)starting SSH, NTP (the latter will fail, e.g., in GCP; that's OK)"
+	debug "(Re)starting SSH, NTP (the latter may fail, e.g., in GCP; that's OK)"
 	systemctl start ssh                               1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
@@ -566,7 +566,6 @@ _EOF
             proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
         }
     }
-	${PROMETHEUS_DIR}/nginx-htpasswd
 _EOF
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
