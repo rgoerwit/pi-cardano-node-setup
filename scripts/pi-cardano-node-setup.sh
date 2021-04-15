@@ -575,11 +575,11 @@ global:
     monitor: 'codelab-monitor'
 
 scrape_configs:
-  - job_name: '${EXTERNAL_HOSTNAME}_cardano_node' # To scrape data from the cardano node
+  - job_name: 'cardano_node' # To scrape data from the cardano node
     scrape_interval: 5s
     static_configs:
     - targets: ['$CARDANO_PROMETHEUS_LISTEN:$CARDANO_PROMETHEUS_PORT']
-  - job_name: '${EXTERNAL_HOSTNAME}_node_exporter' # To scrape data from a node exporter - linux host metrics
+  - job_name: 'node_exporter' # To scrape data from a node exporter - linux host metrics
     scrape_interval: 5s
     static_configs:
     - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
