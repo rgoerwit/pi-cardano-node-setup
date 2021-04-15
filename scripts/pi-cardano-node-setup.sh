@@ -330,7 +330,7 @@ $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
-$APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl ddclient dialog emacs fail2ban g++ git \
+$APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
 	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils openssl nginx pkg-config python3 python3 \
 	python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
@@ -1380,7 +1380,7 @@ debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --
 debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
 debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
 debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
-debug "  DDClient installed; if needed edit /etc/ddclient.conf then restart: systemctl restart ddclient"
+debug "  Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "  Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
