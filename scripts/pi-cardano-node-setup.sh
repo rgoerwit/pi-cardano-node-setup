@@ -333,7 +333,7 @@ $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install aptitude autoconf automake bc bsdmainutils build-essential curl ddclient dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
-	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils nginx pkg-config python3 python3 \
+	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils openssl nginx pkg-config python3 python3 \
 	python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
 	zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
@@ -424,7 +424,7 @@ _EOF
 	fi
 fi
 
-# Set up restrictive firewall - just SSH and RDP, plus Cardano node $LISTENPORT
+# Set up restrictive firewall - just SSH and RDP, plus an external Prometheus
 #
 if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
     debug "Skipping firewall configuration at user request"
@@ -535,6 +535,26 @@ else
 fi
 
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	openssl req -x509 -newkey rsa:4096 -nodes \
+		-keyout "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key" \
+		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt"
+	NGINX_CONF_DIR='/usr/local/etc/nginx/conf.d'
+	debug "Writing nginx reverse proxy conf for http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/"
+	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
+	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
+http {
+    server {
+        listen              $EXTERNAL_PROMETHEUS_PORT ssl;
+        server_name         example.com;
+        ssl_certificate     ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt;
+        ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
+
+        location / {
+            proxy_pass http://$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT/;
+        }
+    }
+}
+_EOF
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
 global:
   scrape_interval:     15s
@@ -577,12 +597,16 @@ WantedBy=multi-user.target
 _EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
-systemctl enable prometheus	1>> "$BUILDLOG" 2>&1
+systemctl enable prometheus		1>> "$BUILDLOG" 2>&1
+systemctl enable nginx			1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Starting prometheus service (for use with Grafana on another host)"
 	systemctl start prometheus	1>> "$BUILDLOG" 2>&1; sleep 3
 	systemctl status prometheus	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 37 "$0: Problem enabling (or starting) prometheus service; aborting (run 'systemctl status prometheus')"
+	systemctl start nginx		1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl status nginx		1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 38 "$0: Problem enabling (or starting) nginx service; aborting (run 'systemctl status nginx')"
 fi
 
 # Set up node_exporter
