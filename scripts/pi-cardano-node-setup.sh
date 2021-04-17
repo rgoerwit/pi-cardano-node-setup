@@ -196,7 +196,7 @@ skip_op() {
 LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
 if [ ".$LASTRUNCOMMAND" != '.' ]; then
 	debug "Last run:\n  $LASTRUNCOMMAND" 
-	debug "For full command history: less $INSTALLDIR/logs/build-command-line*log"
+	debug "For full command history: 'less $INSTALLDIR/logs/build-command-line*log'"
 fi
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
@@ -320,7 +320,7 @@ chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 
 [ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this may take a long time...."
-debug "To monitor progress, run: tail -f \"$BUILDLOG\""
+debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 
 # Update system, install prerequisites, utilities, etc.
 #
@@ -781,7 +781,7 @@ if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 		chmod 0600 "$SWAPFILE"			1>> "$BUILDLOG" 2>&1
 		mkswap "$SWAPFILE"				1>> "$BUILDLOG" 2>&1
 		ischroot || swapon "$SWAPFILE"	1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 32 "$0: Can't enable swap: swapon $SWAPFILE; aborting"
+			|| err_exit 32 "$0: Can't enable swap: 'swapon $SWAPFILE'; aborting"
 	fi
 	if egrep -qi 'swap' '/etc/fstab'; then
 		debug "/etc/fstab already mounts swap file; skipping"
@@ -986,7 +986,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ 
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
 	echo -e "package cardano-crypto-praos\n flags: -external-libsodium-vrf" > "${BUILDDIR}/cabal.project.local"
-	debug "Building all: $CABAL build all (cwd = `pwd`)"
+	debug "Building all: '$CABAL build all' (cwd = `pwd`)"
 	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
 		: all good
 	else
@@ -996,7 +996,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ 
 			LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
 			PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
 			$CABAL build cardano-cli cardano-node 2>&1 \
-				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: strace $CABAL build cardano-cli cardano-node"
+				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: 'strace $CABAL build cardano-cli cardano-node'"
 			debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
 		else
 			err_exit 87 "$0: Failed to build cardano-cli and cardano-node; aborting"
@@ -1339,24 +1339,24 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 [ -L "$INSTALLDIR/sockets/node0.socket" ] && rm -f "$INSTALLDIR/sockets/node0.socket"
 [ -L "$INSTALLDIR/sockets/node0.socket" ] \
 	|| (ln -sf "$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket" "$INSTALLDIR/sockets/node0.socket" 1>> "$BUILDLOG" 2>&1 \
-		|| debug "Note: Failed to: ln -sf $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket $INSTALLDIR/sockets/node0.socket")
+		|| debug "Note: Failed to: 'ln -sf $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket $INSTALLDIR/sockets/node0.socket'")
 [ -L "$INSTALLDIR/db" ] && rm -f "$INSTALLDIR/db"
 [ -L "$INSTALLDIR/db" ] \
 	|| (ln -sf "$CARDANO_DBDIR"	"$INSTALLDIR/db" 1>> "$BUILDLOG" 2>&1 \
-		|| debug "Note: Failed to: ln -sf $CARDANO_DBDIR $INSTALLDIR/db")
+		|| debug "Note: Failed to: 'ln -sf $CARDANO_DBDIR $INSTALLDIR/db'")
 [ -d "$INSTALLDIR/priv" ] && [ $(ls -A "$INSTALLDIR/priv" 2> /dev/null | wc -l) -eq 0 ] && rm "$INSTALLDIR/priv"
 [ -L "$INSTALLDIR/priv" ] && rm "$INSTALLDIR/priv"
 [ -L "$INSTALLDIR/priv" ] \
 	|| (ln -sf "$CARDANO_PRIVDIR" "$INSTALLDIR/priv" 1>> "$BUILDLOG" 2>&1 \
-		|| debug "Note: Failed to: ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv")
+		|| debug "Note: Failed to: 'ln -sf $CARDANO_PRIVDIR $INSTALLDIR/priv'")
 [ -L "$OPTCARDANO_DIR/cnode" ] && rm -f "$OPTCARDANO_DIR/cnode"
 [ -L "$OPTCARDANO_DIR/cnode" ] \
 	|| (ln -sf "$INSTALLDIR" "$OPTCARDANO_DIR/cnode" \
-		|| debug "Note: Failed to: ln -sf $INSTALLDIR $OPTCARDANO_DIR/cnode")
+		|| debug "Note: Failed to: 'ln -sf $INSTALLDIR $OPTCARDANO_DIR/cnode'")
 [ -L "$INSTALLDIR/monitoring" ] && rm -f "$INSTALLDIR/monitoring"
 [ -L "$INSTALLDIR/monitoring" ] \
 	|| (ln -sf "$OPTCARDANO_DIR/cnode" "$INSTALLDIR/monitoring" \
-		|| debug "Note: Failed to: ln -sf $OPTCARDANO_DIR/cnode $INSTALLDIR/monitoring")
+		|| debug "Note: Failed to: 'ln -sf $OPTCARDANO_DIR/cnode $INSTALLDIR/monitoring'")
 
 # build and install other utilities - python, rust-based
 #
@@ -1387,7 +1387,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	$PIP install pip-tools       1>> "$BUILDLOG" 2>&1
 	$PIP install python-cardano  1>> "$BUILDLOG" 2>&1
 	$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 117 "$0: Unable to install cardano tools: $PIP install cardano-tools; aborting"
+		|| err_exit 117 "$0: Unable to install cardano tools: '$PIP install cardano-tools'; aborting"
 fi
 
 #############################################################################
@@ -1395,22 +1395,22 @@ fi
 debug "Tasks:"
 debug "  You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
 debug "  Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
-debug "  Follow syslogged activity by running: journalctl --unit=cardano-node --follow"
-debug "  Monitor node activity by running: cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh"
+debug "  Follow syslogged activity by running: 'journalctl --unit=cardano-node --follow'"
+debug "  Monitor node activity by running: 'cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh'"
 debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
-debug "  Please examine topology file; run: less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\""
+debug "  Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\"'"
 debug "  Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "  Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 (date +"%Z %z" | egrep -q UTC) \
-    && debug "  Please also set the timezone (e.g., timedatectl set-timezone 'America/Chicago')"
+    && debug "  Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
 
 if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	# SCRIPT_PATH was set earlier on (beginning of this script)
 	if [ -e "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" ]; then
 		# Run the dbsync script if we managed to find it
-		debug "Running dbsync setup script: $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+		debug "Running dbsync setup script: '$SCRIPT_PATH/pi-cardano-dbsync-setup.sh'"
 		. "$SCRIPT_PATH/pi-cardano-dbsync-setup.sh" \
-			|| err_exit 47 "$0: Can't execute $SCRIPT_PATH/pi-cardano-dbsync-setup.sh"
+			|| err_exit 47 "$0: Can't execute '$SCRIPT_PATH/pi-cardano-dbsync-setup.sh'"
 	else
 		debug "Skipping dbsync setup (can't find dbsync setup script, ${SCRIPT_PATH:-.}/pi-cardano-dbsync-setup.sh)"
 	fi
