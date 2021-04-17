@@ -829,12 +829,12 @@ cd "$BUILDDIR"
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 		STILL_NEED_CABAL_BINARY='Y'
-		if which cabal 1> /dev/null; then
-			debug "Compiling new cabal using existing $(which cabal)"
+		if [ -x "$CABAL" ]; then
+			debug "Compiling new cabal using existing $CABAL; this can take a long time"
 			cd './cabal'														1>> "$BUILDLOG" 2>&1
 			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
-			cabal update														1>> "$BUILDLOG" 2>&1
-			cabal install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
+			$CABAL update														1>> "$BUILDLOG" 2>&1
+			$CABAL install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
 			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
 				&& STILL_NEED_CABAL_BINARY='N'
 		fi
@@ -842,7 +842,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
 				debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 				tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
-					&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
+					&& cp -f ./cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
 			else
 				debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 				do_ghcup_install
@@ -979,7 +979,7 @@ git fetch						 			1>> "$BUILDLOG" 2>&1
 #
 OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }')
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
-	debug "Building cabal; already installed version is ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
+	debug "Building cardano-node; already installed version is ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
 	$CABAL configure -O0 -w "ghc-${GHCVERSION}" 1>> "$BUILDLOG"  2>&1
 	'rm' -rf "${BUILDDIR}/cardano-node/dist-newstyle/build/x86_64-linux/ghc-${GHCVERSION}"
