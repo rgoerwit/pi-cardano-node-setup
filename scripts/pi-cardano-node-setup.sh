@@ -824,15 +824,25 @@ fi
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 		cd "$BUILDDIR"
-		if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
-			debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
-			tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
-				&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
-			chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
-			chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
-		else
-			debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
-			do_ghcup_install
+		STILL_NEED_CABAL_BINARY='Y'
+		if which cabal 1> /dev/null; then
+			debug "Compiling new cabal using existing $(which cabal)"
+			git clone 'https://github.com/haskell/cabal/'						1>> "$BUILDLOG" 2>&1
+			cd ./cabal															1>> "$BUILDLOG" 2>&1
+			cabal update														1>> "$BUILDLOG" 2>&1
+			cabal install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
+			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
+				&& STILL_NEED_CABAL_BINARY='N'
+		fi
+		if [ ".$STILL_NEED_CABAL_BINARY" = '.Y' ]; then
+			if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
+				debug "Downloaded for unpacking: ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+				tar -xf "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" \
+					&& cp -f cabal "$CABAL"	1>> "$BUILDLOG" 2>&1
+			else
+				debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
+				do_ghcup_install
+			fi
 		fi
 	fi
 	if [[ ! -x "$CABAL" ]]; then
@@ -843,13 +853,15 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 		debug "Requested cabal version $CABAL_VERSION != observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
 		do_ghcup_install
 	fi
+	chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
+	chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
 else
 	[ ".$SKIP_RECOMPILE" = '.Y' ] \
-		|| debug "Skipping cabal install; already done via GHCUP"
+		|| debug "Skipping cabal install checks; already done via GHCUP"
 fi
 
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-	debug "Updating cabal database (using version $CABAL_VERSION)"
+	debug "Updating cabal database"
 	if $CABAL update 1>> "$BUILDLOG" 2>&1; then
 		debug "Successfully updated $CABAL"
 	else
@@ -1058,7 +1070,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
-	sed -i "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
+
 	# Restoring previous parameters to the config file:
 	if [ ".$EKG_PORT" != '.' ]; then 
 		debug "Restoring old hasEKG value, setting Prometheus values, in dbsync.json and config.json files"
@@ -1076,15 +1088,19 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	[ -s "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" ] \
 		|| err_exit 58 "0: Failed to download ${BLOCKCHAINNETWORK}-config.json from https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/"
 
-	# Adjust files in various ways - turning off memory monitoring (kills performance as of 1.25.1), turn on block fetch decision tracing
-	sed -i "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json" -e "s/TraceBlockFetchDecisions\":  *false/TraceBlockFetchDecisions\": true/g"
-	jq .TraceBlockFetchDecisions="true" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
-		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
-	TRACEMEMPOOL_SETTING='false'
-	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACEMEMPOOL_SETTING='true'
-	debug "Setting TraceMempool=$TRACEMEMPOOL_SETTING (if port > 6000 or pool name provided, assume we're a BP [true]; otherwise relay [false])"
-	jq .TraceMempool="$TRACEMEMPOOL_SETTING" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null \
-		| sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	# Adjust files in various ways - turning off memory monitoring (kills performance in 1.25.1), turn on block fetch decision tracing
+	debug "Setting TraceBlockFetchDecisions and allied configuration settings to 'true'"
+	jq .TraceBlockFetchClient="true"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceBlockFetchDecisions="true"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceBlockFetchProtocol="true"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceBlockFetchProtocolSerialised="true"	"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceBlockFetchServer="true" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	TRACE_SETTING='false'
+	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACE_SETTING='true'
+	debug "Setting Trace{ChainDb,Forge,Mempool}=$TRACE_SETTING (if port > 6000 or pool name provided, assume BP [true]; otherwise relay [false])"
+	jq .TraceChainDb="$TRACE_SETTING"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceForge="$TRACE_SETTING"					"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceMempool="$TRACE_SETTING" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	
 	# Set up startup script
 	#
