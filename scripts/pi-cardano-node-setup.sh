@@ -828,16 +828,17 @@ cd "$BUILDDIR"
 [ -d "$BUILDDIR/cabal" ] || git clone 'https://github.com/haskell/cabal/' 1>> "$BUILDLOG" 2>&1
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-		STILL_NEED_CABAL_BINARY='Y'
-# 
-#		if [ -x "$CABAL" ]; then
-#			debug "Compiling new cabal using existing $CABAL; this can take a long time"
-#			cd './cabal'														1>> "$BUILDLOG" 2>&1
-#			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
-#			$CABAL update														1>> "$BUILDLOG" 2>&1
-#			$CABAL install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
-#			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
-#				&& STILL_NEED_CABAL_BINARY='N'
+		STILL_NEED_CABAL_BINARY='Y' 
+		if [ -x "$CABAL" ]; then
+			debug "Compiling new cabal using existing $CABAL; very slow - will take down any running node"
+			systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node' \
+				&& systemctl stop cardano-node    								1>> "$BUILDLOG" 2>&1
+			cd './cabal'														1>> "$BUILDLOG" 2>&1
+			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
+			$CABAL update														1>> "$BUILDLOG" 2>&1
+			$CABAL install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
+			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
+				&& STILL_NEED_CABAL_BINARY='N'
 		fi
 		if [ ".$STILL_NEED_CABAL_BINARY" = '.Y' ]; then
 			if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
