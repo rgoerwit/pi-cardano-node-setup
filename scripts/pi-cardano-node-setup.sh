@@ -502,7 +502,7 @@ fi
 
 # Set up Prometheus
 #
-cd $BUILDDIR
+cd "$BUILDDIR"
 OPTCARDANO_DIR='/opt/cardano'
 if [ -d "$OPTCARDANO_DIR" ]; then
 	: already created
@@ -524,11 +524,13 @@ else
 	chgrp -R prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
+cd "$BUILDDIR"
+[ -d "$BUILDDIR/prometheus" ] || git clone 'https://github.com/prometheus/prometheus' 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings ($SKIP_RECOMPILE)"
-	git clone 'https://github.com/prometheus/prometheus'	1>> "$BUILDLOG" 2>&1
-	cd prometheus
-	$MAKE build	1>> "$BUILDLOG" 2>&1 \
+	cd ./prometheus
+	git reset --hard; git pull	1>> "$BUILDLOG" 2>&1
+	$MAKE build					1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 fi
@@ -624,9 +626,7 @@ fi
 # Set up node_exporter
 #
 debug "Installing (and building, if -x was not supplied) node_exporter"
-cd $BUILDDIR
-git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
-cd node_exporter
+cd "$BUILDDIR"
 NODE_EXPORTER_DIR="$OPTCARDANO_DIR/monitoring/exporters"
 useradd node_exporter -s /sbin/nologin					1>> "$BUILDLOG" 2>&1
 if [ -e "$NODE_EXPORTER_DIR" ]; then
@@ -636,8 +636,11 @@ else
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
+[ -d "$BUILDDIR/node_exporter" ] || git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
-	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
+	cd './node_exporter'
+	git reset --hard; git pull	1>> "$BUILDLOG" 2>&1
+	$MAKE common-all			1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
@@ -821,14 +824,15 @@ fi
 
 # Now do cabal; we'll pull binaries in this case
 #
+cd "$BUILDDIR"
+[ -d "$BUILDDIR/cabal" ] || git clone 'https://github.com/haskell/cabal/' 1>> "$BUILDLOG" 2>&1
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-		cd "$BUILDDIR"
 		STILL_NEED_CABAL_BINARY='Y'
 		if which cabal 1> /dev/null; then
 			debug "Compiling new cabal using existing $(which cabal)"
-			git clone 'https://github.com/haskell/cabal/'						1>> "$BUILDLOG" 2>&1
-			cd ./cabal															1>> "$BUILDLOG" 2>&1
+			cd './cabal'														1>> "$BUILDLOG" 2>&1
+			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
 			cabal update														1>> "$BUILDLOG" 2>&1
 			cabal install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
 			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
@@ -876,14 +880,11 @@ fi
 # Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'libsodium' ]] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
-	debug "Fetching libsodium code"
-	'rm' -rf libsodium 					1>> "$BUILDLOG" 2>&1 # just in case
-	git clone "${IOHKREPO}/libsodium"	1>> "$BUILDLOG" 2>&1
-fi
+[ -d "$BUILDDIR/libsodium" ] || git clone "${IOHKREPO}/libsodium" 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
-	cd 'libsodium'
+	cd './libsodium'					1>> "$BUILDLOG" 2>&1
+	git reset --hard; git pull			1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
 	git fetch							1>> "$BUILDLOG" 2>&1
 	./autogen.sh 						1>> "$BUILDLOG" 2>&1
@@ -952,7 +953,7 @@ done
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d 'cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
+if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d './cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
 	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node.git"
 	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 fi
@@ -1291,7 +1292,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 				|| debug "$0: Failed to checkout cnode tool version $GUILDSCRIPT_VERSION; using default")
  	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
-	cd ./scripts/cnode-helper-scripts
+	cd './scripts/cnode-helper-scripts'
 	cp -f * ${CARDANO_SCRIPTDIR}/
 	chown -R root.root "${CARDANO_SCRIPTDIR}"
 	chmod 0755 "${CARDANO_SCRIPTDIR}/"*.sh
