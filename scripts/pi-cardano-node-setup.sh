@@ -847,9 +847,11 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			cd './cabal'														1>> "$BUILDLOG" 2>&1
 			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
 			$CABAL update														1>> "$BUILDLOG" 2>&1
-			$CABAL install --project-file=cabal.project.release cabal-install	1>> "$BUILDLOG" 2>&1
-			cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
-				&& STILL_NEED_CABAL_BINARY='N'
+			if $CABAL install --project-file=cabal.project.release cabal-install 1>> "$BUILDLOG" 2>&1; then
+				cp "$HOME/.cabal/bin/cabal" "$CABAL" 1>> "$BUILDLOG" 2>&1 \
+					|| cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
+				STILL_NEED_CABAL_BINARY='N'
+			fi
 		fi
 		if [ ".$STILL_NEED_CABAL_BINARY" = '.Y' ]; then
 			if $WGET "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" -O "cabal-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 1>> "$BUILDLOG" 2>&1; then
