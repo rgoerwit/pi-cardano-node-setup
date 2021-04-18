@@ -526,18 +526,19 @@ else
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 cd "$BUILDDIR"
+[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/prometheus" 1>> "$BUILDLOG" 2>&1
 [ -d "$BUILDDIR/prometheus" ] || git clone 'https://github.com/prometheus/prometheus' 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings (${SKIP_RECOMPILE:-none})"
 	cd ./prometheus
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
 	git reset --hard; git pull		1>> "$BUILDLOG" 2>&1
-	pushd './web/ui/react-app'
+	pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
 	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
 	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
 	node cache clean --force		1>> "$BUILDLOG" 2>&1
 	node install node-sass --force	1>> "$BUILDLOG" 2>&1
-	popd
+	popd							1>> "$BUILDLOG" 2>&1
 	$MAKE build						1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
@@ -644,6 +645,7 @@ else
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
+[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/node_exporter" 1>> "$BUILDLOG" 2>&1
 [ -d "$BUILDDIR/node_exporter" ] || git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
 	cd './node_exporter'
@@ -833,6 +835,7 @@ fi
 # Now do cabal; we'll pull binaries in this case
 #
 cd "$BUILDDIR"
+[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cabal" 1>> "$BUILDLOG" 2>&1
 [ -d "$BUILDDIR/cabal" ] || git clone 'https://github.com/haskell/cabal/' 1>> "$BUILDLOG" 2>&1
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
@@ -890,6 +893,7 @@ fi
 # Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
+[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/libsodium" 1>> "$BUILDLOG" 2>&1
 [ -d "$BUILDDIR/libsodium" ] || git clone "${IOHKREPO}/libsodium" 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
