@@ -333,8 +333,8 @@ $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
 	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
 	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils nginx nginx-light openssl pkg-config python2 \
-	python3 python3 python3-pip librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute tmux \
-	zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
+	python3 python3 python3-pip python-is-python3 librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute \
+	tmux zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
 	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
