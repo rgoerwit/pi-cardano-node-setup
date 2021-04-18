@@ -528,10 +528,17 @@ fi
 cd "$BUILDDIR"
 [ -d "$BUILDDIR/prometheus" ] || git clone 'https://github.com/prometheus/prometheus' 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
-	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings ($SKIP_RECOMPILE)"
+	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings (${SKIP_RECOMPILE:-none})"
 	cd ./prometheus
-	git reset --hard; git pull	1>> "$BUILDLOG" 2>&1
-	$MAKE build					1>> "$BUILDLOG" 2>&1 \
+	$MAKE clean						1>> "$BUILDLOG" 2>&1
+	git reset --hard; git pull		1>> "$BUILDLOG" 2>&1
+	pushd './web/ui/react-app'
+	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
+	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
+	node cache clean --force		1>> "$BUILDLOG" 2>&1
+	node install node-sass --force	1>> "$BUILDLOG" 2>&1
+	popd
+	$MAKE build						1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 fi
@@ -890,6 +897,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; t
 	git reset --hard; git pull			1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
 	git fetch							1>> "$BUILDLOG" 2>&1
+	$MAKE clean							1>> "$BUILDLOG" 2>&1
 	./autogen.sh 						1>> "$BUILDLOG" 2>&1
 	./configure							1>> "$BUILDLOG" 2>&1
 	$MAKE								1>> "$BUILDLOG" 2>&1
