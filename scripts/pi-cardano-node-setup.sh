@@ -205,8 +205,8 @@ if [ "${SUDO}" = 'Y' ] && [ $(id -u) -eq 0 ]; then
 	debug "Running script as root (not needed; use 'sudo')"
 fi
 
+debug "To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh: 'git pull')"
 debug "Please DOUBLE CHECK THE FOLLOWING DATA:"
-debug "    To get the latest version: 'git clone https://github.com/rgoerwit/pi-cardano-node-setup/' (refresh: 'git pull')"
 debug "    INSTALLDIR is '/home/${INSTALL_USER}'"
 debug "    BUILDDIR is '/home/${BUILD_USER}/Cardano-BuildDir'"
 debug "    CARDANO_FILEDIR is '${INSTALLDIR}/files'"
