@@ -246,7 +246,7 @@ fi
 
 # Guess which cabal binaries to use
 #
-[ -z "$CABAL_VERSION" ] && CABAL_VERSION='3.4.0.0'
+[ -z "$CABAL_VERSION" ] && CABAL_VERSION='3.5.0.0'
 [ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="https://downloads.haskell.org/~cabal/cabal-install-${CABAL_VERSION}/cabal-install-${CABAL_VERSION}"
 if echo "$(arch)" | egrep -q 'arm|aarch'; then
 	[ -z "$CABALDOWNLOADPREFIX" ] && CABALDOWNLOADPREFIX="http://home.smart-cactus.org/~ben/ghc/cabal-install-${CABAL_VERSION}"
@@ -850,7 +850,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			git reset --hard					1>> "$BUILDLOG" 2>&1
 			git pull							1>> "$BUILDLOG" 2>&1
 			$CABAL update						1>> "$BUILDLOG" 2>&1
-			if $CABAL install --project-file=cabal.project.release cabal-install 1>> "$BUILDLOG" 2>&1; then
+			if $CABAL install --project-file=cabal.project.release --overwrite-policy=always cabal-install 1>> "$BUILDLOG" 2>&1; then
 				cp "$HOME/.cabal/bin/cabal" "$CABAL" 1>> "$BUILDLOG" 2>&1 \
 					|| cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1
 				STILL_NEED_CABAL_BINARY='N'
@@ -1036,7 +1036,7 @@ fi
 #
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
 	debug "(Re)installing binaries for cardano-node and cardano-cli" 
-	$CABAL install --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
+	$CABAL install --overwrite-policy=always --installdir "$INSTALLDIR" cardano-cli cardano-node 1>> "$BUILDLOG" 2>&1
     # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 	mv -f "$INSTALLDIR/cardano-cli" "$INSTALLDIR/cardano-cli.OLD"	1>> "$BUILDLOG" 2>&1
 	mv -f "$INSTALLDIR/cardano-node" "$INSTALLDIR/cardano-node.OLD"	1>> "$BUILDLOG" 2>&1
