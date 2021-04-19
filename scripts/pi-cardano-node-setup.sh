@@ -849,7 +849,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			$CABAL update														1>> "$BUILDLOG" 2>&1
 			if $CABAL install --project-file=cabal.project.release cabal-install 1>> "$BUILDLOG" 2>&1; then
 				cp "$HOME/.cabal/bin/cabal" "$CABAL" 1>> "$BUILDLOG" 2>&1 \
-					|| cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1 \
+					|| cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1
 				STILL_NEED_CABAL_BINARY='N'
 			fi
 		fi
