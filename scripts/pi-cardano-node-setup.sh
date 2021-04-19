@@ -1113,10 +1113,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	jq .TraceBlockFetchProtocol="true"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	jq .TraceBlockFetchProtocolSerialised="true"	"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	jq .TraceBlockFetchServer="true" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	jq .TraceChainDb="true"							"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	TRACE_SETTING='false'
 	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACE_SETTING='true'
-	debug "Setting Trace{ChainDb,Forge,Mempool}=$TRACE_SETTING (if port > 6000 or pool name provided, assume BP [true]; otherwise relay [false])"
-	jq .TraceChainDb="$TRACE_SETTING"				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
+	debug "Setting Trace{Forge,Mempool}=$TRACE_SETTING (if port > 6000 or pool name provided, assume BP [true]; otherwise relay [false])"
 	jq .TraceForge="$TRACE_SETTING"					"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	jq .TraceMempool="$TRACE_SETTING" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	
