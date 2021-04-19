@@ -532,7 +532,7 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings (${SKIP_RECOMPILE:-none})"
 	cd ./prometheus
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
-	git reset --hard; git pull		1>> "$BUILDLOG" 2>&1
+	git reset --hard && git pull	1>> "$BUILDLOG" 2>&1
 	pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
 	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
 	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
