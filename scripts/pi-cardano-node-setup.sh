@@ -836,6 +836,10 @@ cd "$BUILDDIR"
 [ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cabal" 1>> "$BUILDLOG" 2>&1
 [ -d "$BUILDDIR/cabal" ] || git clone 'https://github.com/haskell/cabal/' 1>> "$BUILDLOG" 2>&1
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
+	if dpkg --compare-versions "$CABAL_VERSION" 'gt' $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null); then
+		debug "Requested cabal version $CABAL_VERSION > observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
+		SKIP_RECOMPILE='N'
+	fi
 	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 		STILL_NEED_CABAL_BINARY='Y' 
 		if [ -x "$CABAL" ]; then
@@ -866,15 +870,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 	fi
 	if [[ ! -x "$CABAL" ]]; then
 		debug "No $CABAL executable found; correcting - using GHCUP"
-		do_ghcup_install
-	fi
-	if [[ ! -x "$CABAL" ]]; then
-		err_exit 41 "$0: All attempts at installing cabal have failed; aborting"
-	else
-		if dpkg --compare-versions "$CABAL_VERSION" 'gt' $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null); then
-			debug "Requested cabal version $CABAL_VERSION > observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
-			do_ghcup_install
-		fi
+		do_ghcup_install || err_exit 41 "$0: All attempts at installing cabal have failed; aborting"
 	fi
 	chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
 	chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
