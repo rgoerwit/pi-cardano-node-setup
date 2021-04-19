@@ -257,7 +257,7 @@ if $WGET --method HEAD "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.
 	: yay nothing more needed
 else
 	if echo "$CABAL_OS" | egrep -qi 'ubuntu'; then 
-		DVERSION=$(expr `echo "$CABAL_OS" | cut -f 2 -d'-' | cut -f 1 -d'.'` / 2);
+		DVERSION=$(expr `echo "$CABAL_OS" | cut -f 2 -d'-' | cut -f 1 -d'.'` / 2); # Debian version often = floor(Ubuntu version / 2)
 		CABAL_OS="debian-$DVERSION"; 
 	fi
 	if $WGET --method HEAD "${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz" 2>> "$BUILDLOG"; then
@@ -339,7 +339,13 @@ $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
-if which node 1>> "$BUILDLOG" 2>&1 && ( [ -x '/usr/local/bin/yarn' ] || [[ ".$(/usr/bin/yarn --version)" =~ ^\.[0-9]+\. ]] ); then
+if 
+	(which node 1>> "$BUILDLOG" 2>&1 \
+		&& dpkg --compare-versions "15.0.0" 'lt' $(node --version | sed 's/^v//') 1>> "$BUILDLOG" 2>&1 \
+	) \
+	&& ([ -x '/usr/local/bin/yarn' ] \
+		|| [[ ".$(/usr/bin/yarn --version)" =~ ^\.[0-9]+\. ]] \
+	); then
 	debug "Skipping node and yarn install; already present in /usr/local/bin or version high enough"
 else
 	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories (adding key for latter)"
@@ -814,6 +820,14 @@ passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
 #
 cd "$BUILDDIR"
 $WGET "http://downloads.haskell.org/~ghc/${GHCVERSION}/ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" -O "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz"
+if which ghc 1>> "$BUILDLOG" 2>&1; then
+	if dpkg --compare-versions "$GHCVERSION" 'gt' $(ghc --version | awk '{ print $(NF) }' 2> /dev/null); then
+		debug "Requested GHC version $GHCVERSION > observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding"
+		SKIP_RECOMPILE=''
+	fi
+else
+	SKIP_RECOMPILE=''
+fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	debug "Downloading: ghc-${GHCVERSION}"
     debug "Building: ghc-${GHCVERSION}"
@@ -825,10 +839,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	debug "Installing: ghc-${GHCVERSION}"
 	$MAKE install 1>> "$BUILDLOG"
 fi
-if dpkg --compare-versions "$GHCVERSION" 'gt' $(ghc --version | awk '{ print $(NF) }' 2> /dev/null); then
-	debug "Requested GHC version $GHCVERSION > observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
-	do_ghcup_install
-fi
+# Fall back to GHCUP install if there is no GHC executable
+which ghc 1>> "$BUILDLOG" 2>&1 || do_ghcup_install
 
 # Now do cabal; we'll pull binaries in this case
 #
@@ -880,11 +892,11 @@ else
 fi
 
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-	debug "Updating cabal database"
+	debug "Updating cabal database: '$CABAL update'"
 	if $CABAL update 1>> "$BUILDLOG" 2>&1; then
-		debug "Successfully updated $CABAL"
+		debug "Successfully updated $CABAL database"
 	else
-		debug "Working around bug in $CABAL..."
+		debug "Working around bug in $CABAL; rebuilding $HOME/.cabal"
 		pushd ~ 1>> "$BUILDLOG" 2>&1 # Work around bug in cabal
 		'rm' -rf $HOME/.cabal
 		($CABAL update 2>&1 | tee -a "$BUILDLOG") || err_exit 67 "$0: Failed to run '$CABAL update'; aborting"
@@ -980,7 +992,7 @@ cd "$BUILDDIR/cardano-node"
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 [ -z "$CARDANOBRANCH" ] && CARDANOBRANCH='master'
-debug "Setting working cardano-node branch to: $CARDANOBRANCH (specified with -U <branch>)"
+debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
 	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
@@ -988,7 +1000,7 @@ if [ -z "$CARDANONODE_VERSION" ]; then
 fi
 CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
 [[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
-debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION} (specified with -V <version>)"
+debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
 git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
 git fetch						 			1>> "$BUILDLOG" 2>&1
