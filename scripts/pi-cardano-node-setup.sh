@@ -532,7 +532,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; th
 	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings (${SKIP_RECOMPILE:-none})"
 	cd ./prometheus
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
-	git reset --hard && git pull	1>> "$BUILDLOG" 2>&1
+	git reset --hard 				1>> "$BUILDLOG" 2>&1
+	git pull						1>> "$BUILDLOG" 2>&1
 	pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
 	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
 	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
@@ -649,8 +650,9 @@ fi
 [ -d "$BUILDDIR/node_exporter" ] || git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
 	cd './node_exporter'
-	git reset --hard; git pull	1>> "$BUILDLOG" 2>&1
-	$MAKE common-all			1>> "$BUILDLOG" 2>&1 \
+	git reset --hard	1>> "$BUILDLOG" 2>&1
+	git pull			1>> "$BUILDLOG" 2>&1
+	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
@@ -843,10 +845,11 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 		if [ -x "$CABAL" ]; then
 			debug "Compiling new cabal using existing $CABAL; very slow - will take down any running node"
 			systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node' \
-				&& systemctl stop cardano-node    								1>> "$BUILDLOG" 2>&1
-			cd './cabal'														1>> "$BUILDLOG" 2>&1
-			git reset --hard; git pull											1>> "$BUILDLOG" 2>&1
-			$CABAL update														1>> "$BUILDLOG" 2>&1
+				&& systemctl stop cardano-node  1>> "$BUILDLOG" 2>&1
+			cd './cabal'						1>> "$BUILDLOG" 2>&1
+			git reset --hard					1>> "$BUILDLOG" 2>&1
+			git pull							1>> "$BUILDLOG" 2>&1
+			$CABAL update						1>> "$BUILDLOG" 2>&1
 			if $CABAL install --project-file=cabal.project.release cabal-install 1>> "$BUILDLOG" 2>&1; then
 				cp "$HOME/.cabal/bin/cabal" "$CABAL" 1>> "$BUILDLOG" 2>&1 \
 					|| cp -f $(find "$BUILDDIR/cabal/bootstrap" -type f -name cabal ! -path '*OLD*') "$CABAL" 1>> "$BUILDLOG" 2>&1
@@ -900,7 +903,8 @@ cd "$BUILDDIR"
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
 	cd './libsodium'					1>> "$BUILDLOG" 2>&1
-	git reset --hard; git pull			1>> "$BUILDLOG" 2>&1
+	git reset --hard					1>> "$BUILDLOG" 2>&1
+	git pull							1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
 	git fetch							1>> "$BUILDLOG" 2>&1
 	$MAKE clean							1>> "$BUILDLOG" 2>&1
