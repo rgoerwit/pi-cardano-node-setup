@@ -181,13 +181,9 @@ CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
 ( [[ "$PATH" =~ /usr/local/bin ]] && [[ "$PATH" =~ /snap/bin ]] ) || PATH="/usr/local/bin:/snap/bin:$PATH"
 
 # Sends output to console as well as the $BUILDLOG file
-debug() {
-	[ -z "$DEBUG" ] || echo -e "$@" | tee -a "$BUILDLOG" 
-} 
+debug() { [ -z "$DEBUG" ] || echo -e "$@" | tee -a "$BUILDLOG"; } 
 
-skip_op() {	
-	debug 'Skipping: ' "$@" 
-}
+skip_op() {	debug 'Skipping: ' "$@"; }
 
 (egrep -qi 'ubuntu' /etc/issue || egrep -qi 'raspbian|ubuntu|debian' /etc/os-release) 2> /dev/null \
 	|| debug "We're built for Debian/Ubuntu, mainly for the Pi (will try anyway, but YMMV)"
@@ -829,8 +825,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	debug "Installing: ghc-${GHCVERSION}"
 	$MAKE install 1>> "$BUILDLOG"
 fi
-if [ "$GHCVERSION" != $(ghc --version | awk '{ print $(NF) }' 2> /dev/null) ]; then
-	debug "Requested GHC version $GHCVERSION != observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
+if dpkg --compare-versions "$GHCVERSION" 'gt' $(ghc --version | awk '{ print $(NF) }' 2> /dev/null); then
+	debug "Requested GHC version $GHCVERSION > observed, $(ghc --version | awk '{ print $(NF) }' 2> /dev/null), rebuilding with GHCUP"
 	do_ghcup_install
 fi
 
@@ -864,16 +860,21 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			else
 				debug "Can't download cabal from ${CABALDOWNLOADPREFIX}-${CABALARCHITECTURE}-${CABAL_OS}.tar.xz"
 				do_ghcup_install
+				STILL_NEED_CABAL_BINARY='N'
 			fi
 		fi
 	fi
 	if [[ ! -x "$CABAL" ]]; then
-		debug "No $CABAL executable found; correcting"
+		debug "No $CABAL executable found; correcting - using GHCUP"
 		do_ghcup_install
 	fi
-	if [ "$CABAL_VERSION" != $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ]; then
-		debug "Requested cabal version $CABAL_VERSION != observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
-		do_ghcup_install
+	if [[ ! -x "$CABAL" ]]; then
+		err_exit 41 "$0: All attempts at installing cabal have failed; aborting"
+	else
+		if dpkg --compare-versions "$CABAL_VERSION" 'gt' $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null); then
+			debug "Requested cabal version $CABAL_VERSION > observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
+			do_ghcup_install
+		fi
 	fi
 	chown root.root "$CABAL"	1>> "$BUILDLOG" 2>&1
 	chmod 0755 "$CABAL"			1>> "$BUILDLOG" 2>&1
