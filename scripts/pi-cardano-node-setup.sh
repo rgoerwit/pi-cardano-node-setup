@@ -1035,7 +1035,7 @@ fi
 # Stop the node so we can replace binaries or update config files
 #
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
-	debug "Stopping cardano-node service, if running (to install/refresh binaries - and possibly config files, if no -d)" 
+	debug "Stopping cardano-node service, if running for potential config file or binary update" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
@@ -1097,7 +1097,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	export EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
 	$WGET "${GUILDREPO_RAW}/alpha/files/config-dbsync.json"														-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
-	[[ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" ]]
+	[[ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" ]] \
 		|| $WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-dbsync.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
