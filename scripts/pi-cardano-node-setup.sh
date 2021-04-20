@@ -305,20 +305,23 @@ download_github_code () {
 	MYPROGINSTALLDIR=$7
 
 	# Try to determine version of MYPROGNAME
+	ISLIBRARY='N'
 	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
 	if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
 		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
+		ISLIBRARY='Y'
 	else
 		# Most executables will cough up some sort of version number when passed '--version'
-		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	fi
+	[ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYRECOMPILEFLAG" = '.Y' ] || 'rm' -rf "$MYBUILDDIR/$MYPROGNAME" 1>> "$MYBUILDLOG" 2>&1
-	[ -d "$MYBUILDDIR/$MYPROGNAME" ] || git clone "$MYREPOSITORYURL" 1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone "$MYREPOSITORYURL" 		1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
-		&& [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] \
+		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-'1000.1000'}" 'ge' ${MYREQUIREDVERSION:-'0.0'}
 	then
 		debug "Refresh not needed for $MYPROGNAME ($MYREPOSITORYURL)"
@@ -373,7 +376,7 @@ $APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils b
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
-snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
+snap connect nmap --classic			1>> "$BUILDLOG" 2>&1
 snap install rustup --classic		1>> "$BUILDLOG" 2>&1
 snap install go --classic			1>> "$BUILDLOG" 2>&1
 if 
@@ -398,11 +401,13 @@ else
 fi
 
 # Make sure some other basic prerequisites are correctly installed
-$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
-$APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG" 2>&1
-dpkg-reconfigure build-essential                  1>> "$BUILDLOG" 2>&1
-dpkg-reconfigure gcc                              1>> "$BUILDLOG" 2>&1
-$APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
+if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+	$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG" 2>&1
+	dpkg-reconfigure build-essential                  1>> "$BUILDLOG" 2>&1
+	dpkg-reconfigure gcc                              1>> "$BUILDLOG" 2>&1
+	$APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
+fi
 $APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1 \
 	|| snap install rpi-imager 					  1>> "$BUILDLOG" 2>&1  # If not present, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
@@ -580,7 +585,10 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus
 	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
 fi
 
-if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+if [ ".$DONT_OVERWRITE" = '.Y' ] && [[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ]]
+then
+	debug "Skipping nginx cert, config and Prometheus config file remake (drop -d to force)"
+else
 	openssl req -x509 -newkey rsa:4096 -nodes -days 999 \
 		-keyout "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key" \
 		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt" 1>> "$BUILDLOG" 2>&1 << _EOF
@@ -688,7 +696,10 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
 cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
-if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+if [ ".$DONT_OVERWRITE" = '.Y' ] && [ -f '/etc/systemd/system/node_exporter.service' ]
+then
+	debug "Skipping node_exporter service file remake (drop -d to force)"
+else
 	cat > '/etc/systemd/system/node_exporter.service' << _EOF
 [Unit]
 Description=Node Exporter
@@ -1159,7 +1170,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		if [ -f "$POSSIBLE_POOL_CONFIGFILE" ]; then
 			GUILD_WALLET=$(jq ".rewardWallet" "$POSSIBLE_POOL_CONFIGFILE" 2> /dev/null | sed 's/^"//' | sed 's/"$//')
 			if [ ".$GUILD_WALLET" != '.' ]; then
-				debug "Using Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
+				debug "Taking data from Guild CNode Tool wallet in: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
@@ -1226,18 +1237,18 @@ _EOF
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
 debug "Cardano node will be started (later): 
-$INSTALLDIR/cardano-node run \\
-    --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket \\
-    --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
-    --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
-    --database-path ${CARDANO_DBDIR}/ \\
-	$CERTKEYARGS"
+    $INSTALLDIR/cardano-node run \\
+        --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket \\
+        --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
+        --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
+        --database-path ${CARDANO_DBDIR}/ \\
+	    $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ /\n        /g' )"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
 # -R argument supplied - this is a block-producing node; parse relay info
 [ ".${RELAY_INFO}" = '.' ] && ( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) \
-	&& debug "Assuming block producer (listen port >= 6000 or pool-name supplied); normally we need a -R <relay-ip:port>; continuing anyway"
+	&& debug "Assuming block producer (listen port >= 6000 or pool-name supplied); normally need a -R <relay-ip:port>; continuing anyway"
 
 TOPOLOGY_FILE_WAS_EMPTY=''
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
@@ -1345,7 +1356,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
 	    -e "s@^#* *NO_INTERNET_MODE=['\"]*N['\"]*@NO_INTERNET_MODE=\"\${NO_INTERNET_MODE:-Y}\"@" \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
-	debug "Resetting variables in Guild env file to, e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
+	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s@^\#* *CNODE_PORT=['\"]*[0-9]*['\"]*@CNODE_PORT=\"$LISTENPORT\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
@@ -1409,7 +1420,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 	if rustup update 1>> "$BUILDLOG" 2>&1; then
 		# Assume user has set default toolchain
 		cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-			|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
+			|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
 
 	else
 		# Force the 'stable' toolchain if all else fails
@@ -1417,9 +1428,9 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		rustup default stable	1>> "$BUILDLOG" 2>&1
 		rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
 		cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-			|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
+			|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
 	fi
-	cp -f './bin/cncli' "$INSTALLDIR" 
+	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
 	#
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
