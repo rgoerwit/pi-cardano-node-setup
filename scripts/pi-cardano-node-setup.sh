@@ -572,7 +572,7 @@ else
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "$PROMETHEUS_DIR" '2.26.0'; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '2.26.0' "$PROMETHEUS_DIR"; then
 	cd './prometheus'
 	debug "Building and installing prometheus"
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
@@ -691,7 +691,7 @@ else
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "/usr/local/sbin"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '1.1.0' "$NODE_EXPORTER_DIR"; then
 	cd './node_exporter'
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
