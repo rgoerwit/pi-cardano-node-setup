@@ -319,6 +319,7 @@ download_github_code () {
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
 	[ ".$MYRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone "$MYREPOSITORYURL" 		1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
@@ -893,7 +894,7 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 			systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node' \
 				&& systemctl stop cardano-node  1>> "$BUILDLOG" 2>&1
 			cd './cabal'						1>> "$BUILDLOG" 2>&1
-			git reset --hard					1>> "$BUILDLOG" 2>&1
+			git reset --hard					1>> "$BUILDLOG" 2>&1  # Gotta do this again, even though download_github_code did it
 			git pull							1>> "$BUILDLOG" 2>&1
 			$CABAL update						1>> "$BUILDLOG" 2>&1
 			if $CABAL install --project-file=cabal.project.release --overwrite-policy=always cabal-install 1>> "$BUILDLOG" 2>&1; then
@@ -1239,7 +1240,8 @@ fi
 debug "Cardano node will be started (later): 
     $INSTALLDIR/cardano-node run \\
         --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket \\
-        --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
+        --config $NODE_CONFIG_FILE \\
+		$IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
             $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n\\\\            --/g' )"
