@@ -1420,8 +1420,8 @@ cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG" '2.0.0'; then
 	debug "Updating Rust in prep for cncli install"
 	cd './cncli'
-	if rustup update 1>> "$BUILDLOG" 2>&1
-		&& rustup install stable 1>> "$BUILDLOG" 2>&1
+	if rustup update 1>> "$BUILDLOG" 2>&1 \
+		&& rustup install stable 1>> "$BUILDLOG" 2>&1 \
 		&& cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1
 	then
 		: yay it worked
