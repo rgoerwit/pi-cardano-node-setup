@@ -297,7 +297,7 @@ do_ghcup_install () {
 	popd 1>> "$BUILDLOG" 2>&1
 }
 
-# Generarized code for refreshing a GitHub repository, if needed
+# Generalized code for refreshing a GitHub repository, if needed
 #
 download_github_code () {
 
@@ -310,7 +310,7 @@ download_github_code () {
 	MYPROGINSTALLDIR=$7
 
 	# Try to determine version of MYPROGNAME
-	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$//' | awk -F/ '{ print $(NF) }')
+	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
 	if stat -c "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" -c '%s' | egrep -q '^lib' && ldconfig -pNv | egrep -q "$MYPROGNAME"; then
 		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 	else
