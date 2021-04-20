@@ -311,7 +311,7 @@ download_github_code () {
 
 	# Try to determine version of MYPROGNAME
 	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
-	if stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" -c '%n' | egrep -q '^lib' && ldconfig -pNv | egrep -q "$MYPROGNAME"; then
+	if stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" -c '%n' 2> /dev/null | egrep -q '^lib' && ldconfig -pNv | egrep -q "$MYPROGNAME"; then
 		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 	else
 		# Most executables will cough up some sort of version number when passed '--version'
@@ -935,7 +935,7 @@ fi
 # Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP_RECOMPILE" "$BUILDLOG"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP_RECOMPILE" "$BUILDLOG" '0' '/usr/local/lib'; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
 	cd './libsodium'					1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
