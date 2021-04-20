@@ -890,11 +890,11 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/haskell/cabal' "$SKIP_RECOMPILE" "$BUILDLOG" "$CABAL_VERSION"; then
 		STILL_NEED_CABAL_BINARY='Y' 
 		if [ -x "$CABAL" ]; then
-			debug "Compiling new cabal using existing $CABAL; very slow - will take down any running node"
+			debug "Compiling new cabal using existing $CABAL; can be slow; must down any running node"
 			systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node' \
 				&& systemctl stop cardano-node  1>> "$BUILDLOG" 2>&1
 			cd './cabal'						1>> "$BUILDLOG" 2>&1
-			git reset --hard					1>> "$BUILDLOG" 2>&1  # Gotta do this again, even though download_github_code did it
+			git reset --hard					1>> "$BUILDLOG" 2>&1  # Do this again, even though download_github_code did it
 			git pull							1>> "$BUILDLOG" 2>&1
 			$CABAL update						1>> "$BUILDLOG" 2>&1
 			if $CABAL install --project-file=cabal.project.release --overwrite-policy=always cabal-install 1>> "$BUILDLOG" 2>&1; then
@@ -1241,7 +1241,7 @@ debug "Cardano node will be started (later):
     $INSTALLDIR/cardano-node run \\
         --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket \\
         --config $NODE_CONFIG_FILE \\
-		$IPV4ARG $IPV6ARG --port $LISTENPORT \\
+	$IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
             $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n\\\\            --/g' )"
