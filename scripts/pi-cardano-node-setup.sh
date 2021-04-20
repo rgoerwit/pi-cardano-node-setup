@@ -297,6 +297,48 @@ do_ghcup_install () {
 	popd 1>> "$BUILDLOG" 2>&1
 }
 
+# Generarized code for refreshing a GitHub repository, if needed
+#
+download_github_code () {
+
+	MYBUILDDIR=$1
+	MYINSTALLDIR=$2
+	MYREPOSITORYURL=$3
+	MYRECOMPILEFLAG=$4
+	MYBUILDLOG=$5
+	MYREQUIREDVERSION=$6
+	MYPROGINSTALLDIR=$7
+
+	# Try to determine version of MYPROGNAME
+	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$//' | awk -F/ '{ print $(NF) }')
+	if stat -c "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" -c '%s' | egrep -q '^lib' && ldconfig -pNv | egrep -q "$MYPROGNAME"; then
+		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
+	else
+		# Most executables will cough up some sort of version number when passed '--version'
+		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+	fi
+	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
+
+	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYRECOMPILEFLAG" = '.Y' ] || 'rm' -rf "$MYBUILDDIR/$MYPROGNAME" 1>> "$MYBUILDLOG" 2>&1
+	[ -d "$MYBUILDDIR/$MYPROGNAME" ] || git clone "$MYREPOSITORYURL" 1>> "$MYBUILDLOG" 2>&1
+	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
+		&& [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] \
+		&& dpkg --compare-versions "${MYVERSION:-'1000.1000'}" 'ge' ${MYREQUIREDVERSION:-'0.0'}
+	then
+		debug "Refresh not needed for $MYPROGNAME ($MYREPOSITORYURL)"
+		popd 1>> "$MYBUILDLOG" 2>&1
+		return 1
+	else
+		debug "Refreshing GitHub code for $MYPROGNAME from: $MYREPOSITORYURL"
+		cd "./$MYPROGNAME"
+		git reset --hard 1>> "$MYBUILDLOG" 2>&1
+		git pull 1>> "$MYBUILDLOG" 2>&1
+		popd 1>> "$MYBUILDLOG" 2>&1
+		return 0
+	fi
+}
+
 # Make sure our build user exists
 #
 debug "Checking and (if need be) making build user: ${BUILD_USER}"
@@ -528,14 +570,10 @@ else
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 cd "$BUILDDIR"
-[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/prometheus" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/prometheus" ] || git clone 'https://github.com/prometheus/prometheus' 1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$PROMETHEUS_DIR/prometheus" ]]; then
-	debug "Building and installing prometheus; ignoring any SKIP_RECOMPILE settings (${SKIP_RECOMPILE:-none})"
-	cd ./prometheus
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "$PROMETHEUS_DIR"; then
+	cd './prometheus'
+	debug "Building and installing prometheus"
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
-	git reset --hard 				1>> "$BUILDLOG" 2>&1
-	git pull						1>> "$BUILDLOG" 2>&1
 	pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
 	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
 	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
@@ -648,12 +686,8 @@ else
     chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/node_exporter" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/node_exporter" ] || git clone 'https://github.com/prometheus/node_exporter'	1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$NODE_EXPORTER_DIR/node_exporter" ]]; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "/usr/local/sbin"; then
 	cd './node_exporter'
-	git reset --hard	1>> "$BUILDLOG" 2>&1
-	git pull			1>> "$BUILDLOG" 2>&1
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
@@ -819,6 +853,7 @@ passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
 # Install GHC, cabal
 #
 cd "$BUILDDIR"
+debug "Downloading: ghc-${GHCVERSION}"
 $WGET "http://downloads.haskell.org/~ghc/${GHCVERSION}/ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" -O "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz"
 if which ghc 1>> "$BUILDLOG" 2>&1; then
 	if dpkg --compare-versions "$GHCVERSION" 'gt' $(ghc --version | awk '{ print $(NF) }' 2> /dev/null); then
@@ -829,7 +864,6 @@ else
 	SKIP_RECOMPILE=''
 fi
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-	debug "Downloading: ghc-${GHCVERSION}"
     debug "Building: ghc-${GHCVERSION}"
 	'rm' -rf "ghc-${GHCVERSION}"
 	tar -xf "ghc-${GHCVERSION}-${GHCARCHITECTURE}-${GHCOS}-linux.tar.xz" 1>> "$BUILDLOG"
@@ -845,14 +879,8 @@ which ghc 1>> "$BUILDLOG" 2>&1 || do_ghcup_install
 # Now do cabal; we'll pull binaries in this case
 #
 cd "$BUILDDIR"
-[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cabal" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/cabal" ] || git clone 'https://github.com/haskell/cabal/' 1>> "$BUILDLOG" 2>&1
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
-	if dpkg --compare-versions "$CABAL_VERSION" 'gt' $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null); then
-		debug "Requested cabal version $CABAL_VERSION > observed, $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null), forcing rebuild"
-		SKIP_RECOMPILE='N'
-	fi
-	if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/haskell/cabal' "$SKIP_RECOMPILE" "$BUILDLOG" "$CABAL_VERSION"; then
 		STILL_NEED_CABAL_BINARY='Y' 
 		if [ -x "$CABAL" ]; then
 			debug "Compiling new cabal using existing $CABAL; very slow - will take down any running node"
@@ -907,13 +935,9 @@ fi
 # Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
-[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/libsodium" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/libsodium" ] || git clone "${IOHKREPO}/libsodium" 1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -e "/usr/local/lib/libsodium.so" ]]; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
 	cd './libsodium'					1>> "$BUILDLOG" 2>&1
-	git reset --hard					1>> "$BUILDLOG" 2>&1
-	git pull							1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
 	git fetch							1>> "$BUILDLOG" 2>&1
 	$MAKE clean							1>> "$BUILDLOG" 2>&1
@@ -1392,13 +1416,8 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 # build and install other utilities - python, rust-based
 #
 cd "$BUILDDIR"
-[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cncli" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/cncli" ] || git clone 'https://github.com/AndrewWestberg/cncli' 1>> "$BUILDLOG" 2>&1
-if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cncli" ]]; then
-	debug "Installing cncli (optional; if it fails, continuing on)..."
-	cd ./cncli
-	git reset --hard 				1>> "$BUILDLOG" 2>&1
-	git pull						1>> "$BUILDLOG" 2>&1
+
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	debug "Updating Rust in prep for cncli install"
 	if rustup update 1>> "$BUILDLOG" 2>&1; then
 		# Assume user has set default toolchain
