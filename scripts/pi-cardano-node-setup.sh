@@ -313,6 +313,7 @@ download_github_code () {
 	else
 		# Most executables will cough up some sort of version number when passed '--version'
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	fi
 	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
@@ -571,7 +572,7 @@ else
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "$PROMETHEUS_DIR"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '0' "$PROMETHEUS_DIR" '2.26.0'; then
 	cd './prometheus'
 	debug "Building and installing prometheus"
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
