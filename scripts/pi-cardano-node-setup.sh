@@ -1242,7 +1242,7 @@ debug "Cardano node will be started (later):
         --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
-$(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n            --/g' )"
+            $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n\\\\            --/g' )"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
@@ -1375,7 +1375,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	fi
 	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000 
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
-		debug "Adding hostname ($EXTERNAL_HOSTNAME), custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
+		debug "Adding hostname ($EXTERNAL_HOSTNAME) and custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
 			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST\" |g" \
@@ -1444,14 +1444,14 @@ fi
 #############################################################################
 #
 debug "Tasks:"
-debug "  You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
-debug "  Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
-debug "  Follow syslogged activity by running: 'journalctl --unit=cardano-node --follow'"
-debug "  Monitor node activity by running: 'cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh'"
-debug "  Please ensure no /home directory is world-readable (many distros make world-readable homes)"
-debug "  Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\"'"
-debug "  Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
-debug "  Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
+debug "    You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
+debug "    Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
+debug "    Follow syslogged activity by running: 'journalctl --unit=cardano-node --follow'"
+debug "    Monitor node activity by running: 'cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh'"
+debug "    Please ensure no /home directory is world-readable (many distros make world-readable homes)"
+debug "    Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\"'"
+debug "    Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
+debug "    Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 (date +"%Z %z" | egrep -q UTC) \
     && debug "  Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
 
