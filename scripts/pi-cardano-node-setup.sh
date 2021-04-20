@@ -1096,7 +1096,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cd "$INSTALLDIR"
 	export EKG_PORT=$(jq -r .hasEKG "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"						2>> "$BUILDLOG")
 	debug "Fetching json files from IOHK; starting with: https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json "
-	$WGET "${GUILDREPO_RAW}/alpha/files/config-dbsync.json"													-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
+	$WGET "${GUILDREPO_RAW}/alpha/files/config-dbsync.json"														-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	[[ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json" ]]
 		|| $WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-dbsync.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-dbsync.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-config.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json"
@@ -1391,27 +1391,30 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 
 # build and install other utilities - python, rust-based
 #
-if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
+cd "$BUILDDIR"
+[ -e 'cncli' ] && 'rm' -rf 'cncli'
+[ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cncli" 1>> "$BUILDLOG" 2>&1
+[ -d "$BUILDDIR/cncli" ] || git clone 'git clone https://github.com/AndrewWestberg/cncli' 1>> "$BUILDLOG" 2>&1
+if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cncli" ]]; then
 	debug "Installing cncli (optional; if it fails, continuing on)..."
-	cd "$BUILDDIR"
-	[ -e 'cncli' ] && 'rm' -f 'cncli'
-	if git clone https://github.com/AndrewWestberg/cncli 1>> "$BUILDLOG" 2>&1; then
-		cd 'cncli'
-		debug "Updating Rust in prep for cncli install"
-		if rustup update 1>> "$BUILDLOG" 2>&1; then
-			# Assume user has set default toolchain
-			cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-				|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
+	cd ./cncli
+	git reset --hard 				1>> "$BUILDLOG" 2>&1
+	git pull						1>> "$BUILDLOG" 2>&1
+	debug "Updating Rust in prep for cncli install"
+	if rustup update 1>> "$BUILDLOG" 2>&1; then
+		# Assume user has set default toolchain
+		cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
+			|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
 
-		else
-			# Force the 'stable' toolchain if all else fails
-			rustup install stable	1>> "$BUILDLOG" 2>&1
-			rustup default stable	1>> "$BUILDLOG" 2>&1
-			rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
-			cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-				|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
-		fi
+	else
+		# Force the 'stable' toolchain if all else fails
+		rustup install stable	1>> "$BUILDLOG" 2>&1
+		rustup default stable	1>> "$BUILDLOG" 2>&1
+		rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
+		cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
+			|| debug "cncli 'cargo install' failed, but moving on (details in $BUILDLOG)"
 	fi
+	cp -f './bin/cncli' "$INSTALLDIR" 
 	#
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
