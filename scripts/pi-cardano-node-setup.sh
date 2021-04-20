@@ -313,7 +313,7 @@ download_github_code () {
 	else
 		# Most executables will cough up some sort of version number when passed '--version'
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | egrep -vi 'o such file' | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	fi
 	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
@@ -324,7 +324,7 @@ download_github_code () {
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone "$MYREPOSITORYURL" 		1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
-		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-'0.0'}
+		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
 	then
 		debug "Refresh not needed for $MYPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -1245,7 +1245,7 @@ debug "Cardano node will be started (later):
 	$IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
-            $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n\\\\            --/g' )"
+            $(echo "${CERTKEYARGS:-# No cert-key args available}" | sed 's/ --/\n\\\\            --/g' )"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
