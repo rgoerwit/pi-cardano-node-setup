@@ -37,7 +37,7 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-C <cabal version>] [-d] [-D] [-f] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
+    [-C <cabal version>] [-d] [-D] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
 	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] \
 	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
 	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
@@ -57,7 +57,6 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -C    Specific cabal version to use
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
--f    Re-fetch code from github for libsodium and cardano-node, overwriting previously downloaded repositories
 -F    Force <hostname> as external DNS name (mainly relevant if using hosted Grafana and you're on dynamic DNS)
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
@@ -88,7 +87,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:C:dDfF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -98,7 +97,6 @@ while getopts 4:6:b:B:c:C:dDfF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
 	C ) CABAL_VERSION="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
-	f ) REFETCH_CODE='Y' ;;
 	F ) EXTERNAL_HOSTNAME="${OPTARG}" ;;
 	g ) GHCOS="${OPTARG}" ;;
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
@@ -240,9 +238,6 @@ CABAL="$INSTALLDIR/cabal"
 MAKE='make'
 PIVERSION=$(cat /proc/cpuinfo | egrep '^Model' | sed 's/^Model\s*:\s*//i')
 PIP="pip$(apt-cache pkgnames | egrep '^python[2-9]*$' | sort | tail -1 | tail -c 2 |  tr -d '[:space:]' 2> /dev/null)"; 
-if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
-	REFETCH_CODE='Y'  # Re-fetch code if we are recompiling
-fi 
 
 # Guess which cabal binaries to use
 #
@@ -311,7 +306,7 @@ download_github_code () {
 
 	# Try to determine version of MYPROGNAME
 	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
-	if stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" -c '%n' 2> /dev/null | egrep -q '^lib' && ldconfig -pNv | egrep -q "$MYPROGNAME"; then
+	if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
 		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 	else
 		# Most executables will cough up some sort of version number when passed '--version'
@@ -946,14 +941,6 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP
 	$MAKE								1>> "$BUILDLOG" 2>&1
 	$MAKE install						1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 78 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
-	if [ $(ls "/usr/local/lib/libsodium"* 2> /dev/null | wc -l) -eq 0 ]; then
-		debug "$0: Installing libsodium (even if -x argument was supplied; won't work otherwise)"
-		./autogen.sh	1>> "$BUILDLOG" 2>&1
-		./configure		1>> "$BUILDLOG" 2>&1 \
-			|| ./configure --build=unknown-unknown-linux 1>> "$BUILDLOG" 2>&1
-		make 1>> "$BUILDLOG" 2>&1; make install 1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 79 "$0: Failed to build, install libsodium version "$LIBSODIUM_VERSION"; aborting"
-	fi 
 fi
 # Apparent problem with Debian on this front
 if [ -f "/usr/local/lib/libsodium.so.23.3.0" ]; then
@@ -1007,7 +994,7 @@ done
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 cd "$BUILDDIR"
-if [ ".$REFETCH_CODE" = '.Y' ] || [[ ! -d './cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
+if [[ ! -d './cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
 	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node.git"
 	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
 fi
