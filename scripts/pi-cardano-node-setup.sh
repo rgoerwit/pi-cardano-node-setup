@@ -1242,7 +1242,7 @@ debug "Cardano node will be started (later):
         --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
-	    $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n        --/g' )"
+$(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n            --/g' )"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
@@ -1414,7 +1414,7 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 # build and install other utilities - python, rust-based
 #
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG" '2.0.0'; then
 	debug "Updating Rust in prep for cncli install"
 	cd './cncli'
 	if rustup update 1>> "$BUILDLOG" 2>&1; then
@@ -1431,6 +1431,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 			|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
 	fi
 	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
+	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR" 
 	#
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
