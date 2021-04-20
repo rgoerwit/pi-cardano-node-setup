@@ -314,7 +314,7 @@ download_github_code () {
 		# Most executables will cough up some sort of version number when passed '--version'
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	fi
-	[ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
+	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
@@ -322,7 +322,7 @@ download_github_code () {
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone "$MYREPOSITORYURL" 		1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
-		&& dpkg --compare-versions "${MYVERSION:-'1000.1000'}" 'ge' ${MYREQUIREDVERSION:-'0.0'}
+		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-'0.0'}
 	then
 		debug "Refresh not needed for $MYPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -605,7 +605,7 @@ _EOF
 	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
 		|| echo -n -e "stats\n$(openssl rand -base64 14)" > "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
 	chmod o-rwx "${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt"
-	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
+	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')" 1>> "$BUILDLOG" 2>&1
 	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
@@ -1242,7 +1242,7 @@ debug "Cardano node will be started (later):
         --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
-	    $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ /\n        /g' )"
+	    $(echo "${CERTKEYARGS:-'# No cert-key args available'}" | sed 's/ --/\n        --/g' )"
 
 # Modify topology file; add -R <relay-ip:port> information
 #
@@ -1414,9 +1414,9 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 # build and install other utilities - python, rust-based
 #
 cd "$BUILDDIR"
-
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	debug "Updating Rust in prep for cncli install"
+	cd './cncli'
 	if rustup update 1>> "$BUILDLOG" 2>&1; then
 		# Assume user has set default toolchain
 		cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
