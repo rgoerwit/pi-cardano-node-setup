@@ -1392,9 +1392,8 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 # build and install other utilities - python, rust-based
 #
 cd "$BUILDDIR"
-[ -e 'cncli' ] && 'rm' -rf 'cncli'
 [ ".$SKIP_RECOMPILE" = '.Y' ] || 'rm' -rf "$BUILDDIR/cncli" 1>> "$BUILDLOG" 2>&1
-[ -d "$BUILDDIR/cncli" ] || git clone 'git clone https://github.com/AndrewWestberg/cncli' 1>> "$BUILDLOG" 2>&1
+[ -d "$BUILDDIR/cncli" ] || git clone 'https://github.com/AndrewWestberg/cncli' 1>> "$BUILDLOG" 2>&1
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cncli" ]]; then
 	debug "Installing cncli (optional; if it fails, continuing on)..."
 	cd ./cncli
