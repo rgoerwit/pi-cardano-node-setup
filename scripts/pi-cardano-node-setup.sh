@@ -1420,14 +1420,13 @@ cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG" '2.0.0'; then
 	debug "Updating Rust in prep for cncli install"
 	cd './cncli'
-	if rustup update 1>> "$BUILDLOG" 2>&1; then
-		# Assume user has set default toolchain
-		cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-			|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
-
+	if rustup update 1>> "$BUILDLOG" 2>&1
+		&& rustup install stable 1>> "$BUILDLOG" 2>&1
+		&& cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1
+	then
+		: yay it worked
 	else
 		# Force the 'stable' toolchain if all else fails
-		rustup install stable	1>> "$BUILDLOG" 2>&1
 		rustup default stable	1>> "$BUILDLOG" 2>&1
 		rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
 		cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
