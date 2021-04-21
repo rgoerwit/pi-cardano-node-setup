@@ -67,7 +67,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
--N    No start; if this argument is supplied, no startup of any services, including cardano-node, will be attempted
+-N    No start; if this argument is supplied, no startup of any services, including cardano-node, will be attempted (used for backups to /dev/sda...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
 -P    Pool name (not ticker - only useful if you've been using CNode Tools to create a wallet inside your INSTALLDIR/priv/pool directory)
@@ -892,8 +892,11 @@ if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to
 		STILL_NEED_CABAL_BINARY='Y' 
 		if [ -x "$CABAL" ]; then
 			debug "Compiling new cabal using existing $CABAL; can be slow; must down any running node"
-			systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node' \
-				&& systemctl stop cardano-node  1>> "$BUILDLOG" 2>&1
+			if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
+				systemctl stop cardano-node  	1>> "$BUILDLOG" 2>&1
+				# Disable in case we're doing a backup; backup should come up w/out cardano-node enabled
+				[ ".$START_SERVICES" = '.N' ] && systemctl disable cardano-node 	1>> "$BUILDLOG" 2>&1
+			fi
 			cd './cabal'						1>> "$BUILDLOG" 2>&1
 			git reset --hard					1>> "$BUILDLOG" 2>&1  # Do this again, even though download_github_code did it
 			git pull							1>> "$BUILDLOG" 2>&1
@@ -1061,7 +1064,8 @@ fi
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	debug "Stopping cardano-node service, if running for potential config file or binary update" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
-	systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1 \
+	# Disable cardano-node if we're running a backup; backup should come up with cardano-node disabled
+	([ ".$START_SERVICES" != '.N' ] && systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1) \
 		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
 	# Just in case, kill everything run by the install user
 	killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
@@ -1325,9 +1329,9 @@ done
 # Ensure cardano-node auto-starts
 #
 debug "Setting up cardano-node as system service"
-systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
-systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1
+systemctl daemon-reload						1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
+	systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
 	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1; sleep 3
 	(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
 		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
