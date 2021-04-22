@@ -163,7 +163,7 @@ else
 fi
 
 debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
-chroot "${MOUNTPOINT}" /bin/bash -v 2>&1 << _EOF
+chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
