@@ -158,9 +158,8 @@ if [ -z "$SETUP_COMMAND" ]; then
     err_abort 9 "$0: No -C <command> supplied and can't find last pi-cardano-node-setup.sh command-line; aborting"
 else
     # Strip out path and executable name, but keep arguments; replace with latest downloade above
-    SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[^ \t]*[ \t][ \t]*//' | sed 's/-N[ \t]*$//') # strip executable and -N
+    SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[ \t]*pi-[^ \t]*[ \t][ \t]*//' | sed 's/[ \t]*-N[ \t]*$//') # strip executable and -N
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
-    debug "Prepping to execute in chroot:  $SETUP_COMMAND"
 fi
 
 debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
@@ -168,7 +167,7 @@ chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
-bash -c "bash $SETUP_COMMAND"
+bash -c "$SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null
 _EOF
