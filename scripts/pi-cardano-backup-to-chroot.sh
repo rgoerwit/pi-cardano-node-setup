@@ -164,7 +164,7 @@ fi
 
 debug "Entering chroot and beginning sub-install (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
 debug "\n-------------------\n"
-chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
+chroot "${MOUNTPOINT}" /bin/bash << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
