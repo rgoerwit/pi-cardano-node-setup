@@ -152,7 +152,7 @@ if [ -z "$SETUP_COMMAND" ]; then
     debug "No -C <command> supplied; using last-used, completed pi-cardano-node-setup.sh command"
     HOMEDIR_OF_INSTALLUSER=$(getent passwd ${INSTALL_USER:-cardano} | cut -f6 -d:)
     LAST_COMPLETED_SETUP_COMMAND_FILE=$(ls -tR ${HOMEDIR_OF_INSTALLUSER}/logs/build-command-line-* | xargs egrep -l 'completed' | head -1)
-    LAST_COMPLETED_SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//')
+    SETUP_COMMAND=$(cat "$LAST_COMPLETED_SETUP_COMMAND_FILE" | tr -d '\r\n' | sed 's/#.*$//')
 fi
 if [ -z "$SETUP_COMMAND" ]; then
     err_abort 9 "$0: No -C <command> supplied and can't find last pi-cardano-node-setup.sh command-line; aborting"
