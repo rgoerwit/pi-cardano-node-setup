@@ -158,7 +158,7 @@ if [ -z "$SETUP_COMMAND" ]; then
     err_abort 9 "$0: No -C <command> supplied and can't find last pi-cardano-node-setup.sh command-line; aborting"
 else
     # Strip out path and executable name, but keep arguments; replace with latest downloade above
-    SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[ \t]*pi-[^ \t]*[ \t][ \t]*//' | sed 's/[ \t]*-N[ \t]*$//') # strip executable and -N
+    SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[ \t]*[^ \t]*pi-[^ \t]*[ \t][ \t]*//' | sed 's/[ \t]*-N[ \t]*$//') # strip executable and -N
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
 fi
 
