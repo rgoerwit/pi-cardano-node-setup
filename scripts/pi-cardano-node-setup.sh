@@ -139,6 +139,8 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME=$(dig +noall +answer +short -x "${EXTERNAL_IPV6_ADDRESS}" 2> /dev/null | sed 's/\.$//')
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV4_ADDRESS}"
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
+MY_SUBNET=$(echo "$MY_SUBNET"	| tr -d ' 	\r')
+RELAY_INFO=$(echo "$RELAY_INFO"	| tr -d ' 	\r')
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
 if [ -z "${MY_SUBNETS}" ]; then
