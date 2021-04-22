@@ -299,7 +299,7 @@ download_github_code () {
 	MYBUILDDIR=$1
 	MYINSTALLDIR=$2
 	MYREPOSITORYURL=$3
-	MYRECOMPILEFLAG=$4
+	MYSKIPRECOMPILEFLAG=$4
 	MYBUILDLOG=$5
 	MYREQUIREDVERSION=$6
 	MYPROGINSTALLDIR=$7
@@ -322,10 +322,10 @@ download_github_code () {
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
-	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
+	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
 	then
@@ -1026,7 +1026,9 @@ git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
+	git pull # Fast forward, find version
 	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
+	[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git tag | sort -V | egrep '^[0-9]' | tail -1)
 	debug "No cardano-node version specified; defaulting to latest tag in the current branch, $CARDANONODE_VERSION"
 fi
 CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
