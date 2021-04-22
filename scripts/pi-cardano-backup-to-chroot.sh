@@ -160,6 +160,7 @@ else
     # Strip out path and executable name, but keep arguments; replace with latest downloade above
     SETUP_COMMAND=$(echo "$SETUP_COMMAND" | sed 's/^[^ \t]*[ \t][ \t]*//' | sed 's/-N[ \t]*$//') # strip executable and -N
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
+    debug "Prepping to execute in chroot:  $SETUP_COMMAND"
 fi
 
 debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"

@@ -1026,7 +1026,7 @@ git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	git pull # Fast forward, find version
+	git pull	1>> "$BUILDLOG" 2>&1	# Fast forward, find version
 	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
 	[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git tag | sort -V | egrep '^[0-9]' | tail -1)
 	debug "No cardano-node version specified; defaulting to latest tag in the current branch, $CARDANONODE_VERSION"
@@ -1335,7 +1335,7 @@ done
 # Ensure cardano-node auto-starts
 #
 debug "Setting up cardano-node as system service"
-systemctl daemon-reload						1>> "$BUILDLOG" 2>&1
+systemctl daemon-reload				1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
 	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1; sleep 3
