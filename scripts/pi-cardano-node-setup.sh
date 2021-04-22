@@ -1460,8 +1460,10 @@ debug "    Please ensure no /home directory is world-readable (many distros make
 debug "    Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\"'"
 debug "    Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "    Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
-(date +"%Z %z" | egrep -q UTC) \
-    && debug "    Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
+if date +"%Z %z" | egrep -q UTC; then
+	timedatectl set-timezone "$(curl --fail https://ipapi.co/timezone)" \
+	    || debug "    Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
+fi
 
 if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	# SCRIPT_PATH was set earlier on (beginning of this script)
