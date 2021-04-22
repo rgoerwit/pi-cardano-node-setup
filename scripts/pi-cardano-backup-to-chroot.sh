@@ -162,12 +162,16 @@ else
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
 fi
 
+# Chroot should use the same timezone as the parent; see below
+TIMEZONE=$(timedatectl | egrep 'zone' | sed 's/^[^:]*:[   ]*//' | cut -d ' ' -f1)
+
 debug "Entering chroot and beginning sub-install (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
 debug "\n-------------------\n"
 chroot "${MOUNTPOINT}" /bin/bash << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
+timedatectl set-timezone "$TIMEZONE"
 bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null

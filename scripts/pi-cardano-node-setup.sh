@@ -1461,7 +1461,7 @@ debug "    Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCK
 debug "    Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "    Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 (date +"%Z %z" | egrep -q UTC) \
-    && debug "  Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
+    && debug "    Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
 
 if [ ".$SETUP_DBSYNC" = '.Y' ]; then
 	# SCRIPT_PATH was set earlier on (beginning of this script)
