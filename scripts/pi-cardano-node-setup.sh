@@ -273,7 +273,7 @@ do_ghcup_install () {
 	export BOOTSTRAP_HASKELL_NONINTERACTIVE='Y'
 	GHCUP_INSTALL_PATH="$HOME/.ghcup/bin"
 	debug "Falling back to GHCUP install, in $GHCUP_INSTALL_PATH"
-	pushd "$HOME"							1>> "$BUILDLOG" 2>&1
+	pushd "$HOME"								1>> "$BUILDLOG" 2>&1
 	curl --proto '=https' --tlsv1.2 -sSf 'https://get-ghcup.haskell.org' | sh 1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 151 "Failed to build using GHCUP; aborting"
 	PATH="$GHCUP_INSTALL_PATH:$PATH"; export PATH
@@ -307,13 +307,16 @@ download_github_code () {
 	# Try to determine version of MYPROGNAME
 	ISLIBRARY='N'
 	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
-	if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
-		MYVERSION='' # Just assume version is high enough; we can't easily infer it here
-		ISLIBRARY='Y'
-	else
-		# Most executables will cough up some sort of version number when passed '--version'
+	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ]; then
+		# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | egrep -vi 'o such file' | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+	else
+		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
+			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
+			ISLIBRARY='Y'
+		fi
 	fi
 	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
@@ -321,7 +324,7 @@ download_github_code () {
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
 	[ ".$MYRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
-	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone "$MYREPOSITORYURL" 		1>> "$MYBUILDLOG" 2>&1
+	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
@@ -332,6 +335,7 @@ download_github_code () {
 	else
 		debug "Refreshing GitHub code for $MYPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYPROGNAME"
+		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
 		git reset --hard 1>> "$MYBUILDLOG" 2>&1
 		git pull 1>> "$MYBUILDLOG" 2>&1
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -378,29 +382,26 @@ $APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils b
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
-snap connect nmap --classic			1>> "$BUILDLOG" 2>&1
-snap install rustup --classic		1>> "$BUILDLOG" 2>&1
-snap install go --classic			1>> "$BUILDLOG" 2>&1
-if 
-	(which node 1>> "$BUILDLOG" 2>&1 \
-		&& dpkg --compare-versions "15.0.0" 'lt' $(node --version | sed 's/^v//') 1>> "$BUILDLOG" 2>&1 \
-	) \
-	&& ([ -x '/usr/local/bin/yarn' ] \
-		|| [[ ".$(/usr/bin/yarn --version)" =~ ^\.[0-9]+\. ]] \
-	); then
-	debug "Skipping node and yarn install; already present in /usr/local/bin or version high enough"
+if ! ischroot; then
+	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1
+	snap install rustup --classic		1>> "$BUILDLOG" 2>&1
+	snap install go --classic			1>> "$BUILDLOG" 2>&1
 else
-	debug "Installing new nodejs and yarn from deb.nodesource.com and dl.yarnpkg.com repositories (adding key for latter)"
-	curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1
-	$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
-	debug "Adding yarnpkg stable main repository: /etc/apt/sources.list.d/yarn.list"
-	curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | sudo apt-key add - 1>> "$BUILDLOG" 2>&1
-	# echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
-	echo 'deb https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
-	$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
-	$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
-		|| err_abort 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
+	## Truly dangerous just to run someone else's shell script blind, off the internet
+	#curl --proto '=https' --tlsv1.2 -sSf 'https://sh.rustup.rs' | sh 1>> "$BUILDLOG" 2>&1
+	debug "Note: You'll need to rerun this script after booting your chroot as your primary boot device"
 fi
+dpkg -l nodejs 1> /dev/null 2>&1 || (curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1)
+debug "Updating/installing nodejs from deb.nodesource.com repository"
+debug "Installing yarn from dl.yarnpkg.com repository (adding key for repository if needed)"
+dpkg -l nodejs 1> /dev/null 2>&1 || (curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | sudo apt-key add - 1>> "$BUILDLOG" 2>&1)
+debug "Adding yarnpkg stable main repository: /etc/apt/sources.list.d/yarn.list"
+# echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
+echo 'deb https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
+$APTINSTALLER update			1>> "$BUILDLOG" 2>&1
+$APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
+$APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
+	|| err_abort 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
 
 # Make sure some other basic prerequisites are correctly installed
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
@@ -1424,21 +1425,16 @@ cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG" '2.0.0'; then
 	debug "Updating Rust in prep for cncli install"
 	cd './cncli'
-	if rustup update 1>> "$BUILDLOG" 2>&1 \
-		&& rustup install stable 1>> "$BUILDLOG" 2>&1 \
-		&& cargo install --path . --force --locked 1>> "$BUILDLOG" 2>&1
-	then
-		: yay it worked
-	else
-		# Force the 'stable' toolchain if all else fails
-		rustup default stable	1>> "$BUILDLOG" 2>&1
-		rustup update stable	1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
-		cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
-			|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
-	fi
+	[ -d "$HOME/.cargo/bin" ] || mkdir -p "$HOME/.cargo/bin"; chown -R $USER "$HOME/.cargo"
+	rustup install stable	1>> "$BUILDLOG" 2>&1
+	rustup default stable	1>> "$BUILDLOG" 2>&1
+	rustup update			1>> "$BUILDLOG" 2>&1 || debug "Rust update failed, but moving on anyway"
+	rustup component add clippy rustfmt				1>> "$BUILDLOG" 2>&1
+	cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
+		|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
 	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
 	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR" 
-	#
+
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
 	$PIP install pip-tools       1>> "$BUILDLOG" 2>&1
