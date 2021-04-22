@@ -162,7 +162,8 @@ else
     SETUP_COMMAND="${BUILDDIR}/pi-cardano-node-setup/scripts/pi-cardano-node-setup.sh ${SETUP_COMMAND} -N"
 fi
 
-debug "Running setup script in chroot (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
+debug "Entering chroot and beginning sub-install (with -N argument) on $BACKUP_DEVICE:\n    ${SETUP_COMMAND}"
+debug "-------------------\n"
 chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
@@ -171,6 +172,8 @@ bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null
 _EOF
+debug "-------------------\n"
+debug "Exited chrooted sub-install; unmounting ${BACKUP_DEVICE}"
 
 cd "$SCRIPT_PATH"           1>> "$BUILDLOG" 2>&1
 umount "${BACKUP_DEVICE}"   1>> "$BUILDLOG" 2>&1
