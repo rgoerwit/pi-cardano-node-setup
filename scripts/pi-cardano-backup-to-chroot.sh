@@ -167,7 +167,7 @@ chroot "${MOUNTPOINT}" /bin/bash -v << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            1>> /dev/null
 apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
-bash -c "$SETUP_COMMAND"
+bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
 umount /proc                        1>> /dev/null
 _EOF
