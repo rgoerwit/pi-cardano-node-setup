@@ -1071,8 +1071,7 @@ if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-
 	debug "Stopping cardano-node service, if running for potential config file or binary update" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	# Disable cardano-node if we're running a backup; backup should come up with cardano-node disabled
-	([ ".$START_SERVICES" = '.N' ] || systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1) \
-		|| err_exit 57 "$0: Failed to disable running cardano-node service; aborting"
+	[ ".$START_SERVICES" = '.N' ] && systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1
 	# Just in case, kill everything run by the install user
 	killall -s SIGINT  -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1; sleep 10  # Wait a bit before delivering death blow
 	killall -s SIGKILL -u "$INSTALL_USER"  1>> "$BUILDLOG" 2>&1
