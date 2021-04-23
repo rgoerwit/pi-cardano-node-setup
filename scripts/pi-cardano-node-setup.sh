@@ -57,7 +57,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -C    Specific cabal version to use
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
--f    Configure as failover for server <parent:port> (may be a DNS name or IP address)
+-f    Configure as a warm-spare failover for server <parent:port> (may be a DNS name or IP address)
 -F    Force <hostname> as external DNS name (mainly relevant if using hosted Grafana and you're on dynamic DNS)
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
@@ -1148,8 +1148,8 @@ else
 				-e "s|^ *PARENTADDR=\"\([^\"]*\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
 				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
-			debug "Adding cron job for heartbeat-failover script: "$CRONFILE""
-			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
+			debug "Adding cron job for heartbeat-failover script (runs every 2 min): "$CRONFILE""
+			echo "*/2 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
 	else
