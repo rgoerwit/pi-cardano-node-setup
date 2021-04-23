@@ -88,7 +88,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:C:dDF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
