@@ -1138,6 +1138,8 @@ else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
+		chown root.cardano "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
+		chmod 0750 "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
 		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
 		if [ -z "$PARENTADDR" ]; then
@@ -1149,7 +1151,7 @@ else
 				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
 			debug "Adding cron job for heartbeat-failover script (runs every 2 min): "$CRONFILE""
-			echo "*/2 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
+			echo "*/2 * * * * cardano test -x $INSTALLDIR/pi-cardano-heartbeat-failover.sh && $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
 	else
