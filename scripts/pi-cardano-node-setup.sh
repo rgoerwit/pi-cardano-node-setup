@@ -1136,6 +1136,7 @@ if [ -z "$FAILOVER_PARENT" ]; then
 	service cron reload 	1>> "$BUILDLOG" 2>&1
 else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
+		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
 		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
@@ -1147,6 +1148,7 @@ else
 				-e "s|^ *PARENTADDR=\"\([^\"]*\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
 				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
+			debug "Adding cron job for heartbeat-failover script: "$CRONFILE""
 			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
