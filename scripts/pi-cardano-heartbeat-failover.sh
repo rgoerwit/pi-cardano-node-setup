@@ -36,8 +36,8 @@ fi
 
 # If we get to here, we are not the parent
 #
-[ -f "/lib/systemd/system/cardano-node.service"] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
-[ -f "/etc/systemd/system/cardano-node.service"] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
+[ -f "/lib/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
+[ -f "/etc/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
 
 if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"; then
     if egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT"; then
@@ -59,7 +59,7 @@ if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARE
 else
     if egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT"; then
         # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
-        sed -i "$SYSTEMSTARTUPSCRIPT" \
+        if sed -i "$SYSTEMSTARTUPSCRIPT" \
             -e '/^[[:space:]]*ExecStart/ s/ # / /'
         then
             logger "Switched local cardano-node to a block producer"

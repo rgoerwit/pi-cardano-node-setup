@@ -1144,8 +1144,8 @@ else
 		else
 			[ -z "$PARENTPORT" ] && debug "Defaulting failover parent port to 6000"
 			sed -i "$INSTALLDIR/pi-cardano-heartbeat-failover.sh" \
-				-e "s|^ *PARENTADDR=\"\([^\"]\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
-				-e "s|^ *PARENTPORT=\"\([^\"]\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
+				-e "s|^ *PARENTADDR=\"\([^\"]*\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
+				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
 			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
