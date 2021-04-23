@@ -519,11 +519,11 @@ else
 				|| err_exit 10 "$0: Aborting; failed to add firewall rule: ufw allow proto tcp from $GRAFIP to any port $EXTERNAL_PROMETHEUS_PORT"
 		done
 	fi
-	debug "Allowing all traffic to cardano-relay port, $LISTENPORT/tcp"
+	debug "Allowing all traffic to cardano-node port, $LISTENPORT/tcp"
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
-	debug "Firewall enabled; to check the configuration: ufw status numbered"
+	debug "Firewall enabled; to check the configuration: 'ufw status numbered'"
 	# [ -z "$DEBUG" ] || ufw status numbered  # show what's going on
 
 	# Add RDP service if INSTALLRDP is Y
@@ -1126,7 +1126,15 @@ done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
+# Configure this server to fail over for another block-producing node if asked (-f <parent:port>)
+#
+CRONFILE='/etc/cron.d/cardano-failover'
 if [ -z "$FAILOVER_PARENT" ]; then
+	# Remove unneeded cron job
+	debug "No parent-failover configured; removing cron file (if it exists): $CRONFILE"
+	rm -f "$CRONFILE"		1>> "$BUILDLOG" 2>&1
+	service cron reload 	1>> "$BUILDLOG" 2>&1
+else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
@@ -1139,16 +1147,12 @@ if [ -z "$FAILOVER_PARENT" ]; then
 				-e "s|^ *PARENTADDR=\"\([^\"]\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
 				-e "s|^ *PARENTPORT=\"\([^\"]\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
-			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > /etc/cron.d/cardano-failover
+			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
 	else
 		err_exit 72 "$0: Bad '-p $FAILOVER_PARENT'; can't find $SCRIPT_PATH/pi-cardano-heartbeat-failover.sh"
 	fi
-else
-	# Remove unneeded cron job
-	rm -f /etc/cron.d/cardano-failover
-	service cron reload 1>> "$BUILDLOG" 2>&1
 fi
 
 # UPDATE mainnet-config.json and related files to latest version and start node
