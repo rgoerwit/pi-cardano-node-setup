@@ -18,6 +18,14 @@
 
 PARENTADDR="000.000.000.000"
 PARENTPORT="3000"
+LOGGER="logger -i 'cardano-heartbeat-failover'"
+
+jump_ship () { 
+	EXITCODE=$1; shift
+    PRIORITY=$1; shift
+	$LOGGER -p ${PRIORITY:-user.info} "$*"
+	exit $EXITCODE 
+}
 
 # If we are actually the parent, exit
 #
@@ -39,39 +47,39 @@ fi
 [ -f "/lib/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
 [ -f "/etc/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
 
-if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"; then
-    if egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT"; then
-        : we are just a node already
-    else
-        # Parent is OK (again), make us just a node; comment out key-related items on cardano-node command line
-        if sed -i "$SYSTEMSTARTUPSCRIPT" \
-            -e '/^[^#]*$/ s/^\([[:space:]]*ExecStart=.*\)[[:space:]]\(\(--[0-z]*-\(kes-key\|vrf-key\|operational-certificate\)[[:space:]]*[^[:space:]]*[[:space:]]*\)\{3\}.*\)$/\1 # \2/'
-        then
-            logger "Switched local cardano-node to a regular relay node"
-            if systemtcl is-active cardano-node 1> /dev/null; then
-                systemctl reload-or-restart cardano-node
-            fi
-        else
-            logger "Failed to switch local cardano-node to a regular relay node"
-            exit 1
-        fi
-    fi
+if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"
+then
+    # Parent is OK.  If we're not running as a block producer, we can exit.
+    egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT" \
+        || jump_ship 1 user.warn "Failover stand-down blocked; node start script lacks commented-out block-producer arguments: $SYSTEMSTARTUPSCRIPT"
+    egrep -q 'kes-key\|vrf-key\|operational-certificate' "$SYSTEMSTARTUPSCRIPT" \
+        || jump_ship 2 user.warn "Node is configured a relay, not a failover spare; not modifying $SYSTEMSTARTUPSCRIPT"
+
+    # Parent is OK (again), make us just a node; comment out key-related items on cardano-node command line
+    sed -i "$SYSTEMSTARTUPSCRIPT" \
+        -e '/^[^#]*$/ s/^\([[:space:]]*ExecStart=.*\)[[:space:]]\(\(--[0-z]*-\(kes-key\|vrf-key\|operational-certificate\)[[:space:]]*[^[:space:]]*[[:space:]]*\)\{3\}.*\)$/\1 # \2/' \
+        || jump_ship 3 user.warn "Failed to switch local cardano-node to a regular relay node; failed to edit: $SYSTEMSTARTUPSCRIPT"
+
+    systemtcl is-active cardano-node 1> /dev/null \
+        || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
+    systemctl reload-or-restart cardano-node \
+        || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
 else
-    if egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT"; then
-        # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
-        if sed -i "$SYSTEMSTARTUPSCRIPT" \
-            -e '/^[[:space:]]*ExecStart/ s/ # / /'
-        then
-            logger "Switched local cardano-node to a block producer"
-            if systemtcl is-active cardano-node 1> /dev/null; then
-                systemctl reload-or-restart cardano-node
-            fi
-        else
-            logger "Failed to switch local cardano-node to a block producer"
-            exit 1
-        fi
-    else
-        : we are already a block producer
-    fi
+    # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; either it's down or we're cut off from it
+    egrep -q 'kes-key\|vrf-key\|operational-certificate' "$SYSTEMSTARTUPSCRIPT" \
+        || jump_ship 6 user.warn "Failover blocked; node start script lacks commented-out block-producer arguments: $SYSTEMSTARTUPSCRIPT"
+    egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT" \
+        || jump_ship 0 user.debug "Node is already a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
+
+    # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
+    sed -i "$SYSTEMSTARTUPSCRIPT" -e '/^[[:space:]]*ExecStart/ s/ # / /' \
+        || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
+
+    systemtcl is-active cardano-node 1> /dev/null \
+        || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"
+    systemctl reload-or-restart cardano-node \
+        || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
 fi
 
+# If we get to here, we're good
+exit 0

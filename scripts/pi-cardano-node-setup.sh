@@ -408,7 +408,7 @@ $APTINSTALLER update			1>> "$BUILDLOG" 2>&1
 debug "Installing/refreshing nodejs and yarn"
 $APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
-	|| err_abort 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
+	|| err_exit 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
 
 # Make sure some other basic prerequisites are correctly installed
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
@@ -1236,6 +1236,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000 or we have a pool name
 		if [ "$KEYCOUNT" -ge 3 ]; then
 			CERTKEYARGS="--shelley-kes-key $CARDANO_PRIVDIR/kes.skey --shelley-vrf-key $CARDANO_PRIVDIR/vrf.skey --shelley-operational-certificate $CARDANO_PRIVDIR/node.cert"
+			# If we will be a failover/hot spare then keep the $CERTKEYARGS, but comment them out
+			[ ".$FAILOVER_PARENT" != '.' ] && CERTKEYARGS="# $CERTKEYARGS"
 		else
 			# Go ahead and configure if key/cert is missing, but don't run the node with them
 			[ "$KEYCOUNT" -ge 1 ] && debug "Not all needed keys/certs are present in $CARDANO_PRIVDIR; ignoring them (please generate!)"
