@@ -133,22 +133,21 @@ debug "Syncing ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}"
 rsync -av "${BUILDDIR}" "${MOUNTPOINT}/home/${BUILD_USER}" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 18 "$0: Unable to rsync ${BUILDDIR} to ${MOUNTPOINT}/home/${BUILD_USER}; aborting"
 debug "Syncing ${INSTALLDIR} to ${MOUNTPOINT}/home"
-rsync -av "${INSTALLDIR}" "${MOUNTPOINT}/home" 1>> "$BUILDLOG" 2>&1 \
+rsync -av "${INSTALLDIR}" "${MOUNTPOINT}/home"  1>> "$BUILDLOG" 2>&1 \
     || err_exit 19 "$0: Unable to rsync ${INSTALLDIR} to ${MOUNTPOINT}/home; aborting"
 debug "Syncing /opt/cardano to ${MOUNTPOINT}/opt"
-rsync -av "/opt/cardano" "${MOUNTPOINT}/opt" 1>> "$BUILDLOG" 2>&1 \
+rsync -av "/opt/cardano" "${MOUNTPOINT}/opt"    1>> "$BUILDLOG" 2>&1 \
     || err_exit 20 "$0: Unable to rsync /opt/cardano to ${MOUNTPOINT}/opt; aborting"
 cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt 1>> "$BUILDLOG" 2>&1
 debug "Syncing various /home directories not caught before, and also the /root home directory"
 for homedir in "/home/ubuntu" "/home/richard"; do
-    rsync -av "$homedir" "${MOUNTPOINT}/home" 1>> "$BUILDLOG" 2>&1
+    rsync -av "$homedir" "${MOUNTPOINT}/home"   1>> "$BUILDLOG" 2>&1
 done
-rsync -av "/root" "${MOUNTPOINT}/" 1>> "$BUILDLOG" 2>&1
+rsync -av "/root" "${MOUNTPOINT}/"              1>> "$BUILDLOG" 2>&1
 debug "Syncing various files in /etc to ${MOUNTPOINT}/etc"
 for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config"; do
-    rsync -av "$sysfile" "${MOUNTPOINT}/etc" 1>> "$BUILDLOG" 2>&1
+    rsync -av "$sysfile" "${MOUNTPOINT}/etc"    1>> "$BUILDLOG" 2>&1
 done
-rsync -av "/etc/shadow"
 
 debug "Ensuring resolver will work when we chroot"
 if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
