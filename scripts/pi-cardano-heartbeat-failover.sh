@@ -45,7 +45,7 @@ done
 if [ ".$EXTERNAL_IPV4_ADDRESS" = ".$PARENTADDR" ] || [ ".$EXTERNAL_IPV6_ADDRESS" = ".$PARENTADDR" ]; then
     exit 0
 fi
-if [ -z "$EXTERNAL_IPV4_ADDRESS" ] & [ -z "$EXTERNAL_IPV6_ADDRESS" ]; then
+if [ -z "$EXTERNAL_IPV4_ADDRESS" ] && [ -z "$EXTERNAL_IPV6_ADDRESS" ]; then
     jump_ship 10 user.crit "Can't determine external IP address; heartbeat check failure"
 fi
 
