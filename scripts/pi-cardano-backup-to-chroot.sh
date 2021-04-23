@@ -139,6 +139,10 @@ debug "Syncing /opt/cardano to ${MOUNTPOINT}/opt"
 rsync -av "/opt/cardano" "${MOUNTPOINT}/opt" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 20 "$0: Unable to rsync /opt/cardano to ${MOUNTPOINT}/opt; aborting"
 cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt 1>> "$BUILDLOG" 2>&1
+for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config"; do
+    rsync -av "$sysfile" "${MOUNTPOINT}/etc" 1>> "$BUILDLOG" 2>&1
+done
+rsync -av "/etc/shadow"
 
 debug "Ensuring resolver will work when we chroot"
 if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
