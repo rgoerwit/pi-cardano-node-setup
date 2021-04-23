@@ -1494,7 +1494,7 @@ debug "    Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCK
 debug "    Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "    Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
 if date +"%Z %z" | egrep -q UTC; then
-	timedatectl set-timezone "$(curl --fail https://ipapi.co/timezone)" 1>> "$BUILDLOG" 2>&1 \
+	timedatectl set-timezone "$(curl --fail https://ipapi.co/timezone 2> /dev/null)" 1>> "$BUILDLOG" 2>&1 \
 	    || debug "    Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
 fi
 
