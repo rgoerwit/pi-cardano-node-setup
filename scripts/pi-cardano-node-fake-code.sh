@@ -10,7 +10,7 @@
 # ensure we don't have two copies of this script running at once.  Look
 # for the string --- REAL CODE --- below (after all the locking stuff)
 #
-# Set up a few basic variables:  PROGNAME, TMPFILE, LOGFILE
+# Set up a few basic variables:  PROGNAME, TMPFILE
 #
 if declare -F err_exit 1> /dev/null; then
 	: do nothing
@@ -26,8 +26,6 @@ fi
 PROGNAME=$(basename $0)
 TMPFILE=`mktemp ${TMPDIR:-/tmp}/$PROGNAME.XXXXXXXXXX`
 ([ "$?" -ne '0' ] || [ -z "$TMPFILE" ]) && err_exit 2 "$0: Can't create temporary file, $TMPFILE; aborting"
-LOGFILE=`mktemp ${TMPDIR:-/tmp}/$PROGNAME-log.XXXXXXXXXX`
-([ "$?" -ne '0' ] || [ ".$LOGFILE" = '.' ]) && err_exit 2 "$0: Can't create log file, $LOGFILE; aborting"
 
 # Now start creating lockfiles and trapping interrupts
 #

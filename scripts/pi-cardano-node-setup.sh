@@ -37,7 +37,7 @@ usage() {
   cat << _EOF 1>&2
 
 Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
-    [-C <cabal version>] [-d] [-D] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
+    [-C <cabal version>] [-d] [-D] [-f <parent:port>] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
 	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] \
 	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
 	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
@@ -57,6 +57,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -C    Specific cabal version to use
 -d    Don't overwrite config files, or 'env' file for gLiveView
 -D    Emit chatty debugging output about what the program is doing
+-f    Configure as failover for server <parent:port> (may be a DNS name or IP address)
 -F    Force <hostname> as external DNS name (mainly relevant if using hosted Grafana and you're on dynamic DNS)
 -g    GHC operating system (defaults to deb10; could also be deb9, centos7, etc.)
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
@@ -97,6 +98,7 @@ while getopts 4:6:b:B:c:C:dDF:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
 	C ) CABAL_VERSION="${OPTARG}" ;;
 	d ) DONT_OVERWRITE='Y' ;;
 	D ) DEBUG='Y' ;;
+	f ) FAILOVER_PARENT="${OPTARG}" ;;
 	F ) EXTERNAL_HOSTNAME="${OPTARG}" ;;
 	g ) GHCOS="${OPTARG}" ;;
 	G ) GHC_GCC_ARCH="${OPTARG}" ;;
@@ -430,15 +432,15 @@ if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then
     fi
 fi
 
-$APTINSTALLER install net-tools openssh-server    1>> "$BUILDLOG" 2>&1
-systemctl daemon-reload 						  1>> "$BUILDLOG" 2>&1
-systemctl enable ssh                              1>> "$BUILDLOG" 2>&1
+$APTINSTALLER install net-tools openssh-server	1>> "$BUILDLOG" 2>&1
+systemctl daemon-reload							1>> "$BUILDLOG" 2>&1
+systemctl enable ssh							1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "(Re)starting SSH, NTP (the latter may fail, e.g., in GCP; that's OK)"
-	systemctl start ssh                               1>> "$BUILDLOG" 2>&1;	sleep 3
-	systemctl status ssh 							  1>> "$BUILDLOG" 2>&1 \
+	systemctl start ssh								1>> "$BUILDLOG" 2>&1;	sleep 3
+	systemctl is-active ssh 						1> /dev/null \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
-	systemctl start ntp                               1>> "$BUILDLOG" 2>&1
+	systemctl start ntp								1>> "$BUILDLOG" 2>&1
 fi
 
 if [ ".$OVERCLOCK_SPEED" != '.' ]; then
@@ -533,8 +535,8 @@ else
 		tasksel install ubuntu-desktop 1>> "$BUILDLOG" 2>&1
 		systemctl enable xrdp          1>> "$BUILDLOG" 2>&1
 		if [ ".$START_SERVICES" != '.N' ]; then
-			systemctl start xrdp    1>> "$BUILDLOG" 2>&1; sleep 3
-			systemctl status xrdp   1>> "$BUILDLOG" 2>&1 \
+			systemctl start xrdp		1>> "$BUILDLOG" 2>&1; sleep 3
+			systemctl is-active xrdp 	1> /dev/null \
 				|| err_exit 136 "$0: Problem enabling (or starting) xrdp; aborting (run 'systemctl status xrdp')"
 		fi
 		RUID=$(who | awk 'FNR == 1 {print $1}')
@@ -548,8 +550,8 @@ else
 fi
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Checking fail2ban status (will squawk if NOT OK); please also leverage ISP DDOS protection"
-	systemctl start fail2ban  1>> "$BUILDLOG" 2>&1;	sleep 3
-	systemctl status fail2ban 1>> "$BUILDLOG" 2>&1 \
+	systemctl start fail2ban		1>> "$BUILDLOG" 2>&1;	sleep 3
+	systemctl is-active fail2ban	1> /dev/null \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 fi
 
@@ -676,11 +678,11 @@ systemctl enable prometheus		1>> "$BUILDLOG" 2>&1
 systemctl enable nginx			1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Starting prometheus service (for use with Grafana on another host)"
-	systemctl start prometheus	1>> "$BUILDLOG" 2>&1; sleep 3
-	systemctl status prometheus	1>> "$BUILDLOG" 2>&1 \
+	systemctl start prometheus		1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl is-active prometheus	1> /dev/null \
 		|| err_exit 37 "$0: Problem enabling (or starting) prometheus service; aborting (run 'systemctl status prometheus')"
 	systemctl start nginx		1>> "$BUILDLOG" 2>&1; sleep 3
-	systemctl status nginx		1>> "$BUILDLOG" 2>&1 \
+	systemctl is-active nginx	1> /dev/null \
 		|| err_exit 38 "$0: Problem enabling (or starting) nginx service; aborting (run 'systemctl status nginx')"
 fi
 
@@ -731,11 +733,11 @@ systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Starting node_exporter service (Prometheus will read data from here)"
-	systemctl start node_exporter	1>> "$BUILDLOG" 2>&1; sleep 3
-	systemctl status node_exporter	1>> "$BUILDLOG" 2>&1 \
+	systemctl start node_exporter		1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl is-active node_exporter	1> /dev/null \
 		|| err_exit 37 "$0: Problem enabling (or starting) node_exporter service; aborting (run 'systemctl status node_exporter')"
-	systemctl restart prometheus	1>> "$BUILDLOG" 2>&1; 
-	systemctl restart nginx			1>> "$BUILDLOG" 2>&1; 
+	systemctl reload-or-restart prometheus	1>> "$BUILDLOG" 2>&1; 
+	systemctl reload-or-restart nginx		1>> "$BUILDLOG" 2>&1; 
 fi
 
 # Add hidden WiFi network if -h <network SSID> was supplied; I don't recommend WiFi except for setup
@@ -803,8 +805,8 @@ _EOF
 	systemctl daemon-reload                   1>> "$BUILDLOG"
 	systemctl enable wpa_supplicant.service   1>> "$BUILDLOG"
 	if [ ".$START_SERVICES" != '.N' ]; then
-		systemctl start wpa_supplicant.service    1>> "$BUILDLOG" 2>&1; sleep 3
-		systemctl status wpa_supplicant.service   1>> "$BUILDLOG" 2>&1 \
+		systemctl start wpa_supplicant.service		1>> "$BUILDLOG" 2>&1; sleep 3
+		systemctl is-active wpa_supplicant.service	1> /dev/null \
 			|| err_exit 137 "$0: Problem enabling (or starting) wpa_supplicant.service service; aborting (run 'systemctl status wpa_supplicant.service')"
 		# renew DHCP leases
 		dhclient "$WLAN" 1>> "$BUILDLOG" 2>&1
@@ -1124,6 +1126,31 @@ done
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
+if [ -z "$FAILOVER_PARENT" ]; then
+	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
+		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
+		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
+		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
+		if [ -z "$PARENTADDR" ]; then
+			err_exit 71 "$0: Can't determine failover parent host/ip:port from supplied data: $FAILOVER_PARENT"
+		else
+			[ -z "$PARENTPORT" ] && debug "Defaulting failover parent port to 6000"
+			sed -i "$INSTALLDIR/pi-cardano-heartbeat-failover.sh" \
+				-e "s|^ *PARENTADDR=\"\([^\"]\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
+				-e "s|^ *PARENTPORT=\"\([^\"]\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
+			# Add cron job
+			echo "3,8,13,18,23,28,33,48,53,58 * * * * $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > /etc/cron.d/cardano-failover
+			service cron reload 1>> "$BUILDLOG" 2>&1
+		fi
+	else
+		err_exit 72 "$0: Bad '-p $FAILOVER_PARENT'; can't find $SCRIPT_PATH/pi-cardano-heartbeat-failover.sh"
+	fi
+else
+	# Remove unneeded cron job
+	rm -f /etc/cron.d/cardano-failover
+	service cron reload 1>> "$BUILDLOG" 2>&1
+fi
+
 # UPDATE mainnet-config.json and related files to latest version and start node
 #
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -1173,7 +1200,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	
 	# Set up startup script
 	#
-	SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
+	SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
 	debug "(Re)creating cardano-node start-up script: $SYSTEMSTARTUPSCRIPT"
 	[ -f "$NODE_CONFIG_FILE" ] || err_exit 28 "$0: Can't find config.yaml file, "$NODE_CONFIG_FILE"; aborting"
 	#
@@ -1219,6 +1246,8 @@ _EOF
 	chmod 0644 "$INSTALLDIR/cardano-node-starting-env.txt"
 	[ -z "${IPV4_ADDRESS}" ] || IPV4ARG="--host-addr '$IPV4_ADDRESS'"
 	[ -z "${IPV6_ADDRESS}" ] || IPV6ARG="--host-ipv6-addr '$IPV6_ADDRESS'"
+	LIBSTARTUPSCRIPT=$(echo "$SYSTEMSTARTUPSCRIPT" | sed 's|^/lib/|/etc/|')
+	[ -f "$LIBSTARTUPSCRIPT" ] && 'rm' -f "$LIBSTARTUPSCRIPT"  # Old startup script was here
 	cat << _EOF > "$SYSTEMSTARTUPSCRIPT"
 # Make sure cardano-node is installed as a service
 [Unit]
@@ -1338,9 +1367,9 @@ done
 debug "Setting up cardano-node as system service"
 systemctl daemon-reload				1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	systemctl enable cardano-node	1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
-	systemctl start cardano-node	1>> "$BUILDLOG" 2>&1; sleep 3
-	(systemctl status cardano-node 2>&1 | tee -a "$BUILDLOG" 2>&1 | egrep -q 'ctive.*unning') \
+	systemctl enable cardano-node		1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
+	systemctl start cardano-node		1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl is-active cardano-node	1> /dev/null \
 		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 fi
 
