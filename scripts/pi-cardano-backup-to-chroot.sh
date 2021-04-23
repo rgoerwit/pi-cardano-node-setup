@@ -139,6 +139,11 @@ debug "Syncing /opt/cardano to ${MOUNTPOINT}/opt"
 rsync -av "/opt/cardano" "${MOUNTPOINT}/opt" 1>> "$BUILDLOG" 2>&1 \
     || err_exit 20 "$0: Unable to rsync /opt/cardano to ${MOUNTPOINT}/opt; aborting"
 cd /; find usr/local -depth -name 'libsodium*' -print | cpio -pdv /mnt 1>> "$BUILDLOG" 2>&1
+debug "Syncing various /home directories not caught before, and also the /root home directory"
+for homedir in "/home/ubuntu" "/home/richard"; do
+    rsync -av "$homedir" "${MOUNTPOINT}/home" 1>> "$BUILDLOG" 2>&1
+done
+rsync -av "/root" "${MOUNTPOINT}/" 1>> "$BUILDLOG" 2>&1
 debug "Syncing various files in /etc to ${MOUNTPOINT}/etc"
 for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config"; do
     rsync -av "$sysfile" "${MOUNTPOINT}/etc" 1>> "$BUILDLOG" 2>&1
