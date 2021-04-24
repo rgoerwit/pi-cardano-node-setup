@@ -36,11 +36,13 @@ fi
 usage() {
   cat << _EOF 1>&2
 
-Usage: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
+Usage A: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
     [-C <cabal version>] [-d] [-D] [-f <parent:port>] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
 	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] \
 	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
 	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
+
+Usage B: -l  # To see what you last did
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -65,6 +67,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -h    Install (naturally, hidden) WiFi; format: SID:password (only use WiFi on the relay, not block producer)
 -H    Hosted Grafana analytics being used - alter firewall to allow appropriate access to Prometheus port (may also require network/router ACLs or port forwarding)
 -i    Ignore missing dependencies installed by apt-get
+-l    Print command-line used for last run and exit
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
@@ -88,7 +91,7 @@ _EOF
   exit 1
 }
 
-while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
+while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Hilm:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; do
   case "${opt}" in
     '4' ) IPV4_ADDRESS="${OPTARG}" ;;
     '6' ) IPV6_ADDRESS="${OPTARG}" ;;
@@ -106,6 +109,7 @@ while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Him:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; d
     h ) HIDDEN_WIFI_INFO="${OPTARG}" ;;
 	H ) HOSTED_GRAFANA='Y' ;;
 	i ) IGNORE_MISSING_DEPENDENCIES='--ignore-missing' ;;
+	l ) PRINT_LAST_CMDLINE='Y' ;;
     m ) WGET_TIMEOUT="${OPTARG}" ;;
     n ) BLOCKCHAINNETWORK="${OPTARG}" ;;
     N ) START_SERVICES="N" ;;
@@ -192,9 +196,14 @@ skip_op() {	debug 'Skipping: ' "$@"; }
 
 # Display information on last run
 LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
-if [ ".$LASTRUNCOMMAND" != '.' ]; then
-	debug "Last run:\n  $LASTRUNCOMMAND" 
-	debug "For full command history: 'less $INSTALLDIR/logs/build-command-line*log'"
+if [ ".$PRINT_LAST_CMDLINE" != '.' ]; then
+	echo "$LASTRUNCOMMAND"
+	exit 0
+else
+	if [ ".$LASTRUNCOMMAND" != '.' ]; then
+		debug "Last run:\n  $LASTRUNCOMMAND" 
+		debug "For full command history: 'less $INSTALLDIR/logs/build-command-line*log'"
+	fi
 fi
 
 [ -z "${NODE_CONFIG_FILE}" ] && NODE_CONFIG_FILE="$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
