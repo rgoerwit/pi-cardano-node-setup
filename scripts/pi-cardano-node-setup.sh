@@ -195,13 +195,14 @@ skip_op() {	debug 'Skipping: ' "$@"; }
 	|| debug "We're built for Debian/Ubuntu, mainly for the Pi (will try anyway, but YMMV)"
 
 # Display information on last run
-LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
+LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | egrep '# \(completed\)' | tail -1 | xargs cat)
 if [ ".$PRINT_LAST_CMDLINE" != '.' ]; then
-	echo "$LASTRUNCOMMAND"
+	[ -z "$LASTRUNCOMMAND" ] && LASTRUNCOMMAND=$(ls "$INSTALLDIR"/logs/build-command-line-*log 2> /dev/null | tail -1 | xargs cat)
+	echo "${LASTRUNCOMMAND:-# no history}"
 	exit 0
 else
 	if [ ".$LASTRUNCOMMAND" != '.' ]; then
-		debug "Last run:\n  $LASTRUNCOMMAND" 
+		debug "Last completed run:\n  $LASTRUNCOMMAND" 
 		debug "For full command history: 'less $INSTALLDIR/logs/build-command-line*log'"
 	fi
 fi
