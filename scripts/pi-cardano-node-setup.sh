@@ -202,7 +202,7 @@ if [ ".$PRINT_LAST_CMDLINE" != '.' ]; then
 	exit 0
 else
 	if [ ".$LASTRUNCOMMAND" != '.' ]; then
-		debug "Last completed run:\n  $LASTRUNCOMMAND" 
+		debug "Last completed run:\n  ${LASTRUNCOMMAND:-# no history}" 
 		debug "For full command history: 'less $INSTALLDIR/logs/build-command-line*log'"
 	fi
 fi
