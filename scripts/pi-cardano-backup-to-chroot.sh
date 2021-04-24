@@ -145,7 +145,7 @@ for homedir in "/home/ubuntu" "/home/richard"; do
 done
 rsync -av "/root" "${MOUNTPOINT}/"              1>> "$BUILDLOG" 2>&1
 debug "Syncing various files in /etc to ${MOUNTPOINT}/etc"
-for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config"; do
+for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config" "/etc/netplan/"; do
     rsync -av "$sysfile" "${MOUNTPOINT}/etc"    1>> "$BUILDLOG" 2>&1
 done
 
