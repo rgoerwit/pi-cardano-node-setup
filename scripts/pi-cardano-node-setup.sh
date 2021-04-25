@@ -397,10 +397,14 @@ debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 # Update system, install prerequisites, utilities, etc.
 #
 debug "Updating system; ensuring necessary prerequisites are installed"
+apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update        1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
+modinfo ip_tables			1>> "$BUILDLOG" 2>&1 \
+	|| ischroot \
+		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')"  # reload if key module missing
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install \
 	apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog dos2unix emacs \
@@ -444,8 +448,8 @@ $APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
 npm install cardanocli-js		1>> "$BUILDLOG" 2>&1
-# OK, now clean up anything lying around that shouldn't be there
-apt clean; apt autoremove; apt autoclean
+# OK, now clean up anything lying around that shouldn't be there...again
+(apt clean && apt autoremove && apt autoclean)	1>> "$BUILDLOG" 2>&1
 
 # Make sure some other basic prerequisites are correctly installed
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
@@ -527,13 +531,6 @@ else
 	systemctl stop prometheus 	1>> "$BUILDLOG" 2>&1
     debug "Configuring firewall for prometheus, SSH; subnets:\n    $MY_SUBNETS"
 	ufw --force reset			1>> "$BUILDLOG" 2>&1
-	#if ! ufw --force reset            1>> "$BUILDLOG" 2>&1; then
-	#	MISSINGLINUXMODULESVERSION=$(ufw --force reset 2>&1 | egrep -i '^modprobe.*FATAL.*not found in directory' | awk -F/ '{ print $(NF) }')
-	#	if [ ".$MISSINGLINUXMODULESVERSION" != '.' ]; then
-	#		apt-get install --reinstall linux-modules-".$MISSINGLINUXMODULESVERSION"
-	#		(systemctl enable iptables && systemctl start iptables) 1>> "$BUILDLOG" 2>&1
-	#	fi
-	#fi
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
 	else

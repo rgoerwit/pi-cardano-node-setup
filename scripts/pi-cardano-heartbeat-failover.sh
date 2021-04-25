@@ -46,7 +46,7 @@ if [ ".$EXTERNAL_IPV4_ADDRESS" = ".$PARENTADDR" ] || [ ".$EXTERNAL_IPV6_ADDRESS"
     exit 0
 fi
 if [ -z "$EXTERNAL_IPV4_ADDRESS" ] && [ -z "$EXTERNAL_IPV6_ADDRESS" ]; then
-    jump_ship 10 user.crit "Can't determine external IP address; heartbeat check failure"
+    jump_ship 10 user.crit "Can't determine external IP address; heartbeat check failure (network down?)"
 fi
 
 # If we get to here, we are not the parent
