@@ -1196,8 +1196,15 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 		find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
 		find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
 	else
-		find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
-		find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+		if [ "$INSTALL_SUBDIR" = "$CARDANO_FILEDIR" ]; then
+			find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
+			find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \;
+			# Ensuring cardano user itself can modify its topology file
+			chmod g+w "${INSTALL_SUBDIR}/${BLOCKCHAINNETWORK}-topology.json"
+		else
+			find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
+			find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+		fi
 	fi
 	# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
 	if [ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ]; then
@@ -1205,8 +1212,6 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 		find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 	fi
 done
-# Ensuring cardano user itself can modify its topology file
-chmod g+w "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
