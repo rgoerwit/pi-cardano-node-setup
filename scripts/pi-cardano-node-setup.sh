@@ -1499,7 +1499,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
 		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
-	# Ensure cnode.sh never runs anything or seizes a port from our own node setup
+	debug "Ensuring cnode.sh never runs and seizes a port from our own node"
 	sed -i "${CARDANO_SCRIPTDIR}/cnode.sh" \
 		-e "s@^\(\#* *CPU_CORES=['\"]*[0-9]*['\"]*\)@\1\n# Take no chances this will ever run - exit\nexit 0\n@g" 
 	if [ ".$POOLNAME" != '.' ]; then
