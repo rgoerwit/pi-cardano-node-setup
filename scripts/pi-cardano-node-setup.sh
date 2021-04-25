@@ -1493,9 +1493,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	    -e "s@^#* *NO_INTERNET_MODE=['\"]*N['\"]*@NO_INTERNET_MODE=\"\${NO_INTERNET_MODE:-Y}\"@" \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
+	 line 324: /home/cardano/cardano-cli/root/.cabal/bin/cardano-cli: Not a directo
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
-		-e "s@^\#* *CCLI=['\"]*[0-9]*['\"]*@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
-		-e "s@^\#* *CNCLI=['\"]*[0-9]*['\"]*@CNCLI=\"$INSTALLDIR/cncli\"@g" \
+		-e "s@^\#* *CCLI=['\"][^'\"]*['\"]@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
+		-e "s@^\#* *CNCLI=['\"][^'\"]*['\"]@CNCLI=\"$INSTALLDIR/cncli\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
 		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
