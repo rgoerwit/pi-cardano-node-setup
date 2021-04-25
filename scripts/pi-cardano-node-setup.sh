@@ -1205,6 +1205,8 @@ for INSTALL_SUBDIR in 'files' "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" 'cold-keys' 'g
 		find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 	fi
 done
+# Ensuring cardano user itself can modify its topology file
+chmod g+w "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
@@ -1451,7 +1453,6 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 		fi
 	fi
 done
-
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
