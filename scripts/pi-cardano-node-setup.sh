@@ -910,7 +910,7 @@ fi
 
 # Use faster network congestion and processing algorithm
 #
-SYSCONFIGFILE='/etc/security/limits.conf'
+SYSCONFIGFILE='/etc/sysctl.conf'
 if egrep -qi "net.ipv4.tcp_congestion_control" "$SYSCONFIGFILE"; then
 	debug "$SYSCONFIGFILE already has Bottleneck Bandwidth and RTT enabled; leaving $SYSCONFIGFILE file alone"
 else
