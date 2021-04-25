@@ -404,7 +404,7 @@ $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 modinfo ip_tables			1>> "$BUILDLOG" 2>&1 \
 	|| ischroot \
-		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')"  # reload if key module missing
+		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')" 1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install \
 	apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog dos2unix emacs \
@@ -412,8 +412,8 @@ $APTINSTALLER install \
 	libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl liblz4-dev libncursesw5 libnuma-dev libpam-google-authenticator \
 	libpq-dev libqrencode4 librocksdb-dev libsnappy-dev libsodium-dev libssl-dev libsystemd-dev libtinfo-dev \
 	libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils net-tools netmask nginx nginx-light openssl \
-	pkg-config python-is-python3 python2 python3 python3-pip rocksdb-tools rsync secure-delete snapd sqlite sqlite3 \
-	ssl-cert systemd tcptraceroute tmux unzip wcstools zlib1g-dev \
+	pkg-config python-is-python3 python2 python3 python3-pip rng-tools rocksdb-tools rsync secure-delete snapd \
+	sqlite sqlite3 ssl-cert systemd tcptraceroute tmux unzip wcstools zlib1g-dev \
 		1>> "$BUILDLOG" 2>&1 \
 			|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 # Enable unattended, automatic updates
@@ -1146,7 +1146,7 @@ fi
 # Stop the node so we can replace binaries or update config files
 #
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
-	debug "Stopping cardano-node service, if running for potential config file or binary update" 
+	debug "Stopping cardano-node service, if running, for potential config file or binary update" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
 	# Disable cardano-node if we're running a backup; backup should come up with cardano-node disabled
 	[ ".$START_SERVICES" = '.N' ] && systemctl disable cardano-node 1>> "$BUILDLOG" 2>&1
