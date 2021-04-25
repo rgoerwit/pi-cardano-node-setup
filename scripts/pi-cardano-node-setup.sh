@@ -152,11 +152,14 @@ APTINSTALLER="apt-get -q --assume-yes $IGNORE_MISSING_DEPENDENCIES"  # could als
 $APTINSTALLER install net-tools 1>> /dev/null 2>&1
 $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0'	2> /dev/null
-if dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com; then
-	[ -z "${IPV6_ADDRESS}" ] && IPV6_ADDRESS=$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ') 2> /dev/null
-else
+APPARENT_IPV6_ADDRESS=$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ') 2> /dev/null
+if [ -z "$APPARENT_IPV6_ADDRESS" ]; then
 	debug "IPv6 connectivity appears to be unavailable; using IPv4 only"
 	IPV6_ADDRESS=
+else
+	# We really ought to check if the apparent address is local; it won't be if we're behind NAT
+	[ -z "${IPV6_ADDRESS}" ] && IPV6_ADDRESS="$APPARENT_IPV6_ADDRESS" 2> /dev/null
+	[ -z "${IPV6_ADDRESS}" ] && '::/0'  # Listen on all IPv6 interfaces
 fi
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(dig +timeout=5 +short myip.opendns.com @resolver1.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ')" 2> /dev/null
 [ -z "${EXTERNAL_IPV4_ADDRESS}" ] && EXTERNAL_IPV4_ADDRESS="$(host -4 myip.opendns.com resolver1.opendns.com 2> /dev/null | tail -1 | awk '{ print $(NF) }')" 2> /dev/null
