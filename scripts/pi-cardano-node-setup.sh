@@ -1491,6 +1491,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
 		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
+		-e "s|^\#* *CNODE_PORT=[^#]*|CNODE_PORT=\"$LISTENPORT\" |g" \
 		-e "s|^\#* *TOPOLOGY=[^#]*|TOPOLOGY=\"$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json\" |g" \
 		-e "s|^\#* *LOG_DIR=[^#]*|LOG_DIR=\"${INSTALLDIR}/logs\" |g" \
 		-e "s|^\#* *DB_DIR=[^#]*|DB_DIR=\"$CARDANO_DBDIR\" |g" \
@@ -1498,6 +1499,9 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
 		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
+	# Ensure cnode.sh never runs anything or seizes a port from our own node setup
+	sed -i "${CARDANO_SCRIPTDIR}/cnode.sh" \
+		-e "s@^\(\#* *CPU_CORES=['\"]*[0-9]*['\"]*\)@\1\n# Take no chances this will ever run - exit\nexit 0\n@g" 
 	if [ ".$POOLNAME" != '.' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
