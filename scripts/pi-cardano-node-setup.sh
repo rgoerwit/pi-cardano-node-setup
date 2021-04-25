@@ -58,7 +58,7 @@ Usage A: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild
 	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
 	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
-Usage B: -l  # To see what you last did
+Usage B: $PROGNAME -l -u <installuser>   # To see what you last did
 
 Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
 
@@ -413,8 +413,8 @@ $APTINSTALLER install \
 		1>> "$BUILDLOG" 2>&1 \
 			|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 # Enable unattended, automatic updates
-$APTINSTALLER install unattended-upgrades
-$APTINSTALLER dpkg-reconfigure -plow unattended-upgrades
+$APTINSTALLER install unattended-upgrades					1>> "$BUILDLOG" 2>&1
+$APTINSTALLER dpkg-reconfigure -plow unattended-upgrades	1>> "$BUILDLOG" 2>&1
 # Now start in on less common or harder-to-install stuff we'll need
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
@@ -524,9 +524,16 @@ if [ ".$SKIP_FIREWALL_CONFIG" = '.Y' ] || [ ".$DONT_OVERWRITE" = '.Y' ]; then
 		&& debug "Note: Grafana traffic may require network ACL or policy changes"
 else
 	debug "Prometheus is unauthenticated; ensuring it's stopped while configuring firewall"
-	systemctl stop prometheus 1>> "$BUILDLOG" 2>&1
+	systemctl stop prometheus 	1>> "$BUILDLOG" 2>&1
     debug "Configuring firewall for prometheus, SSH; subnets:\n    $MY_SUBNETS"
-	ufw --force reset            1>> "$BUILDLOG" 2>&1
+	ufw --force reset			1>> "$BUILDLOG" 2>&1
+	#if ! ufw --force reset            1>> "$BUILDLOG" 2>&1; then
+	#	MISSINGLINUXMODULESVERSION=$(ufw --force reset 2>&1 | egrep -i '^modprobe.*FATAL.*not found in directory' | awk -F/ '{ print $(NF) }')
+	#	if [ ".$MISSINGLINUXMODULESVERSION" != '.' ]; then
+	#		apt-get install --reinstall linux-modules-".$MISSINGLINUXMODULESVERSION"
+	#		(systemctl enable iptables && systemctl start iptables) 1>> "$BUILDLOG" 2>&1
+	#	fi
+	#fi
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
 		ufw disable 1>> "$BUILDLOG" # install ufw if not present
 	else
