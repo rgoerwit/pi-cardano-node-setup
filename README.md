@@ -96,6 +96,7 @@ It is a distillation of many sets of available directions, including:
 >	https://www.haskell.org/ghc/blog/20200515-ghc-on-arm.html
 >	https://www.coincashew.com/coins/overview-ada/guide-how-to-build-a-haskell-stakepool-node
 >   https://forum.cardano.org/t/how-to-set-up-a-pool-in-a-few-minutes-and-register-using-cntools/48767
+>   https://ada-pi.gitbook.io/raspi-spo/intermediate-guide/pi-pool-tutorial/pi-node
 
 
 ## Installation

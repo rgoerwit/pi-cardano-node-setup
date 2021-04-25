@@ -22,10 +22,10 @@
 #  Example:
 #
 #  ./pi-cardano-backup-to-chroot.sh -D -d /dev/sda2 \
-#      -C 'pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet \
-#         -p 6001 -v 5 -s 192.168.1.0/24 \
-#         -R relay-1.mydomain.net:3000,relay-2.mydomain.net:3000 \
-#         -V 1.26.1'
+#      -C "pi-cardano-node-setup.sh -D -b builduser -u cardano -n mainnet \
+#         -p 6001 -v 5 -s '192.168.1.0/24' \
+#         -R 'relay-1.mydomain.net:3000,relay-2.mydomain.net:3000' \
+#         -V '1.26.1'"
 #
 ###############################################################################
 
@@ -145,7 +145,7 @@ for homedir in "/home/ubuntu" "/home/richard"; do
 done
 rsync -av "/root" "${MOUNTPOINT}/"              1>> "$BUILDLOG" 2>&1
 debug "Syncing various files in /etc to ${MOUNTPOINT}/etc"
-for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config" "/etc/netplan/"; do
+for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sudoers" "/etc/ssh/sshd_config" "/etc/netplan/" "/etc/sysctl.conf"; do
     rsync -av "$sysfile" "${MOUNTPOINT}/etc"    1>> "$BUILDLOG" 2>&1
 done
 

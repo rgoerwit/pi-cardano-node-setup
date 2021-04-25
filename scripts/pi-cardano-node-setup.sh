@@ -4,15 +4,31 @@
 #
 #  Copyright 2021 Richard L. Goerwitz III
 #
-#    This code may be freely used for commercial or noncommercial purposes.
-#    I make no guarantee, however, about this code's correctness or fitness
-#    for any particular purpose.  Use it at your own risk.  For full licensing
-#    information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
+#  This code may be freely used for commercial or noncommercial purposes.
+#  I make no guarantee, however, about this code's correctness or fitness
+#  for any particular purpose.  Use it at your own risk.  For full licensing
+#  information, see: https://github.com/rgoerwit/pi-cardano-node-setup/
 #
 ############################################################################### 
 #
-#  Builds cardano-node and friends on a Raspberry Pi running
-#  Ubuntu LTS.
+#  Builds cardano-node and friends on a Raspberry Pi running Ubuntu LTS.
+#
+#  Keeps everything as simple as possible - no extra layers of memory or
+#  swap management, no Docker images or dockerfiles, no Ansible playbooks,
+#  or much of anything beyond what can be accomplished with shell scripts.
+#
+#  Compiles everything possible from scratch, avoids third-party shell 
+#  scripts pulled live off of external sites.  Works with CNTools, sorta,
+#  but changes permissions on a number of files, and creates separate
+#  users for services being run (instead of running them as the current
+#  user or, worse yet, root).  Builds node_exporter and enables Cardano
+#  Prometheus data, but hides these behind a private Prometheus instance
+#  that is, in turn, reverse-proxied by nginx.  Sets a password and TLS
+#  for nginx, to make it possible to monitor with hosted Grafana services
+#  in the cloud.
+#
+#  This script is something I use for my own purposes.  I assume people
+#  who run it know their way around a Linux box.  YMMV.
 #
 ###############################################################################
 #
@@ -386,16 +402,24 @@ $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 # Install a bunch of necessary development and support packages
-$APTINSTALLER install apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog emacs fail2ban g++ git \
-	gnupg gparted htop iproute2 jq libffi-dev libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl libncursesw5 libpq-dev libsodium-dev libssl-dev \
-	libsystemd-dev libtinfo-dev libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils nginx nginx-light openssl pkg-config python2 \
-	python3 python3 python3-pip python-is-python3 librocksdb-dev netmask rocksdb-tools rsync secure-delete snapd sqlite sqlite3 systemd tcptraceroute \
-	tmux zlib1g-dev wcstools dos2unix ifupdown inetutils-traceroute libbz2-dev liblz4-dev libsnappy-dev libnuma-dev \
-	libqrencode4 libpam-google-authenticator    1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+$APTINSTALLER install \
+	apache2-utils aptitude autoconf automake bc bsdmainutils build-essential curl dialog dos2unix emacs \
+	fail2ban g++ git gnupg gparted htop ifupdown inetutils-traceroute iproute2 jq libbz2-dev libffi-dev \
+	libffi7 libgmp-dev libgmp10 libio-socket-ssl-perl liblz4-dev libncursesw5 libnuma-dev libpam-google-authenticator \
+	libpq-dev libqrencode4 librocksdb-dev libsnappy-dev libsodium-dev libssl-dev libsystemd-dev libtinfo-dev \
+	libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils net-tools netmask nginx nginx-light openssl \
+	pkg-config python-is-python3 python2 python3 python3-pip rocksdb-tools rsync secure-delete snapd sqlite sqlite3 \
+	ssl-cert systemd tcptraceroute tmux unzip wcstools zlib1g-dev \
+		1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
+# Enable unattended, automatic updates
+$APTINSTALLER install unattended-upgrades
+$APTINSTALLER dpkg-reconfigure -plow unattended-upgrades
+# Now start in on less common or harder-to-install stuff we'll need
 $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 	|| $APTINSTALLER install cython	1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
+($APTINSTALLER install nmap || ischroot || snap install nmap) 1>> "$BUILDLOG" 2>&1
 if ! ischroot; then
 	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1
 	snap install rustup --classic		1>> "$BUILDLOG" 2>&1
@@ -410,7 +434,7 @@ egrep -qr --include '*.list' 'deb.nodesource.com' '/etc/apt/sources.list' '/etc/
 	|| (curl -sL 'https://deb.nodesource.com/setup_current.x' | bash - 1>> "$BUILDLOG" 2>&1)
 debug "Registering dl.yarnpkg.com repository, if needed"
 egrep -qr --include '*.list' 'dl.yarnpkg.com' '/etc/apt/sources.list' '/etc/apt/sources.list.d/' \
-	|| (curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | sudo apt-key add - 1>> "$BUILDLOG" 2>&1)
+	|| (curl -sS 'https://dl.yarnpkg.com/debian/pubkey.gpg' | apt-key add - 1>> "$BUILDLOG" 2>&1)
 debug "Adding yarnpkg stable main repository: /etc/apt/sources.list.d/yarn.list"
 # echo 'deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
 echo 'deb https://dl.yarnpkg.com/debian stable main' 1> '/etc/apt/sources.list.d/yarn.list' 2>> "$BUILDLOG"
@@ -419,6 +443,9 @@ debug "Installing/refreshing nodejs and yarn"
 $APTINSTALLER install nodejs	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
+npm install cardanocli-js		1>> "$BUILDLOG" 2>&1
+# OK, now clean up anything lying around that shouldn't be there
+apt clean; apt autoremove; apt autoclean
 
 # Make sure some other basic prerequisites are correctly installed
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
@@ -446,11 +473,13 @@ $APTINSTALLER install net-tools openssh-server	1>> "$BUILDLOG" 2>&1
 systemctl daemon-reload							1>> "$BUILDLOG" 2>&1
 systemctl enable ssh							1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
-	debug "(Re)starting SSH, NTP (the latter may fail, e.g., in GCP; that's OK)"
+	debug "(Re)starting SSH, ensuring NTP service is running ('timedatectl set-ntp true')"
 	systemctl start ssh								1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl is-active ssh 						1> /dev/null \
 		|| err_exit 136 "$0: Problem enabling (or starting) ssh service; aborting (run 'systemctl status ssh')"
-	systemctl start ntp								1>> "$BUILDLOG" 2>&1
+	timedatectl set-ntp true						1>> "$BUILDLOG" 2>&1 \
+		|| debug "Can't enable NTP; install chrony or ntpd or check timedatectl:  'timedatectl timesync-status'"
+
 fi
 
 if [ ".$OVERCLOCK_SPEED" != '.' ]; then
@@ -574,7 +603,7 @@ if [ -d "$OPTCARDANO_DIR" ]; then
 else
 	debug "Creating /opt/cardano working monitoring, and general Cardano, directory"
 	mkdir -p "$OPTCARDANO_DIR"								1>> "$BUILDLOG" 2>&1
-    chown -R root.cardano "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALLUSER "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$OPTCARDANO_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
@@ -584,7 +613,7 @@ if [ -e "$PROMETHEUS_DIR/logs" ] && [ -e "$PROMETHEUS_DIR/data" ]; then
 else
 	debug "Creating $PROMETHEUS_DIR/{data,logs} directories, group=prometheus"
 	mkdir -p "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
-    chown -R root.cardano "$PROMETHEUS_DIR"			 		1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALLUSER "$PROMETHEUS_DIR"			1>> "$BUILDLOG" 2>&1
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 	chgrp -R prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
@@ -706,7 +735,7 @@ if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
 else
 	mkdir -p "$NODE_EXPORTER_DIR"								1>> "$BUILDLOG" 2>&1
-    chown -R root.cardano "$NODE_EXPORTER_DIR"					1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALLUSER "$NODE_EXPORTER_DIR"				1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '1.1.0' "$NODE_EXPORTER_DIR"; then
@@ -844,6 +873,7 @@ fi
 
 # Make sure we have at least some swap
 #
+FSTABFILE='/etc/fstab'
 if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 	SWAPFILE='/var/swapfile'
 	if [ -e "$SWAPFILE" ] && [ "$(du -k /var/swapfile | cut -f1)" -ge 12000000 ]; then
@@ -857,12 +887,31 @@ if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 		ischroot || swapon "$SWAPFILE"	1>> "$BUILDLOG" 2>&1 \
 			|| err_exit 32 "$0: Can't enable swap: 'swapon $SWAPFILE'; aborting"
 	fi
-	if egrep -qi 'swap' '/etc/fstab'; then
-		debug "/etc/fstab already mounts swap file; skipping"
+	if egrep -qi 'swap' "$FSTABFILE"; then
+		debug "$FSTABFILE already mounts swap file; skipping"
 	else
-		debug "Adding swap line to /etc/fstab: $SWAPFILE none swap sw 0 0"
-		echo "$SWAPFILE    none    swap    sw    0    0" >> '/etc/fstab'
+		debug "Adding swap line to $FSTABFILE: $SWAPFILE none swap sw 0 0"
+		echo "$SWAPFILE    none    swap    sw    0    0" >> "$FSTABFILE"
 	fi
+fi
+
+# Secure shared memory
+#
+if egrep -qi 'tmpfs.*/run/shm' "$FSTABFILE"; then
+	debug "$FSTABFILE already references tmpfs /run/shm; skipping modification"
+else
+	debug "Restricting tmpfs shared-memory use via $FSTABFILE: tmpfs /run/shm tmpfs ro,noexec,nosuid 0 0"
+	echo "tmpfs    /run/shm    tmpfs    ro,noexec,nosuid    0 0" >> "$FSTABFILE"
+fi
+
+# Use faster network congestion and processing algorithm
+#
+SYSCONFIGFILE='/etc/security/limits.conf'
+if egrep -qi "net.ipv4.tcp_congestion_control" "$SYSCONFIGFILE"; then
+	debug "$SYSCONFIGFILE already has Bottleneck Bandwidth and RTT enabled; leaving $SYSCONFIG file alone"
+else
+	debug "Turning on Bottleneck Bandwidth and RTT in sysconfig file, $SYSCONFIGFILE"
+	echo -e "\n# Use Google's congestion control algorithm\nnet.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\n# net.ipv4.tcp_congestion_control=htcp" >> "$SYSCONFIGFILE"
 fi
 
 # Add cardano user (or whatever install user is used) and lock password
@@ -875,6 +924,16 @@ usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin					1>> "$BUILDLOG" 2>&
 passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
 (stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') \
 	|| (chown $INSTALL_USER.$INSTALL_USER "/home/${INSTALL_USER}"; chmod o-rwx "/home/${INSTALL_USER}")
+
+# Increase cardano-user open-file limits
+#
+LIMITSFILE='/etc/security/limits.conf'
+if egrep -qi "$INSTALLUSER" "$LIMITSFILE"; then
+	debug "$LIMITSFILE already references $INSTALLUSER user; skipping limit increase"
+else
+	debug "Setting open-file limits for $INSTALLUSER user to 800000 (soft) and 1048576 (hard)"
+	echo -e "$INSTALLUSER soft nofile 800000\n$INSTALLUSER hard nofile 1048576" >> "$LIMITSFILE"
+fi
 
 # Install GHC, cabal
 #
@@ -1006,6 +1065,7 @@ for bashrcfile in "$HOME/.bashrc" "/home/${BUILD_USER}/.bashrc" "$INSTALLDIR/.ba
 			'LD_LIBRARY_PATH'          ) SUBSTITUTION="\"/usr/local/lib:\${LD_LIBRARY_PATH}\"" ;;
 			'PKG_CONFIG_PATH'          ) SUBSTITUTION="\"/usr/local/lib/pkgconfig:\${PKG_CONFIG_PATH}\"" ;;
 			'NODE_HOME'                ) SUBSTITUTION="\"${INSTALLDIR}\"" ;;
+			'NODE_FILES'               ) SUBSTITUTION="\"${$CARDANO_FILEDIR}\"" ;;
 			'NODE_CONFIG'              ) SUBSTITUTION="\"${BLOCKCHAINNETWORK}\"" ;;
 			'NODE_BUILD_NUM'           ) SUBSTITUTION="\"${NODE_BUILD_NUM}\"" ;;
 			'PATH'                     ) SUBSTITUTION="\"${GHCUP_INSTALL_PATH}:/usr/local/bin:${INSTALLDIR}:\${PATH}\"" ;;
@@ -1148,7 +1208,7 @@ else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
-		chown root.cardano "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
+		chown root.$INSTALLUSER "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		chmod 0750 "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
 		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
@@ -1283,6 +1343,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=cardano-node
 TimeoutStartSec=0
+TimeoutStopSec=3
 Type=simple
 KillMode=process
 WorkingDirectory=$INSTALLDIR
@@ -1421,7 +1482,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
-		-e "s@^\#* *CNODE_PORT=['\"]*[0-9]*['\"]*@CNODE_PORT=\"$LISTENPORT\"@g" \
+		-e "s@^\#* *CCLI=['\"]*[0-9]*['\"]*@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
+		-e "s@^\#* *CNCLI=['\"]*[0-9]*['\"]*@CNCLI=\"$INSTALLDIR/cncli\"@g" \
 		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
 		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
 		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
@@ -1443,6 +1505,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
 			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST\" |g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
+
+		# Update:    #PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
+    	# We want it to point to the block producer; but how do we change it if the standby kicks in??
+
 	else
 		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000)"
 	fi
@@ -1502,6 +1568,8 @@ fi
 #
 debug "Tasks:"
 debug "    You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
+debug "    If not done already, create a user that can sudo and set up key-based SSH access to that account"
+debug "    Then lock the root account and turn off non-key SSH access in /etc/ssh/sshd_config"
 debug "    Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
 debug "    Follow syslogged activity by running: 'journalctl --unit=cardano-node --follow'"
 debug "    Monitor node activity by running: 'cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh'"
