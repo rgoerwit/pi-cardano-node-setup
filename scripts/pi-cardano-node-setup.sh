@@ -154,7 +154,7 @@ $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0'	2> /dev/null
 APPARENT_IPV6_ADDRESS=$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ') 2> /dev/null
 if [ -z "$APPARENT_IPV6_ADDRESS" ]; then
-	debug "IPv6 connectivity appears to be unavailable; using IPv4 only"
+	# IPv6 connectivity appears to be unavailable; using IPv4 only
 	IPV6_ADDRESS=
 else
 	# We really ought to check if the apparent address is local; it won't be if we're behind NAT
