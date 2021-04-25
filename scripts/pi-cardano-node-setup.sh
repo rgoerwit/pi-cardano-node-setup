@@ -1501,7 +1501,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
 	debug "Ensuring cnode.sh never runs and seizes a port from our own node"
 	sed -i "${CARDANO_SCRIPTDIR}/cnode.sh" \
-		-e "s@^\(\#* *CPU_CORES=['\"]*[0-9]*['\"]*\)@\1\n# Take no chances this will ever run - exit\nexit 0\n@g" 
+		-e 's@^\#* *\(CPU_CORES=[0-9]*\).*$@\1\n# Take no chances this will ever run - exit\nexit 0\n@g' 
 	if [ ".$POOLNAME" != '.' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
