@@ -607,7 +607,7 @@ if [ -d "$OPTCARDANO_DIR" ]; then
 else
 	debug "Creating /opt/cardano working monitoring, and general Cardano, directory"
 	mkdir -p "$OPTCARDANO_DIR"								1>> "$BUILDLOG" 2>&1
-    chown -R root.$INSTALLUSER "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALL_USER "$OPTCARDANO_DIR"			 		1>> "$BUILDLOG" 2>&1
 	find "$OPTCARDANO_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 PROMETHEUS_DIR="$OPTCARDANO_DIR/monitoring/prometheus"
@@ -617,7 +617,7 @@ if [ -e "$PROMETHEUS_DIR/logs" ] && [ -e "$PROMETHEUS_DIR/data" ]; then
 else
 	debug "Creating $PROMETHEUS_DIR/{data,logs} directories, group=prometheus"
 	mkdir -p "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
-    chown -R root.$INSTALLUSER "$PROMETHEUS_DIR"			1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALL_USER "$PROMETHEUS_DIR"			1>> "$BUILDLOG" 2>&1
 	find "$PROMETHEUS_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 	chgrp -R prometheus "$PROMETHEUS_DIR/data"	"$PROMETHEUS_DIR/logs"	1>> "$BUILDLOG" 2>&1
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
@@ -739,7 +739,7 @@ if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
 else
 	mkdir -p "$NODE_EXPORTER_DIR"								1>> "$BUILDLOG" 2>&1
-    chown -R root.$INSTALLUSER "$NODE_EXPORTER_DIR"				1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALL_USER "$NODE_EXPORTER_DIR"				1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '1.1.0' "$NODE_EXPORTER_DIR"; then
@@ -912,7 +912,7 @@ fi
 #
 SYSCONFIGFILE='/etc/security/limits.conf'
 if egrep -qi "net.ipv4.tcp_congestion_control" "$SYSCONFIGFILE"; then
-	debug "$SYSCONFIGFILE already has Bottleneck Bandwidth and RTT enabled; leaving $SYSCONFIG file alone"
+	debug "$SYSCONFIGFILE already has Bottleneck Bandwidth and RTT enabled; leaving $SYSCONFIGFILE file alone"
 else
 	debug "Turning on Bottleneck Bandwidth and RTT in sysconfig file, $SYSCONFIGFILE"
 	echo -e "\n# Use Google's congestion control algorithm\nnet.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\n# net.ipv4.tcp_congestion_control=htcp" >> "$SYSCONFIGFILE"
@@ -932,11 +932,11 @@ passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
 # Increase cardano-user open-file limits
 #
 LIMITSFILE='/etc/security/limits.conf'
-if egrep -qi "$INSTALLUSER" "$LIMITSFILE"; then
-	debug "$LIMITSFILE already references $INSTALLUSER user; skipping limit increase"
+if egrep -qi "$INSTALL_USER" "$LIMITSFILE"; then
+	debug "$LIMITSFILE already references $INSTALL_USER user; skipping limit increase"
 else
-	debug "Setting open-file limits for $INSTALLUSER user to 800000 (soft) and 1048576 (hard)"
-	echo -e "$INSTALLUSER soft nofile 800000\n$INSTALLUSER hard nofile 1048576" >> "$LIMITSFILE"
+	debug "Setting open-file limits for $INSTALL_USER user to 800000 (soft) and 1048576 (hard)"
+	echo -e "$INSTALL_USER soft nofile 800000\n$INSTALL_USER hard nofile 1048576" >> "$LIMITSFILE"
 fi
 
 # Install GHC, cabal
@@ -1212,7 +1212,7 @@ else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
-		chown root.$INSTALLUSER "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
+		chown root.$INSTALL_USER "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		chmod 0750 "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
 		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
