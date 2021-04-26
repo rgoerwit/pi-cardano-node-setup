@@ -398,7 +398,7 @@ create_and_secure_installdir () {
 		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
 		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
 		chown -R root.$MYINSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
-		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
+		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ guild-db$ ]] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
 			find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
 			find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
 		else
