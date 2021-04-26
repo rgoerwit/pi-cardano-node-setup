@@ -398,7 +398,7 @@ create_and_secure_installdir () {
 		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
 		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
 		chown -R root.$MYINSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
-		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$MY_INSTALL_SUBDIR" =~ logs$ ]] || [[ "$MY_INSTALL_SUBDIR" =~ sockets$ ]]; then
+		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
 			find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
 			find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
 		else
@@ -416,7 +416,7 @@ create_and_secure_installdir () {
 					chown ${TOPOLOGYFILEOWNER:-$MYINSTALLUSER}.${TOPOLOGYFILEOWNER:-$MYINSTALLUSER} "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" 
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh"
 				else
-					find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
+					find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
 					find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
 				fi
 			fi
