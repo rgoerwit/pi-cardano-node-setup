@@ -1601,6 +1601,9 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		|| err_exit 117 "$0: Unable to install cardano tools: '$PIP install cardano-tools'; aborting"
 fi
 
+# Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" "$INSTALL_USER"
+
 # Re-enable cardano-node and ensure auto-starts
 #
 debug "Setting up cardano-node as system service"
@@ -1611,9 +1614,6 @@ if [ ".$START_SERVICES" != '.N' ]; then
 	systemctl is-active cardano-node	1> /dev/null \
 		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
 fi
-
-# Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
-create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" "$INSTALL_USER"
 
 #############################################################################
 #
