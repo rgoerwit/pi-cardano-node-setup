@@ -1234,6 +1234,7 @@ fi
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
+# Set owner of topology file here to root (will later set it back)
 create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" 'root'
 
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
@@ -1485,20 +1486,6 @@ done
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
-# Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files
-create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" "$INSTALL_USER"
-
-# Ensure cardano-node auto-starts
-#
-debug "Setting up cardano-node as system service"
-systemctl daemon-reload		1>> "$BUILDLOG" 2>&1
-if [ ".$START_SERVICES" != '.N' ]; then
-	systemctl enable cardano-node		1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
-	systemctl start cardano-node		1>> "$BUILDLOG" 2>&1; sleep 3
-	systemctl is-active cardano-node	1> /dev/null \
-		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
-fi
-
 # UPDATE gLiveView.sh and other guild scripts
 #
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -1613,6 +1600,20 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 	$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 117 "$0: Unable to install cardano tools: '$PIP install cardano-tools'; aborting"
 fi
+
+# Re-enable cardano-node and ensure auto-starts
+#
+debug "Setting up cardano-node as system service"
+systemctl daemon-reload		1>> "$BUILDLOG" 2>&1
+if [ ".$START_SERVICES" != '.N' ]; then
+	systemctl enable cardano-node		1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
+	systemctl start cardano-node		1>> "$BUILDLOG" 2>&1; sleep 3
+	systemctl is-active cardano-node	1> /dev/null \
+		|| err_exit 138 "$0: Problem enabling (or starting) cardano-node service; aborting (run 'systemctl status cardano-node')"
+fi
+
+# Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" "$INSTALL_USER"
 
 #############################################################################
 #
