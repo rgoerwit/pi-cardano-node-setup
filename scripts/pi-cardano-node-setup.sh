@@ -381,6 +381,53 @@ download_github_code () {
 	fi
 }
 
+create_and_secure_installdir () {
+
+	MYBLOCKCHAINNETWORK=$1
+	MYINSTALLDIR=$2
+	MY_CARDANO_FILEDIR=$3
+	MY_CARDANO_DBDIR=$4
+	MY_CARDANO_PRIVDIR=$5
+	MY_CARDANO_SCRIPTDIR=$6
+	MYINSTALLUSER=$7
+
+	debug "(Re)checking/building cardano-node directory structure in $MYINSTALLDIR"
+	cd "$MYINSTALLDIR"
+	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
+		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
+		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
+		chown -R root.$MYINSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
+		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$MY_INSTALL_SUBDIR" =~ logs$ ]] || [[ "$MY_INSTALL_SUBDIR" =~ sockets$ ]]; then
+			find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
+			find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
+		else
+			if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_FILEDIR" ]; then
+				find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
+				find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \;
+				# Ensuring cardano user itself can modify its topology file
+				chown $MYINSTALLUSER.$MYINSTALLUSER "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
+				chmod ug+w "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
+			else
+				if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
+					find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
+					find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; -name '*.sh' -exec chmod a+x {} \;
+					# Ensuring cardano user itself can modify its topology and env files
+					chown $MYINSTALLUSER.$MYINSTALLUSER "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${MY_ARDANO_SCRIPTDIR}/env"	# cardano user must modify
+					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${MY_CARDANO_SCRIPTDIR}/env"							# ditto
+				else
+					find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
+					find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+				fi
+			fi
+		fi
+		# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
+		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
+			debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
+			find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
+		fi
+	done
+}
+
 # Make sure our build user exists
 #
 debug "Checking and (if need be) making build user: ${BUILD_USER}"
@@ -1186,41 +1233,8 @@ fi
 
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
-debug "Checking/building cardano-node directory structure in $INSTALLDIR"
-cd "$INSTALLDIR"
-for INSTALL_SUBDIR in "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
-    (echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${INSTALLDIR}/$INSTALL_SUBDIR" 
-	mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
-    chown -R root.$INSTALL_USER "$INSTALL_SUBDIR"	2>/dev/null
-	if [ "$INSTALL_SUBDIR" = "$CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
-		find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
-		find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
-	else
-		if [ "$INSTALL_SUBDIR" = "$CARDANO_FILEDIR" ]; then
-			find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
-			find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \;
-			# Ensuring cardano user itself can modify its topology file
-			chown $INSTALL_USER.$INSTALL_USER "${INSTALL_SUBDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			chmod ug+w "${INSTALL_SUBDIR}/${BLOCKCHAINNETWORK}-topology.json"
-		else
-			if [ "$INSTALL_SUBDIR" = "$CARDANO_SCRIPTDIR" ]; then
-				find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
-				find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; -name '*.sh' -exec chmod a+x {} \;
-				# Ensuring cardano user itself can modify its topology and env files
-				chown $INSTALL_USER.$INSTALL_USER "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${CARDANO_SCRIPTDIR}/env"	# cardano user must modify
-				chmod 0775 "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${CARDANO_SCRIPTDIR}/env"							# ditto
-			else
-				find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
-				find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
-			fi
-		fi
-	fi
-	# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
-	if [ "$INSTALL_SUBDIR" = "$CARDANO_PRIVDIR" ]; then
-		debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
-		find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
-	fi
-done
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER"
+
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
 
@@ -1470,14 +1484,13 @@ done
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
-# Ensuring again that the cardano user itself can modify its topology file; ditto for 
-chown $INSTALL_USER.$INSTALL_USER "${INSTALL_SUBDIR}/${BLOCKCHAINNETWORK}-topology.json"
-chmod ug+w "${INSTALL_SUBDIR}/${BLOCKCHAINNETWORK}-topology.json"
+# Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER"
 
 # Ensure cardano-node auto-starts
 #
 debug "Setting up cardano-node as system service"
-systemctl daemon-reload				1>> "$BUILDLOG" 2>&1
+systemctl daemon-reload		1>> "$BUILDLOG" 2>&1
 if [ ".$START_SERVICES" != '.N' ]; then
 	systemctl enable cardano-node		1>> "$BUILDLOG" 2>&1  # Unlike other services, don't enable cardano-node unless asked (no -N)
 	systemctl start cardano-node		1>> "$BUILDLOG" 2>&1; sleep 3
