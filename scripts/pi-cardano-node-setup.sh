@@ -411,7 +411,7 @@ create_and_secure_installdir () {
 			else
 				if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
 					find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
-					find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; -name '*.sh' -exec chmod a+x {} \;
+					find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
 					# Guild scripts want to update their topologyUpdater.sh files
 					chown ${TOPOLOGYFILEOWNER:-$MYINSTALLUSER}.${TOPOLOGYFILEOWNER:-$MYINSTALLUSER} "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" 
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh"
