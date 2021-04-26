@@ -405,14 +405,14 @@ create_and_secure_installdir () {
 				find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
 				find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \;
 				# Ensuring cardano user itself can modify its topology file
-				chown $MYINSTALLUSER.$MYINSTALLUSER "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
+				chown $MYINSTALLUSER.root "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
 				chmod ug+w "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
 			else
 				if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
 					find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
 					find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; -name '*.sh' -exec chmod a+x {} \;
 					# Ensuring cardano user itself can modify its topology and env files
-					chown $MYINSTALLUSER.$MYINSTALLUSER "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${MY_ARDANO_SCRIPTDIR}/env"	# cardano user must modify
+					chown $MYINSTALLUSER.root "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${MY_CARDANO_SCRIPTDIR}/env"	# cardano user must modify
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" "${MY_CARDANO_SCRIPTDIR}/env"							# ditto
 				else
 					find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here
