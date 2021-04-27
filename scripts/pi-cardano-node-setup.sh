@@ -1315,8 +1315,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	jq .TraceBlockFetchServer="true" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	jq .TraceChainDb="true"							"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	TRACE_SETTING='false'
-	( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) && TRACE_SETTING='true'
-	debug "Setting Trace{Forge,Mempool}=$TRACE_SETTING (if port > 6000 or pool name provided, assume BP [true]; otherwise relay [false])"
+	[ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ] && TRACE_SETTING='true'
+	debug "Setting Trace{Forge,Mempool}=$TRACE_SETTING (if port > 6000 and pool name provided, assume BP [true]; otherwise relay [false])"
 	jq .TraceForge="$TRACE_SETTING"					"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	jq .TraceMempool="$TRACE_SETTING" 				"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-config.json" 2> /dev/null | sponge "$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-config.json"
 	
@@ -1348,8 +1348,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	[ -s "$CARDANO_PRIVDIR/kes.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
 	[ -s "$CARDANO_PRIVDIR/vrf.skey" ]  && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
 	[ -s "$CARDANO_PRIVDIR/node.cert" ] && KEYCOUNT=$(expr "$KEYCOUNT" + 1)
-	if [ "${LISTENPORT}" -ge 6000 ] || [ ".$POOLNAME" != '.' ]; then
-		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000 or we have a pool name
+	if [ "${LISTENPORT}" -ge 6000 ] && [ ".$POOLNAME" != '.' ]; then
+		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000 and we have a pool name
 		if [ "$KEYCOUNT" -ge 3 ]; then
 			CERTKEYARGS="--shelley-kes-key $CARDANO_PRIVDIR/kes.skey --shelley-vrf-key $CARDANO_PRIVDIR/vrf.skey --shelley-operational-certificate $CARDANO_PRIVDIR/node.cert"
 			# If we will be a failover/hot spare then keep the $CERTKEYARGS, but comment them out
@@ -1415,8 +1415,8 @@ debug "Cardano node will be started (later):
 # Modify topology file; add -R <relay-ip:port> information
 #
 # -R argument supplied - this is a block-producing node; parse relay info
-[ ".${RELAY_INFO}" = '.' ] && ( [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ] ) \
-	&& debug "Assuming block producer (listen port >= 6000 or pool-name supplied); normally need a -R <relay-ip:port>; continuing anyway"
+[ ".${RELAY_INFO}" = '.' ] && [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ] \
+	&& debug "Assuming block producer (listen port >= 6000 and pool-name supplied); normally need a -R <relay-ip:port>; continuing anyway"
 
 TOPOLOGY_FILE_WAS_EMPTY=''
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
@@ -1447,7 +1447,7 @@ for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
 				break
 			fi
 		done
-		if [ "$LISTENPORT" -ge 6000 ] || [ ".$POOLNAME" != '.' ]; then
+		if [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ]; then
 			if [[ ! -z "$SUBSCRIPT" ]]; then
 				# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
 				debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
