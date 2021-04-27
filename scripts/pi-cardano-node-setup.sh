@@ -1542,11 +1542,11 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		debug "Adding hostname ($EXTERNAL_HOSTNAME) and custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
-			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST\" |g" \
+			-e "s@^\#* *CUSTOM_PEERS=\"[^#]*@CUSTOM_PEERS=\"$RELAY_LIST\" @g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
 		if [ ".$POOLNAME" != '.' ]; then 
 			# We are a relay; point cncli.sh Guild script at BP node (and standby)
-			FIRSTRELAY=$(echo "$RELAY_LIST" | awk -F'|' '{ print $1 }')	# Would like to have a way to do multiple relays
+			FIRSTRELAY=$(echo "$RELAY_INFO" | awk -F',' '{ print $1 }')	# Would like to have a way to do multiple relays
 			if [ ".$FIRSTRELAY" != '.' ]; then							# ...but cncli topology.json file can take only one 'host'
 				for SCRIPTNAME in 'env' 'cncli.sh'; do
 					sed -i "${CARDANO_SCRIPTDIR}/$SCRIPTNAME" \
