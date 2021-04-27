@@ -1415,8 +1415,8 @@ debug "Cardano node will be started (later):
 # Modify topology file; add -R <node-ip:port> information
 #
 # If we're a relay, but no -R argument supplied, this is a bit odd
-[ ".${NODE_INFO}" = '.' ] && [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ] \
-	&& debug "Assuming block producer (listen port >= 6000 and pool-name supplied); normally need a -R <node-ip:port>; continuing anyway"
+[ ".${NODE_INFO}" = '.' ] && [ ".$POOLNAME" != '.' ] \
+	&& debug "Normally with a pool name specified (-P <pool>), we need -R <node-ip:port>; continuing anyway"
 
 TOPOLOGY_FILE_WAS_EMPTY=''
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
