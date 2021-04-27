@@ -1537,16 +1537,23 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ]; then   # Assume relay if port < 6000 
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ] && [ ".$RELAY_INFO" != '.' ]; then   # Assume relay if port < 6000 
 		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
 		debug "Adding hostname ($EXTERNAL_HOSTNAME) and custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
 			-e "s|^\#* *CUSTOM_PEERS=\"[^#]*|CUSTOM_PEERS=\"$RELAY_LIST\" |g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
-
-		# Update:    #PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
-    	# We want it to point to the block producer; but how do we change it if the standby kicks in??
+		if [ ".$POOLNAME" != '.' ]; then 
+			# We are a relay; point cncli.sh Guild script at BP node (and standby)
+			FIRSTRELAY=$(echo "$RELAY_LIST" | awk -F'|' '{ print $1 }')	# Would like to have a way to do multiple relays
+			if [ ".$FIRSTRELAY" != '.' ]; then							# ...but cncli topology.json file can take only one 'host'
+				for SCRIPTNAME in 'env' 'cncli.sh'; do
+					sed -i "${CARDANO_SCRIPTDIR}/$SCRIPTNAME" \
+						-e "s@^\#* *PT_HOST=['\"][^'\"]*['\"]@PT_HOST=\"$RELAY_INFO\"@g" 
+				done
+			fi
+		fi
 	else
 		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000)"
 	fi
