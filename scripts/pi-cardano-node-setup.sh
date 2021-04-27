@@ -1508,12 +1508,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	chown -R root.root "${CARDANO_SCRIPTDIR}"
 	chmod 0755 "${CARDANO_SCRIPTDIR}/"*.sh
 	popd 1>> "$BUILDLOG" 2>&1
+
 	debug "Making Guild gLiveView.sh script noninteractive: NO_INTERNET_MODE=Y"
 	sed -i "${CARDANO_SCRIPTDIR}/gLiveView.sh" \
 	    -e "s@^#* *NO_INTERNET_MODE=['\"]*N['\"]*@NO_INTERNET_MODE=\"\${NO_INTERNET_MODE:-Y}\"@" \
 			|| err_exit 109 "$0: Failed to modify gLiveView.sh file; aborting"
+
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
-	 line 324: /home/cardano/cardano-cli/root/.cabal/bin/cardano-cli: Not a directo
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s@^\#* *CCLI=['\"][^'\"]*['\"]@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
 		-e "s@^\#* *CNCLI=['\"][^'\"]*['\"]@CNCLI=\"$INSTALLDIR/cncli\"@g" \
@@ -1528,9 +1529,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
 		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
-	debug "Ensuring cnode.sh never runs and seizes a port from our own node"
-	sed -i "${CARDANO_SCRIPTDIR}/cnode.sh" \
-		-e 's@^\#* *\(CPU_CORES=[0-9]*\).*$@\1\n# Take no chances this will ever run - exit\nexit 0\n@g' 
+
+	# Let other Guild scripts know that our cardano-node service is 'cardano-node' (not cnode)
+	sed -i "${CARDANO_SCRIPTDIR}/env" -e '1 s@^\(#!.*$\)@\1\n# cardano-node_HOME=@;1 n;'
+
 	if [ ".$POOLNAME" != '.' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
@@ -1545,10 +1547,13 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 
 		# Update:    #PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
     	# We want it to point to the block producer; but how do we change it if the standby kicks in??
-
 	else
 		debug "Not modifying topologyUpdater.sh script; assuming block producer (listen port, $LISTENPORT >= 6000)"
 	fi
+
+	debug "Rewriting Guild deploy-as-systemd.sh to ignore cnode.sh and use our system startup script"
+	 (echo -e "#/usr/bin/env\nvname='cardano-node'\n"; sed -n '1,/^EOF/d;:1 n;p') < "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh" \
+	 	| sponge > "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh"
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
     || err_exit 108 "$0: Can't find executable ${CARDANO_SCRIPTDIR}/gLiveView.sh; Guild scripts missing; aborting (drop -d option?)"
