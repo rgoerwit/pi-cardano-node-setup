@@ -54,13 +54,13 @@ usage() {
 
 Usage A: $PROGNAME [-4 <bind IPv4>] [-6 <bind IPv6>] [-b <builduser>] [-B <guild repo branch name>] [-c <node config filename>] \
     [-C <cabal version>] [-d] [-D] [-f <parent:port>] [-F <hostname>] [-g <GHC-OS>] [-G <GCC-arch] [-h <SID:password>] [-H] [-i] [-m <seconds>] \
-	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <relay-ip:port>] \
+	[-n <mainnet|testnet|launchpad|guild|staging>] [-N] [-o <overclock speed>] [-p <port>] [-P <pool name>] [-r]  [-R <node-ip:port>] \
 	[-s <subnet>] [-S] [-u <installuser>] [-w <libsodium-version-number>] [-U <cardano-node branch>] [-v <VLAN num> ] \
 	[-V <cardano-node version>] [-w <libsodium-version>] [-w <cnode-script-version>] [-x] [-y <ghc-version>] [-Y]
 
 Usage B: $PROGNAME -l -u <installuser>   # To see what you last did
 
-Sets up a Cardano relay node on a new Pi 4 running Ubuntu LTS distro
+Sets up a Cardano node on a new Pi 4 running Ubuntu LTS distro
 
 Examples:
 
@@ -92,7 +92,7 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
 -P    Pool name (not ticker - only useful if you've been using CNode Tools to create a wallet inside your INSTALLDIR/priv/pool directory)
 -r    Install RDP
--R    Relay information (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
+-R    Nodes (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
@@ -133,7 +133,7 @@ while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Hilm:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; 
     p ) LISTENPORT="${OPTARG}" ;;
     P ) POOLNAME="${OPTARG}" ;;
     r ) INSTALLRDP='Y' ;;
-	R ) RELAY_INFO="${OPTARG}" ;; 
+	R ) NODE_INFO="${OPTARG}" ;; 
 	s ) MY_SUBNETS="${OPTARG}" ;;
 	S ) SKIP_FIREWALL_CONFIG='Y' ;;
     u ) INSTALL_USER="${OPTARG}" ;;
@@ -170,7 +170,7 @@ fi
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV4_ADDRESS}"
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
 MY_SUBNET=$(echo "$MY_SUBNET"	| tr -d ' 	\r')
-RELAY_INFO=$(echo "$RELAY_INFO"	| tr -d ' 	\r')
+NODE_INFO=$(echo "$NODE_INFO"	| tr -d ' 	\r')
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
 [ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
 if [ -z "${MY_SUBNETS}" ]; then
@@ -481,9 +481,9 @@ $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
 ($APTINSTALLER install nmap || ischroot || snap install nmap) 1>> "$BUILDLOG" 2>&1
 if ! ischroot; then
-	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1
-	snap install rustup --classic		1>> "$BUILDLOG" 2>&1
-	snap install go --classic			1>> "$BUILDLOG" 2>&1
+	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1 || snap refresh nmap	1>> "$BUILDLOG" 2>&1
+	snap install rustup --classic		1>> "$BUILDLOG" 2>&1 || snap refresh rustup	1>> "$BUILDLOG" 2>&1
+	snap install go --classic			1>> "$BUILDLOG" 2>&1 || snap refresh go		1>> "$BUILDLOG" 2>&1
 else
 	## Truly dangerous just to run someone else's shell script blind, off the internet
 	#curl --proto '=https' --tlsv1.2 -sSf 'https://sh.rustup.rs' | sh 1>> "$BUILDLOG" 2>&1
@@ -1412,77 +1412,87 @@ debug "Cardano node will be started (later):
         --database-path ${CARDANO_DBDIR}/ \\
             $(echo "${CERTKEYARGS:-# No cert-key args available}" | sed 's/ --/\n\\\\            --/g' )"
 
-# Modify topology file; add -R <relay-ip:port> information
+# Modify topology file; add -R <node-ip:port> information
 #
-# -R argument supplied - this is a block-producing node; parse relay info
-[ ".${RELAY_INFO}" = '.' ] && [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ] \
-	&& debug "Assuming block producer (listen port >= 6000 and pool-name supplied); normally need a -R <relay-ip:port>; continuing anyway"
+# If we're a relay, but no -R argument supplied, this is a bit odd
+[ ".${NODE_INFO}" = '.' ] && [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ] \
+	&& debug "Assuming block producer (listen port >= 6000 and pool-name supplied); normally need a -R <node-ip:port>; continuing anyway"
 
 TOPOLOGY_FILE_WAS_EMPTY=''
 if [[ ! -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ]]; then
 	echo -e "{ \"Producers\": [ ] }\n" | jq | sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	TOPOLOGY_FILE_WAS_EMPTY='Y'
 fi
-for RELAY_INFO_PIECE in $(echo "$RELAY_INFO" | sed 's/,/ /g'); do
-	RELAY_ADDRESS=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/') # Take out ip address part
-	RELAY_PORT=$(echo "$RELAY_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
-	[ -z "${RELAY_ADDRESS}" ] && [ -z "${RELAY_PORT}" ] && err_exit 46 "$0: Relay ip-address:port[,ip-address:port...] after -R is malformed; aborting"
 
-	BLOCKPRODUCERNODE="{ \"addr\": \"$RELAY_ADDRESS\", \"port\": $RELAY_PORT, \"valency\": 1 }"
+# Add specified nodes to topology.json file (usually block producers), if any were specified on the command line
+#
+for NODE_INFO_PIECE in $(echo "$NODE_INFO" | sed 's/,/ /g'); do
+	NODE_ADDRESS=$(echo "$NODE_INFO_PIECE" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/') # Take out ip address part
+	NODE_PORT=$(echo "$NODE_INFO_PIECE" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')    # Take out port part
+	[ -z "${NODE_ADDRESS}" ] && [ -z "${NODE_PORT}" ] && err_exit 46 "$0: Node ip-address:port[,ip-address:port...] after -R is malformed; aborting"
+
+	# Node block definition - set up as a literal JSON fragment
+	BLOCKPRODUCERNODE="{ \"addr\": \"$NODE_ADDRESS\", \"port\": $NODE_PORT, \"valency\": 1 }"
+
 	if [ ".$TOPOLOGY_FILE_WAS_EMPTY" = '.Y' ]; then
 		# Topology file is empty; just create the whole thing all at once...
-		if [[ ! -z "${RELAY_ADDRESS}" ]]; then
-			# ...if, that is, we have a relay address (-R argment)
+		if [[ ! -z "${NODE_ADDRESS}" ]]; then
+			# ...if, that is, we have a node address (-R argment)
 			jq ".Producers[]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null \
 				| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+			TOPOLOGY_FILE_WAS_EMPTY=''
 		fi
 	else
-		SUBSCRIPT=''
-		# If we are a block producer (port 6000 or higher - assumed to be a producer node)
-		COUNTER=0
-		for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
-			COUNTER=$(expr $COUNTER + 1)
-			if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
-				SUBSCRIPT=$(expr $COUNTER - 1)
-				break
-			fi
-		done
-		if [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ]; then
-			if [[ ! -z "$SUBSCRIPT" ]]; then
-				# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
-				debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-				jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
-					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			fi
-		else
-			if [[ ! -z "$SUBSCRIPT" ]]; then
-				debug "We're a relay; setting valency of IOHK relay to 8; will leave others alone"
-				jq ".Producers[${SUBSCRIPT}].valency|=8" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
-					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
-			fi
-		fi
-		# Everyone gets to here (block producers and relay nodes alike), to add the relay address to the topology file
-		if [ -z "${RELAY_ADDRESS}" ]; then
-			debug "No -R <relay-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
+		# If nodes were present in file already, add the node address to the topology file array
+		if [ -z "${NODE_ADDRESS}" ]; then
+			debug "No -R <node-ip:port>; if needed, hand edit: "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json""
 		else
 			ALREADY_PRESENT_IN_TOPOLOGY_FILE=''
 			for keyAndVal in $(jq -r '.Producers[]|{addr,port}|to_entries[]|(.key+"="+(.value | tostring))' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null | xargs | tr ' ' ','); do
-				if [ ".$keyAndVal" = ".addr=${RELAY_ADDRESS},port=${RELAY_PORT}" ]; then
+				if [ ".$keyAndVal" = ".addr=${NODE_ADDRESS},port=${NODE_PORT}" ]; then
 					ALREADY_PRESENT_IN_TOPOLOGY_FILE='Y'
 					break
 				fi
 			done
 			if [ -z "$ALREADY_PRESENT_IN_TOPOLOGY_FILE" ]; then
 				PRODUCER_COUNT=$(jq '.Producers|length' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null)
-				debug "Adding ${RELAY_ADDRESS}::${RELAY_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+				debug "Adding ${NODE_ADDRESS}::${NODE_PORT} producer #${PRODUCER_COUNT} in: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 				jq ".Producers[${PRODUCER_COUNT}]|=$BLOCKPRODUCERNODE" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null \
 					| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 			else
-				debug "Topology file already has a Producers element for [${RELAY_ADDRESS}]:${RELAY_PORT}; no need to add"
+				debug "Topology file already has a Producers element for [${NODE_ADDRESS}]:${NODE_PORT}; no need to add"
 			fi
 		fi
 	fi
 done
+
+# Remove IOHK entry from topology.json file if we're a block producer
+#
+SUBSCRIPT=''
+COUNTER=0
+for PRODUCERADDR in $(jq '.Producers[]|.addr' "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" 2> /dev/null); do
+	COUNTER=$(expr $COUNTER + 1)
+	if echo "$PRODUCERADDR" | egrep -q '(iohk|emurgo)\.'; then
+		SUBSCRIPT=$(expr $COUNTER - 1)
+		break
+	fi
+done
+# If we are a block producer (port 6000 or higher and a pool name - assumed to be a producer node)
+if [ "$LISTENPORT" -ge 6000 ] && [ ".$POOLNAME" != '.' ]; then
+	if [[ ! -z "$SUBSCRIPT" ]]; then
+		# We're a block producer; deleting Producers[${SUBSCRIPT}] from ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json
+		debug "We're a block producer; deleting IOKH entry from: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+		jq "del(.Producers[${SUBSCRIPT}])" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+			| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+	fi
+else
+	if [[ ! -z "$SUBSCRIPT" ]]; then
+		debug "We're a relay; setting valency of IOHK relay (entry #$SUBSCRIPT) to 8; will leave others alone"
+		jq ".Producers[${SUBSCRIPT}].valency|=8" "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" \
+			| sponge "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
+	fi
+fi
+
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
@@ -1537,20 +1547,20 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
 			-e "s@^\#* *POOL_NAME=['\"]*[0-9]*['\"]*@POOL_NAME=\"$POOLNAME\"@g" 
 	fi
-	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ] && [ ".$RELAY_INFO" != '.' ]; then   # Assume relay if port < 6000 
-		RELAY_LIST=$(echo "$RELAY_INFO" | sed 's/,/|/g')
-		debug "Adding hostname ($EXTERNAL_HOSTNAME) and custom peers (${RELAY_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
+	if [ ".${EXTERNAL_HOSTNAME}" != '.' ] && [ "$LISTENPORT" -lt 6000 ] && [ ".$NODE_INFO" != '.' ]; then   # Assume relay if port < 6000 
+		NODE_LIST=$(echo "$NODE_INFO" | sed 's/,/|/g')
+		debug "Adding hostname ($EXTERNAL_HOSTNAME) and custom peers (${NODE_LIST:-none provided [-R <relays>])}) to topologyUpdater.sh file"
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
-			-e "s@^\#* *CUSTOM_PEERS=\"[^#]*@CUSTOM_PEERS=\"$RELAY_LIST\" @g" \
+			-e "s@^\#* *CUSTOM_PEERS=\"[^#]*@CUSTOM_PEERS=\"$NODE_LIST\" @g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
 		if [ ".$POOLNAME" != '.' ]; then 
-			# We are a relay; point cncli.sh Guild script at BP node (and standby)
-			FIRSTRELAY=$(echo "$RELAY_INFO" | awk -F',' '{ print $1 }')	# Would like to have a way to do multiple relays
-			if [ ".$FIRSTRELAY" != '.' ]; then							# ...but cncli topology.json file can take only one 'host'
+			# We are a relay node; point cncli.sh Guild script at BP node (and standby)
+			FIRSTNODE=$(echo "$NODE_INFO" | awk -F',' '{ print $1 }')	# Would like to have a way to do multiple relays
+			if [ ".$FIRSTNODE" != '.' ]; then							# ...but cncli topology.json file can take only one 'host'
 				for SCRIPTNAME in 'env' 'cncli.sh'; do
 					sed -i "${CARDANO_SCRIPTDIR}/$SCRIPTNAME" \
-						-e "s@^\#* *PT_HOST=['\"][^'\"]*['\"]@PT_HOST=\"$RELAY_INFO\"@g" 
+						-e "s@^\#* *PT_HOST=['\"][^'\"]*['\"]@PT_HOST=\"$FIRSTNODE\"@g" 
 				done
 			fi
 		fi
