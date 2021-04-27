@@ -1552,7 +1552,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	fi
 
 	debug "Rewriting Guild deploy-as-systemd.sh to ignore cnode.sh and use our system startup script"
-	 (echo -e "#/usr/bin/env\nvname='cardano-node'\n"; sed -n '1,/^EOF/d;:1 n;p' < "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh") \
+	 (echo -e '#!'"/usr/bin/env bash\nvname='cardano-node'\n"; sed '1,/^EOF"/d' < "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh") \
 	 	| sponge "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh"
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
