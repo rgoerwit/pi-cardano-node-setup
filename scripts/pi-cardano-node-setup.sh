@@ -457,6 +457,7 @@ ischroot || apt-mark unhold linux-image-generic linux-headers-generic cryptsetup
 if $APTINSTALLER update		1>> "$BUILDLOG" 2>&1; then
 	: yay 
 else
+	ischroot && find /etc -maxdepth 1 -xtype l -exec 'rm' -f {} \;
 	egrep -q '^nameserver 1\.1\.1\.1' /etc/resolv.conf || echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" >> /etc/resolv.conf
 	$APTINSTALLER update --fix-missing || err_abort 21 "$0: Can't apply updates: '$APTINSTALLER update --fix-missing'; aborting"
 fi
