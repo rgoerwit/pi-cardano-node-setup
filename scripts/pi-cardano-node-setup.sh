@@ -1564,6 +1564,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/topologyUpdater.sh" \
 			-e "s@^\#* *CNODE_HOSTNAME=\"[^#]*@CNODE_HOSTNAME=\"$EXTERNAL_HOSTNAME\" @g" \
 			-e "s@^\#* *CUSTOM_PEERS=\"[^#]*@CUSTOM_PEERS=\"$NODE_LIST\" @g" \
+			-e "s@^\#* *MAX_PEERS=['\"]*[0-9][0-9]*['\"]* @MAX_PEERS=11 @g" \
 				|| err_exit 109 "$0: Failed to modify Guild 'topologyUpdater.sh' file, ${CARDANO_SCRIPTDIR}/topologyUpdater.sh; aborting"
 		if [ ".$POOLNAME" != '.' ]; then 
 			# We are a relay node; point cncli.sh Guild script at BP node (and standby)
