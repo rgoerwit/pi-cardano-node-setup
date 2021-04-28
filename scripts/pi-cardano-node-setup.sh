@@ -171,8 +171,8 @@ fi
 [ -z "${EXTERNAL_HOSTNAME}" ] && EXTERNAL_HOSTNAME="${EXTERNAL_IPV6_ADDRESS}"
 MY_SUBNET=$(echo "$MY_SUBNET"	| tr -d ' 	\r')
 NODE_INFO=$(echo "$NODE_INFO"	| tr -d ' 	\r')
-[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/netmask/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)  # With a Pi, you get just one RJ45 jack
-[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ifconfig | awk '/inet6/ { split($4,a,":"); print $2 "/" a[1] }' | tail -1)
+[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ip addr | awk '/^ *inet / { print $2 }' | tail -1)  # With a Pi, you get just one RJ45 jack; take best guess at local subnet
+[ -z "${MY_SUBNET}" ] && MY_SUBNET=$(ip addr | egrep -v 'fe80|::[10]/(128|0)' | awk '/^ *inet6 / { print $2 }' | tail -1)  # Again, best guess here
 if [ -z "${MY_SUBNETS}" ]; then
 	MY_SUBNETS="$MY_SUBNET"
 else
@@ -454,7 +454,7 @@ debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 #
 debug "Updating system; ensuring necessary prerequisites are installed"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
-$APTINSTALLER update        1>> "$BUILDLOG" 2>&1
+$APTINSTALLER update --fix-missing	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
@@ -1644,7 +1644,7 @@ debug "Tasks:"
 debug "    You *may* have to clear ${CARDANO_DBDIR} before cardano-node can rerun (try and see)"
 debug "    If not done already, create a user that can sudo and set up key-based SSH access to that account"
 debug "    Then lock the root account and turn off non-key SSH access in /etc/ssh/sshd_config"
-debug "    Check network/firewall config (run 'ifconfig', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
+debug "    Check network/firewall config (run 'ip addr', 'ufw status numbered'; also 'tail -f /var/log/ufw.log')"
 debug "    Follow syslogged activity by running: 'journalctl --unit=cardano-node --follow'"
 debug "    Monitor node activity by running: 'cd $CARDANO_SCRIPTDIR; bash ./gLiveView.sh'"
 debug "    Please ensure no /home directory is world-readable (many distros make world-readable homes)"
