@@ -149,8 +149,17 @@ while getopts 4:6:b:B:c:C:dDf:F:g:G:h:Hilm:n:No:p:P:rR:s:Su:U:v:V:w:W:xy:Y opt; 
 done
 
 APTINSTALLER="apt-get -q --assume-yes $IGNORE_MISSING_DEPENDENCIES"  # could also be "apt --assume-yes" or for other distros, "yum -y"
-$APTINSTALLER install net-tools 1>> /dev/null 2>&1
-$APTINSTALLER install dnsutils 1>> /dev/null 2>&1
+if $APTINSTALLER install net-tools 1>> /dev/null 2>&1 \
+	&& $APTINSTALLER install dnsutils 1>> /dev/null 2>&1
+then
+	: yay 
+else
+	ischroot && find /etc -maxdepth 1 -xtype l -exec 'rm' -f {} \; 1>> /dev/null 2>&1
+	egrep -q '^nameserver 1\.1\.1\.1' /etc/resolv.conf || echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" >> /etc/resolv.conf
+	$APTINSTALLER update --fix-missing	1>> /dev/null 2>&1
+	$APTINSTALLER install net-tools		1>> /dev/null 2>&1
+	$APTINSTALLER install dnsutils		1>> /dev/null
+fi
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0'	2> /dev/null
 APPARENT_IPV6_ADDRESS=$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ') 2> /dev/null
 if [ -z "$APPARENT_IPV6_ADDRESS" ]; then
@@ -454,14 +463,7 @@ debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 #
 debug "Updating system; ensuring necessary prerequisites are installed"
 ischroot || apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
-if $APTINSTALLER update		1>> "$BUILDLOG" 2>&1; then
-	: yay 
-else
-	debug "Trying update after explicitly naming servers in /etc/resolv.conf"
-	ischroot && find /etc -maxdepth 1 -xtype l -exec 'rm' -f {} \; 1>> "$BUILDLOG" 2>&1;
-	egrep -q '^nameserver 1\.1\.1\.1' /etc/resolv.conf || echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" >> /etc/resolv.conf
-	$APTINSTALLER update --fix-missing 1>> "$BUILDLOG" 2>&1 || err_abort 21 "$0: Can't update: '$APTINSTALLER update --fix-missing'; aborting"
-fi
+$APTINSTALLER update		1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update --fix-missing	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
