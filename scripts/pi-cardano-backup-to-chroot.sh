@@ -149,12 +149,6 @@ for sysfile in "/etc/shadow" "/etc/passwd" "/etc/gshadow" "/etc/group" "/etc/sud
     rsync -av "$sysfile" "${MOUNTPOINT}/etc"    1>> "$BUILDLOG" 2>&1
 done
 
-debug "Ensuring resolver will work when we chroot"
-if [ -L "/etc/resolv.conf" ]  && [[ ! -a "/etc/resolv.conf" ]]; then
-    mkdir -p '/run/systemd/resolve'
-    echo 'nameserver 1.1.1.1\nnameserver 8.8.8.8' >> "${MOUNTPOINT}/run/systemd/resolve/stub-resolv.conf"
-fi
-
 # Read in trapping and locking code, if present
 SETUP_COMMAND="$PI_CARDANO_NODE_SETUP_CMD"
 if [ -z "$SETUP_COMMAND" ]; then 
