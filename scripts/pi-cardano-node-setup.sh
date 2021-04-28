@@ -1552,7 +1552,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			|| err_exit 109 "$0: Failed to modify Guild 'env' file, ${CARDANO_SCRIPTDIR}/env; aborting"	
 
 	# Let other Guild scripts know that our cardano-node service is 'cardano-node' (not cnode)
-	sed -i "${CARDANO_SCRIPTDIR}/env" -e '1 s@^\(#!.*$\)@\1\n# cardano-node_HOME=@;1 n;'
+	sed -i "${CARDANO_SCRIPTDIR}/env" -e '1 s@^\(#!.*$\)@\1\n#cardano-node_HOME=@;1 n;'
 
 	if [ ".$POOLNAME" != '.' ]; then
 		sed -i "${CARDANO_SCRIPTDIR}/env" \
