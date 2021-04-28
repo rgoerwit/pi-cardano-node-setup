@@ -155,10 +155,11 @@ then
 	: yay 
 else
 	ischroot && find /etc -maxdepth 1 -xtype l -exec 'rm' -f {} \; 1>> /dev/null 2>&1
-	egrep -q '^nameserver 1\.1\.1\.1' /etc/resolv.conf || echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" >> /etc/resolv.conf
+	egrep -q '^nameserver 1\.1\.1\.1' /etc/resolv.conf 1>> /dev/null 2>&1 \
+		|| echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" >> /etc/resolv.conf
 	$APTINSTALLER update --fix-missing	1>> /dev/null 2>&1
 	$APTINSTALLER install net-tools		1>> /dev/null 2>&1
-	$APTINSTALLER install dnsutils		1>> /dev/null
+	$APTINSTALLER install dnsutils		1>> /dev/null 2>&1
 fi
 [ -z "${IPV4_ADDRESS}" ] && IPV4_ADDRESS='0.0.0.0'	2> /dev/null
 APPARENT_IPV6_ADDRESS=$(dig +timeout=5 +short -6 myip.opendns.com aaaa @resolver1.ipv6-sandbox.opendns.com 2> /dev/null | egrep -v '^;;' | tr -d '\r\n ') 2> /dev/null
