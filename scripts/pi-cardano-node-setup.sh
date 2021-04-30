@@ -81,18 +81,18 @@ Refresh of existing mainnet setup (keep existing config files):  $PROGNAME -D -d
 -G    GHC gcc architecture (default is -march=Armv8-A); the value here is in the form of a flag supplied to GCC
 -y    GHC version (currently defaults to 8.10.4)
 -h    Install (naturally, hidden) WiFi; format: SID:password (only use WiFi on the relay, not block producer)
--H    Hosted Grafana analytics being used - alter firewall to allow appropriate access to Prometheus port (may also require network/router ACLs or port forwarding)
+-H    Hosted Grafana - allow appropriate access to Prometheus port (may require further ACLs or port forwarding)
 -i    Ignore missing dependencies installed by apt-get
 -l    Print command-line used for last run and exit
 -m    Maximum time in seconds that you allow the file download operation to take before aborting (Default: 80s)
 -n    Connect to specified network instead of mainnet network (Default: mainnet)
       e.g.: -n testnet (alternatives: allegra launchpad mainnet mary_qa shelley_qa staging testnet...)
--N    No start; if this argument is supplied, no startup of any services, including cardano-node, will be attempted (used for backups to /dev/sda...)
+-N    No startup - don't start cardano-node or other services (used for backups to /dev/sda...)
 -o    Overclocking value (should be something like, e.g., 2100 for a Pi 4 - with heat sinks and a fan, should be fine)
 -p    Listen port (default 3000); assumes we are a block producer if <port> is >= 6000
--P    Pool name (not ticker - only useful if you've been using CNode Tools to create a wallet inside your INSTALLDIR/priv/pool directory)
+-P    Pool name (not ticker - useful if using CNTools to create wallets inside <INSTALLDIR>/priv/pool)
 -r    Install RDP
--R    Nodes (ip-address:port[,ip-address:port...], separated by a comma) to add to topology.json file (clobbers other entries if listen -p <port> is >= 6000)
+-R    Nodes (ip-address:port[,ip-address:port...]) to add to topology.json file (to point relays at BP and vice versa)
 -s    Networks to allow SSH from (comma-separated, CIDR)
 -S    Skip firewall configuration
 -u    User who will run the executables and in whose home directory the executables will be installed
