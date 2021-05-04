@@ -340,7 +340,9 @@ do_ghcup_install () {
 	popd 1>> "$BUILDLOG" 2>&1
 }
 
-git_latest_release() { curl --silent -L -H 'Accept: application/json' "${1}/releases/latest" | jq '.tag_name' | tr -d '"' }
+git_latest_release() { 
+	curl --silent -L -H 'Accept: application/json' "${1}/releases/latest" | jq '.tag_name' | tr -d '"' 
+}
 
 # Generalized code for refreshing a GitHub repository, if needed
 #
