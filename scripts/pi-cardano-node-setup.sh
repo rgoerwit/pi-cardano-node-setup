@@ -351,8 +351,8 @@ download_github_code () {
 	MYREPOSITORYURL=$3
 	MYSKIPRECOMPILEFLAG=$4
 	MYBUILDLOG=$5
-	MYREQUIREDVERSION=$6
-	MYPROGINSTALLDIR=$7
+	MYPROGINSTALLDIR=$6
+	MYREQUIREDVERSION=$7
 
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
@@ -698,7 +698,7 @@ else
 	chmod -R g+w "$PROMETHEUS_DIR/data" "$PROMETHEUS_DIR/logs"			1>> "$BUILDLOG" 2>&1	# Prometheus needs to write
 fi
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" '2.26.0' "$PROMETHEUS_DIR"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" "$PROMETHEUS_DIR"; then
 	cd './prometheus'
 	debug "Building and installing prometheus"
 	$MAKE clean						1>> "$BUILDLOG" 2>&1
@@ -817,7 +817,7 @@ else
     chown -R root.$INSTALL_USER "$NODE_EXPORTER_DIR"				1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" '1.1.0' "$NODE_EXPORTER_DIR"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" "$NODE_EXPORTER_DIR"; then
 	cd './node_exporter'
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
@@ -1102,7 +1102,7 @@ fi
 # Install wacky IOHK-recommended version of libsodium unless told to use a different -w $LIBSODIUM_VERSION
 #
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP_RECOMPILE" "$BUILDLOG" '0' '/usr/local/lib'; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP_RECOMPILE" "$BUILDLOG" '/usr/local/lib' '0'; then
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
 	cd './libsodium'					1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
@@ -1623,7 +1623,7 @@ debug "Adding symlinks for socket, and for db and priv dirs, to make CNode Tools
 # build and install other utilities - python, rust-based
 #
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG" '2.0.0'; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWestberg/cncli' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	debug "Updating Rust in prep for cncli install"
 	cd './cncli'
 	[ -d "$HOME/.cargo/bin" ] || mkdir -p "$HOME/.cargo/bin"; chown -R $USER "$HOME/.cargo"
