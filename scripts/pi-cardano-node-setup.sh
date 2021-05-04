@@ -359,7 +359,7 @@ download_github_code () {
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
 		MYREQUIREDVERSION=$(echo "$MYREQUIREDVERSION" | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		debug "No minimum version specified; latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
+		debug "No minimum version specified for $(echo \"$MYREPOSITORYURL\" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
 	fi
 
 	# Try to determine version of MYPROGNAME
@@ -391,6 +391,7 @@ download_github_code () {
 		popd 1>> "$MYBUILDLOG" 2>&1
 		return 1
 	else
+		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYPROGNAME"
 		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
@@ -1046,7 +1047,7 @@ which ghc 1>> "$BUILDLOG" 2>&1 || do_ghcup_install
 #
 cd "$BUILDDIR"
 if [ -z "$GHCUP_INSTALL_PATH" ]; then  # If GHCUP was not used, we still need to build cabal
-	if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/haskell/cabal' "$SKIP_RECOMPILE" "$BUILDLOG" "$CABAL_VERSION"; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/haskell/cabal' "$SKIP_RECOMPILE" "$BUILDLOG" "$INSTALLDIR" "$CABAL_VERSION"; then
 		STILL_NEED_CABAL_BINARY='Y' 
 		if [ -x "$CABAL" ]; then
 			debug "Compiling new cabal using existing $CABAL; can be slow; must down any running node"
