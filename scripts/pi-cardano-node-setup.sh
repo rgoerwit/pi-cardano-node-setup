@@ -340,6 +340,8 @@ do_ghcup_install () {
 	popd 1>> "$BUILDLOG" 2>&1
 }
 
+git_latest_release() { curl --silent -L -H 'Accept: application/json' "${1}/releases/latest" | jq '.tag_name' | tr -d '"' }
+
 # Generalized code for refreshing a GitHub repository, if needed
 #
 download_github_code () {
@@ -351,6 +353,12 @@ download_github_code () {
 	MYBUILDLOG=$5
 	MYREQUIREDVERSION=$6
 	MYPROGINSTALLDIR=$7
+
+	if [ -z "$MYREQUIREDVERSION" ]; then
+		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
+		MYREQUIREDVERSION=$(echo "$MYREQUIREDVERSION" | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		debug "No minimum version specified; latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
+	fi
 
 	# Try to determine version of MYPROGNAME
 	ISLIBRARY='N'
