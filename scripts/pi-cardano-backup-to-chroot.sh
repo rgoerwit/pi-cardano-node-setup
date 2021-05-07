@@ -173,7 +173,6 @@ debug "\n-------------------\n"
 chroot "${MOUNTPOINT}" '/bin/bash' << _EOF
 trap "umount /proc" SIGTERM SIGINT  # Make sure /proc gets unmounted, else we might freeze
 mount -t proc proc /proc            
-apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64    1>> /dev/null
 # timedatectl set-timezone "$TIMEZONE" # Won't actually work in chroot
 bash -c "bash $SETUP_COMMAND"
 apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64  1>> /dev/null
