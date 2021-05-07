@@ -476,9 +476,9 @@ debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 debug "Updating system; ensuring necessary prerequisites are installed"
 if ischroot; then
 	debug "Putting kernel-related updates on hold (we're in a chroot)"
-	apt-mark hold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
+	apt-mark hold initramfs-tools linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
 else
-	apt-mark unhold linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
+	apt-mark unhold initramfs-tools linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
 fi
 $APTINSTALLER update		1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update --fix-missing	1>> "$BUILDLOG" 2>&1
