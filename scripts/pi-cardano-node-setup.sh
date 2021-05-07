@@ -956,6 +956,7 @@ fi
 # Make sure we have at least some swap
 #
 FSTABFILE='/etc/fstab'
+SYSCONFIGFILE='/etc/sysctl.conf'
 if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 	SWAPFILE='/var/swapfile'
 	if [ -e "$SWAPFILE" ] && [ "$(du -k /var/swapfile | cut -f1)" -ge 12000000 ]; then
@@ -975,6 +976,12 @@ if [ $(swapon --show 2> /dev/null | wc -l) -eq 0 ] || ischroot; then
 		debug "Adding swap line to $FSTABFILE: $SWAPFILE none swap sw 0 0"
 		echo "$SWAPFILE    none    swap    sw    0    0" >> "$FSTABFILE"
 	fi
+	if egrep -qi "^ *vm\.swappiness *=" "$SYSCONFIGFILE"; then
+		debug "$SYSCONFIGFILE already has vm.swappiness set; leaving sysconfig file alone"
+	else
+		debug "Upping system swappiness in sysconfig file, $SYSCONFIGFILE"
+		echo -e "\n# Increase swappiness - actually use swap\nvm.swappiness=10\nvm.vfs_cache_pressure=50" >> "$SYSCONFIGFILE"
+	fi
 fi
 
 # Secure shared memory
@@ -988,7 +995,6 @@ fi
 
 # Use faster network congestion and processing algorithm
 #
-SYSCONFIGFILE='/etc/sysctl.conf'
 if egrep -qi "net.ipv4.tcp_congestion_control" "$SYSCONFIGFILE"; then
 	debug "$SYSCONFIGFILE already has Bottleneck Bandwidth and RTT enabled; leaving $SYSCONFIGFILE file alone"
 else
