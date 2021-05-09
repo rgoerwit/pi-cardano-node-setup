@@ -1574,8 +1574,8 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-outp
 	cd "$BUILDDIR/vit-kedqr"
 	debug "Compiling and insntalling vit-kedqr to $INSTALLDIR"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
-		cargo install --path . --force --locked		1>> "$BUILDLOG" 2>&1
-		[ -x './bin/vit-kedqr' ] && cp -f './bin/vit-kedqr' "$INSTALLDIR"
+		cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
+		cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
 	else
 		debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
 	fi
