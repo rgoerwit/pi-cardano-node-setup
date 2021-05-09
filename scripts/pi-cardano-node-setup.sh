@@ -472,12 +472,14 @@ cabal_install_software () {
 	cd "$MYBUILDDIR/$MYEXECUTABLENAME" || err_abort 41 "$0: Can't 'cd $MYBUILDDIR/$MYEXECUTABLENAME'; aborting"
 	debug "Downloading $MYEXECUTABLENAME utility; installing to $MYINSTALLDIR"
 	$MYCABAL clean 1>> "$MYBUILDLOG"  2>&1
-	$MYCABAL install --overwrite-policy=always --installdir "$MYINSTALLDIR" "$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1
-    # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
-	mv -f "$MYINSTALLDIR/$MY" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
-	cp -f $(find "$MYBUILDDIR" -type f -name "$MYEXECUTABLENAME" ! -path '*OLD*') "$MYINSTALLDIR/$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1 \
-		|| { mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD" "$MYINSTALLDIR/$MYEXECUTABLENAME"; err_exit 81 "Failed to build $MYEXECUTABLENAME; aborting"; }
-
+	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
+		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
+		mv -f "$MYINSTALLDIR/$MY" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
+		cp -f $(find "$MYBUILDDIR" -type f -name "$MYEXECUTABLENAME" ! -path '*OLD*') "$MYINSTALLDIR/$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1 \
+			|| { mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD" "$MYINSTALLDIR/$MYEXECUTABLENAME"; err_exit 81 "Failed to build $MYEXECUTABLENAME; aborting"; }
+	else
+		err_exit 43 "$0: Failed to build $MYEXECUTABLENAME; aborting"
+	fi
 }
 
 # Make sure our build user exists
