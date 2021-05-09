@@ -1570,9 +1570,13 @@ fi
 cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/vit-kedqr' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cd "$BUILDDIR/vit-kedqr"
-	cargo build --bin vit-kedqr					1>> "$BUILDLOG" 2>&1
-	cargo install --path . --force --locked		1>> "$BUILDLOG" 2>&1
-	[ -x './bin/vit-kedqr' ] && cp -f './bin/vit-kedqr' "$INSTALLDIR"
+	debug "Compiling and insntalling vit-kedqr to $INSTALLDIR"
+	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
+		cargo install --path . --force --locked		1>> "$BUILDLOG" 2>&1
+		[ -x './bin/vit-kedqr' ] && cp -f './bin/vit-kedqr' "$INSTALLDIR"
+	else
+		debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
+	fi
 fi
 
 # git clone https://github.com/gitmachtl/scripts	
