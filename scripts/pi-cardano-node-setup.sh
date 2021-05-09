@@ -215,7 +215,8 @@ touch "$BUILDLOG"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
-CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"
+CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"	# mostly guild scripts
+CARDANO_SPOSDIR="${INSTALLDIR}/spos"		# SPOS scripts ("Martin's scripts")
 
 # Make sure the path has the locations in it that we'll be needing
 ( [[ "$PATH" =~ /usr/local/bin ]] && [[ "$PATH" =~ /snap/bin ]] ) || PATH="/usr/local/bin:/snap/bin:$PATH"
@@ -266,13 +267,14 @@ if [ ".${HIDDEN_WIFI_INFO}" != '.' ]; then
 		&& err_exit 45 "$0: Please supply a WPA WiFi NetworkID:Password (or omit the -h argument for no WiFi)"
 fi
 
-[ -z "${IOHKREPO}" ]           && IOHKREPO="https://github.com/input-output-hk"
-[ -z "${IOHKAPIREPO}" ]        && IOHKAPIREPO="https://api.github.com/repos/input-output-hk"
-[ -z "${GUILDREPO}" ]          && GUILDREPO="https://github.com/cardano-community/guild-operators"
-[ -z "${GUILDREPO_RAW}" ]      && GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
-[ -z "${GUILDREPOBRANCH}" ]    && GUILDREPOBRANCH='master'
-[ -z "${GUILDREPO_RAW_URL}" ]  && GUILDREPO_RAW_URL="${GUILDREPO_RAW}/${GUILDREPOBRANCH}"
-[ -z "${WPA_SUPPLICANT}" ]     && WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
+[ -z "${IOHKREPO}" ]			&& IOHKREPO="https://github.com/input-output-hk"
+[ -z "${IOHKAPIREPO}" ]			&& IOHKAPIREPO="https://api.github.com/repos/input-output-hk"
+[ -z "${GUILDREPO}" ]			&& GUILDREPO="https://github.com/cardano-community/guild-operators"
+[ -z "${GUILDREPO_RAW}" ]		&& GUILDREPO_RAW="https://raw.githubusercontent.com/cardano-community/guild-operators"
+[ -z "${GUILDREPOBRANCH}" ]		&& GUILDREPOBRANCH='master'
+[ -z "${GUILDREPO_RAW_URL}" ]	&& GUILDREPO_RAW_URL="${GUILDREPO_RAW}/${GUILDREPOBRANCH}"
+[ -z "${SPOSREPO}" ]			&& SPOSREPO='https://github.com/gitmachtl/scripts'
+[ -z "${WPA_SUPPLICANT}" ]		&& WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
 WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeout $WGET_TIMEOUT -t 5"
 [ -z "$GHCVERSION" ] && GHCVERSION="8.10.4"
 GHCARCHITECTURE="$(arch)"         # could potentially be aarch64, arm7, arm8, etc. for example; see http://downloads.haskell.org/~ghc/
@@ -316,6 +318,7 @@ fi
 GHCUP_INSTALL_PATH=''
 #
 do_ghcup_install () {
+
 	BOOTSTRAP_HASKELL_GHC_VERSION="$GHCVERSION"
 	BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION"
 	export BOOTSTRAP_HASKELL_NONINTERACTIVE='Y'
@@ -338,6 +341,7 @@ do_ghcup_install () {
 		|| 'cp' -f "$GHCUP_INSTALL_PATH/cabal" "$CABAL"
 	CABAL="$GHCUP_INSTALL_PATH/cabal"
 	popd 1>> "$BUILDLOG" 2>&1
+
 }
 
 git_latest_release() { 
@@ -410,12 +414,13 @@ create_and_secure_installdir () {
 	MY_CARDANO_DBDIR=$4
 	MY_CARDANO_PRIVDIR=$5
 	MY_CARDANO_SCRIPTDIR=$6
-	MYINSTALLUSER=$7
-	TOPOLOGYFILEOWNER=$8
+	MY_CARDANO_SPOSDIR=$7
+	MYINSTALLUSER=$8
+	TOPOLOGYFILEOWNER=$9
 
 	debug "(Re)checking/building cardano-node directory structure in $MYINSTALLDIR"
 	cd "$MYINSTALLDIR"
-	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
+	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" "$CARDANO_SPOSDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
 		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
 		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
 		chown -R root.$MYINSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
@@ -437,8 +442,14 @@ create_and_secure_installdir () {
 					chown ${TOPOLOGYFILEOWNER:-$MYINSTALLUSER}.${TOPOLOGYFILEOWNER:-$MYINSTALLUSER} "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" 
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh"
 				else
-					find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
-					find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+					if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
+						mkdir -p "$CARDANO_SPOSDIR" 1>> "$BUILDLOG" 2>&1
+						find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does not need to write to here
+						find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+					else
+						find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
+						find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+					fi
 				fi
 			fi
 		fi
@@ -448,6 +459,25 @@ create_and_secure_installdir () {
 			find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 		fi
 	done
+}
+
+cabal_install_software () {
+
+	MYBUILDDIR=$1
+	MYINSTALLDIR=$2
+	MYEXECUTABLENAME=$3
+	MYCABAL=$4
+	MYBUILDLOG=$5
+
+	cd "$MYBUILDDIR/$MYEXECUTABLENAME" || err_abort 41 "$0: Can't 'cd $MYBUILDDIR/$MYEXECUTABLENAME'; aborting"
+	debug "Downloading $MYEXECUTABLENAME utility; installing to $MYINSTALLDIR"
+	$MYCABAL clean 1>> "$MYBUILDLOG"  2>&1
+	$MYCABAL install --overwrite-policy=always --installdir "$MYINSTALLDIR" "$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1
+    # If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
+	mv -f "$MYINSTALLDIR/$MY" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
+	cp -f $(find "$MYBUILDDIR" -type f -name "$MYEXECUTABLENAME" ! -path '*OLD*') "$MYINSTALLDIR/$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1 \
+		|| { mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD" "$MYINSTALLDIR/$MYEXECUTABLENAME"; err_exit 81 "Failed to build $MYEXECUTABLENAME; aborting"; }
+
 }
 
 # Make sure our build user exists
@@ -496,7 +526,7 @@ $APTINSTALLER install \
 	libpq-dev libqrencode4 librocksdb-dev libsnappy-dev libsodium-dev libssl-dev libsystemd-dev libtinfo-dev \
 	libtinfo5 libtool libudev-dev libusb-1.0-0-dev make moreutils net-tools netmask nginx nginx-light openssl \
 	pkg-config python-is-python3 python2 python3 python3-pip rng-tools rocksdb-tools rsync secure-delete snapd \
-	sqlite sqlite3 ssl-cert systemd tcptraceroute tmux unzip wcstools zlib1g-dev \
+	sqlite sqlite3 ssl-cert systemd tcptraceroute tmux unzip wcstools xxd zlib1g-dev \
 		1>> "$BUILDLOG" 2>&1 \
 			|| err_exit 71 "$0: Failed to install apt-get dependencies; aborting"
 # Enable unattended, automatic updates
@@ -510,6 +540,7 @@ $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 if ! ischroot; then
 	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1 || snap refresh nmap	1>> "$BUILDLOG" 2>&1
 	snap install rustup --classic		1>> "$BUILDLOG" 2>&1 || snap refresh rustup	1>> "$BUILDLOG" 2>&1
+	snap install jcli --classic			1>> "$BUILDLOG" 2>&1 || snap refresh jcli	1>> "$BUILDLOG" 2>&1
 	snap install go --classic			1>> "$BUILDLOG" 2>&1 || snap refresh go		1>> "$BUILDLOG" 2>&1
 else
 	## Truly dangerous just to run someone else's shell script blind, off the internet
@@ -1268,7 +1299,7 @@ fi
 # Set up directory structure in the $INSTALLDIR (OK if they exist already)
 #
 # Set owner of topology file here to root (will later set it back)
-create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" 'root'
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$CARDANO_SPOSDIR" "$INSTALL_USER" 'root'
 
 LASTRUNFILE="$INSTALLDIR/logs/build-command-line-$(date '+%Y-%m-%d-%H:%M:%S').log"
 echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNFILE
@@ -1529,6 +1560,28 @@ fi
 [ -s "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json" ] \
 	|| err_exit 146 "$0: Empty topology file; fix by hand: ${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json; aborting"
 
+# Pull SPOS scripts and related utilities like bech32 and vit-kedqr
+#
+cd "$INSTALLDIR"
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/bech32' "$SKIP_RECOMPILE" "$BUILDLOG"; then
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" "bech32" "$CABAL" "$BUILDLOG"
+fi
+#
+cd "$INSTALLDIR"
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/vit-kedqr' "$SKIP_RECOMPILE" "$BUILDLOG"; then
+	cd "$BUILDDIR/vit-kedqr"
+	cargo build --bin vit-kedqr					1>> "$BUILDLOG" 2>&1
+	cargo install --path . --force --locked		1>> "$BUILDLOG" 2>&1
+	[ -x './bin/vit-kedqr' ] && cp -f './bin/vit-kedqr' "$INSTALLDIR"
+fi
+
+# git clone https://github.com/gitmachtl/scripts	
+#
+#	https://github.com/input-output-hk/bech32
+#    cd "$SPOSTEMPDIR"
+#
+#	CARDANO_SPOSDIR
+
 # UPDATE gLiveView.sh and other guild scripts
 #
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
@@ -1655,7 +1708,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 fi
 
 # Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
-create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$INSTALL_USER" "$INSTALL_USER"
+create_and_secure_installdir "$BLOCKCHAINNETWORK" "$INSTALLDIR" "$CARDANO_FILEDIR" "$CARDANO_DBDIR" "$CARDANO_PRIVDIR" "$CARDANO_SCRIPTDIR" "$CARDANO_SPOSDIR" "$INSTALL_USER" "$INSTALL_USER"
 
 # Re-enable cardano-node and ensure auto-starts
 #
