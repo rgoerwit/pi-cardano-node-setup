@@ -387,7 +387,7 @@ download_github_code () {
 	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
@@ -411,22 +411,22 @@ download_github_code () {
 
 create_and_secure_installdir () {
 
-	MYBLOCKCHAINNETWORK=$1
-	MYINSTALLDIR=$2
+	MY_BLOCKCHAINNETWORK=$1
+	MY_INSTALLDIR=$2
 	MY_CARDANO_FILEDIR=$3
 	MY_CARDANO_DBDIR=$4
 	MY_CARDANO_PRIVDIR=$5
 	MY_CARDANO_SCRIPTDIR=$6
 	MY_CARDANO_SPOSDIR=$7
-	MYINSTALLUSER=$8
+	MY_INSTALLUSER=$8
 	TOPOLOGYFILEOWNER=$9
 
-	debug "(Re)checking/building cardano-node directory structure in $MYINSTALLDIR"
-	cd "$MYINSTALLDIR"
+	debug "(Re)checking/building cardano-node directory structure in $MY_INSTALLDIR"
+	cd "$MY_INSTALLDIR"
 	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" "$CARDANO_SPOSDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
 		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
 		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
-		chown -R root.$MYINSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
+		chown -R root.$MY_INSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
 		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_DBDIR" ] || [[ "$INSTALL_SUBDIR" =~ guild-db$ ]] || [[ "$INSTALL_SUBDIR" =~ logs$ ]] || [[ "$INSTALL_SUBDIR" =~ sockets$ ]]; then
 			find "$INSTALL_SUBDIR" -type d -exec chmod 2775 {} \; # Cardano group must write to here
 			find "$INSTALL_SUBDIR" -type f -exec chmod 0664 {} \; # Cardano group must write to here
@@ -435,14 +435,14 @@ create_and_secure_installdir () {
 				find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
 				find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \;
 				# Ensuring cardano user itself can modify its topology file (topologyUpdater.sh wants this)
-				chown ${TOPOLOGYFILEOWNER:-$MYINSTALLUSER}.${TOPOLOGYFILEOWNER:-$MYINSTALLUSER} "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
-				chmod ug+w "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
+				chown ${TOPOLOGYFILEOWNER:-$MY_INSTALLUSER}.${TOPOLOGYFILEOWNER:-$MY_INSTALLUSER} "${INSTALL_SUBDIR}/${MYBLOCKCHAINNETWORK}-topology.json"
+				chmod ug+w "${INSTALL_SUBDIR}/${MY_BLOCKCHAINNETWORK}-topology.json"
 			else
 				if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
 					find "$INSTALL_SUBDIR" -type d -exec chmod 1775 {} \; # Cardano group DOES need to write to here but can't delete other users' files
 					find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
 					# Guild scripts want to update their topologyUpdater.sh files
-					chown ${TOPOLOGYFILEOWNER:-$MYINSTALLUSER}.${TOPOLOGYFILEOWNER:-$MYINSTALLUSER} "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" 
+					chown ${TOPOLOGYFILEOWNER:-$MY_INSTALLUSER}.${TOPOLOGYFILEOWNER:-$MY_INSTALLUSER} "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh" 
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh"
 				else
 					if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SCRIPTDIR" ]; then
@@ -466,25 +466,28 @@ create_and_secure_installdir () {
 
 cabal_install_software () {
 
-	MYBUILDDIR=$1
-	MYINSTALLDIR=$2
-	MYPACKAGENAME=$3
+	MYCABALBUILDDIR=$1
+	MYCABALINSTALLDIR=$2
+	MYCABALPACKAGENAME=$3
 	MYCABAL=$4
-	MYBUILDLOG=$5
-	MYEXECUTABLENAME=$6
+	MYCABALBUILDLOG=$5
+	MYCABALPRODUCT=$6
 
-	[ -z "$MYEXECUTABLENAME" ] && MYEXECUTABLENAME="$MYPACKAGENAME"
-	cd "$MYBUILDDIR/$MYPACKAGENAME" || err_abort 41 "$0: Can't 'cd $MYBUILDDIR/$MYPACKAGENAME'; aborting"
-	debug "Downloading $MYEXECUTABLENAME; installing to $MYINSTALLDIR"
-	$MYCABAL clean 1>> "$MYBUILDLOG"  2>&1
-	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
+	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
+	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG"  2>&1 \
+		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
+	debug "Downloading $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
+	$MYCABAL clean 1>> "$MYCABALBUILDLOG"  2>&1
+	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
-		mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
-		cp -f $(find "$MYBUILDDIR" -type f -name "$MYEXECUTABLENAME" ! -path '*OLD*') "$MYINSTALLDIR/$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1 \
-			|| { mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD" "$MYINSTALLDIR/$MYEXECUTABLENAME"; err_exit 81 "Failed to build $MYEXECUTABLENAME; aborting"; }
+		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
+		cp -f $(find "$MYCABALBUILDDIR" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*') "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
+			|| { mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD" "$MYCABALINSTALLDIR/$MYCABALPRODUCT"; err_exit 81 "Failed to build $MYCABALPRODUCT; aborting"; }
 	else
-		err_exit 43 "$0: Failed to build $MYEXECUTABLENAME; aborting"
+		err_exit 43 "$0: Failed to build $MYCABALPRODUCT; aborting"
 	fi
+	popd 1>> "$MYCABALBUILDLOG"  2>&1
+
 }
 
 # Make sure our build user exists
@@ -1571,11 +1574,11 @@ fi
 #
 cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/bech32' "$SKIP_RECOMPILE" "$BUILDLOG"; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" "bech32" "$CABAL" "$BUILDLOG"
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 fi
 cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/offchain-metadata-tools' "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'token-metadata-creator'; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" "offchain-metadata-tools" "$CABAL" "$BUILDLOG" 'token-metadata-creator'
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
 fi
 cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/vit-kedqr' "$SKIP_RECOMPILE" "$BUILDLOG"; then
