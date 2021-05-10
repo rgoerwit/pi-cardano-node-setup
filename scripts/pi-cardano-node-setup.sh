@@ -862,7 +862,7 @@ if [ -e "$NODE_EXPORTER_DIR" ]; then
 	: do nothing
 else
 	mkdir -p "$NODE_EXPORTER_DIR"								1>> "$BUILDLOG" 2>&1
-    chown -R root.$INSTALL_USER "$NODE_EXPORTER_DIR"				1>> "$BUILDLOG" 2>&1
+    chown -R root.$INSTALL_USER "$NODE_EXPORTER_DIR"			1>> "$BUILDLOG" 2>&1
 	find "$NODE_EXPORTER_DIR" -type d -exec chmod "2755" {} \;	1>> "$BUILDLOG" 2>&1
 fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" "$NODE_EXPORTER_DIR"; then
@@ -871,7 +871,8 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus
 		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
-cp -f node_exporter "$NODE_EXPORTER_DIR/node_exporter"	1>> "$BUILDLOG" 2>&1
+
+cp -f $(find "$BUILDDIR/node_exporter/" -type f -name 'node_exporter' ! -path '*OLD*') "$NODE_EXPORTER_DIR/node_exporter" 1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" = '.Y' ] && [ -f '/etc/systemd/system/node_exporter.service' ]
 then
 	debug "Skipping node_exporter service file remake (drop -d to force)"
