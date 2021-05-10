@@ -215,8 +215,8 @@ touch "$BUILDLOG"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
-CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"	# mostly guild scripts
-CARDANO_SPOSDIR="${INSTALLDIR}/spos"		# SPOS scripts ("Martin's scripts")
+CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"					# mostly guild scripts
+CARDANO_SPOSDIR="${INSTALLDIR}/spos-${BLOCKCHAINNETWORK}"	# SPOS scripts ("Martin's scripts")
 
 # Make sure the path has the locations in it that we'll be needing
 ( [[ "$PATH" =~ /usr/local/bin ]] && [[ "$PATH" =~ /snap/bin ]] ) || PATH="/usr/local/bin:/snap/bin:$PATH"
@@ -359,6 +359,7 @@ download_github_code () {
 	MYBUILDLOG=$5
 	MYPROGINSTALLDIR=$6
 	MYREQUIREDVERSION=$7
+	MYINSTALLPROGNAME=$8
 
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
@@ -368,35 +369,37 @@ download_github_code () {
 
 	# Try to determine version of MYPROGNAME
 	ISLIBRARY='N'
-	MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
+	[ -z "$MYPROGNAME" ] && MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
+	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYPROGNAME"
+	
 	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ]; then
 		# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
-		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	else
-		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
+		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
 			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 			ISLIBRARY='Y'
 		fi
 	fi
 	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
-	debug "Checking whether GitHub code refresh is needed for $MYPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
+	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
 	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' 	]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
-		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ] ) \
+		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
 	then
-		debug "Refresh not needed for $MYPROGNAME ($MYREPOSITORYURL)"
+		debug "Refresh not needed for $MYINSTALLPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
 		return 1
 	else
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
-		debug "Refreshing GitHub code for $MYPROGNAME from: $MYREPOSITORYURL"
+		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYPROGNAME"
 		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
 		git reset --hard 1>> "$MYBUILDLOG" 2>&1
@@ -465,16 +468,18 @@ cabal_install_software () {
 
 	MYBUILDDIR=$1
 	MYINSTALLDIR=$2
-	MYEXECUTABLENAME=$3
+	MYPACKAGENAME=$3
 	MYCABAL=$4
 	MYBUILDLOG=$5
+	MYEXECUTABLENAME=$6
 
-	cd "$MYBUILDDIR/$MYEXECUTABLENAME" || err_abort 41 "$0: Can't 'cd $MYBUILDDIR/$MYEXECUTABLENAME'; aborting"
-	debug "Downloading $MYEXECUTABLENAME utility; installing to $MYINSTALLDIR"
+	[ -z "$MYEXECUTABLENAME" ] && MYEXECUTABLENAME="$MYPACKAGENAME"
+	cd "$MYBUILDDIR/$MYPACKAGENAME" || err_abort 41 "$0: Can't 'cd $MYBUILDDIR/$MYPACKAGENAME'; aborting"
+	debug "Downloading $MYEXECUTABLENAME; installing to $MYINSTALLDIR"
 	$MYCABAL clean 1>> "$MYBUILDLOG"  2>&1
 	if $CABAL build all 1>> "$BUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
-		mv -f "$MYINSTALLDIR/$MY" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
+		mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME" "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD"	1>> "$MYBUILDLOG" 2>&1
 		cp -f $(find "$MYBUILDDIR" -type f -name "$MYEXECUTABLENAME" ! -path '*OLD*') "$MYINSTALLDIR/$MYEXECUTABLENAME" 1>> "$MYBUILDLOG" 2>&1 \
 			|| { mv -f "$MYINSTALLDIR/$MYEXECUTABLENAME.OLD" "$MYINSTALLDIR/$MYEXECUTABLENAME"; err_exit 81 "Failed to build $MYEXECUTABLENAME; aborting"; }
 	else
@@ -1568,11 +1573,14 @@ cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/bech32' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" "bech32" "$CABAL" "$BUILDLOG"
 fi
-#
+cd "$INSTALLDIR"
+if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/offchain-metadata-tools' "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'token-metadata-creator'; then
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" "offchain-metadata-tools" "$CABAL" "$BUILDLOG" 'token-metadata-creator'
+fi
 cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/vit-kedqr' "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cd "$BUILDDIR/vit-kedqr"
-	debug "Compiling and insntalling vit-kedqr to $INSTALLDIR"
+	debug "Compiling and installing vit-kedqr to $INSTALLDIR"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
 		cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
 		cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
@@ -1581,15 +1589,34 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-outp
 	fi
 fi
 
-# git clone https://github.com/gitmachtl/scripts	
-#
-#	https://github.com/input-output-hk/bech32
-#    cd "$SPOSTEMPDIR"
-#
-#	CARDANO_SPOSDIR
+cd "$INSTALLDIR"
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG"; then
+	debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (use these OR CNTools, not both)"
+	cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
+	cp -f * "${CARDANO_SPOSDIR}/"
+	chown -R root.root "$CARDANO_SPOSDIR"
+	chmod 0755 "${CARDANO_SPOSDIR}/"*.sh
+	find "$CARDANO_SPOSDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;  # secure non-script files
+#	sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
+#		-e "s@^\#* *CCLI=['\"][^'\"]*['\"]@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
+#		-e "s@^\#* *CNCLI=['\"][^'\"]*['\"]@CNCLI=\"$INSTALLDIR/cncli\"@g" \
+#		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
+#		-e "s|^\#* *UPDATE_CHECK=['\"][^'\"]*['\"]|UPDATE_CHECK=\"N\"|g" \
+#		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
+#		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
+#		-e "s|^\#* *CNODE_PORT=[^#]*|CNODE_PORT=\"$LISTENPORT\" |g" \
+#		-e "s|^\#* *TOPOLOGY=[^#]*|TOPOLOGY=\"$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json\" |g" \
+#		-e "s|^\#* *LOG_DIR=[^#]*|LOG_DIR=\"${INSTALLDIR}/logs\" |g" \
+#		-e "s|^\#* *DB_DIR=[^#]*|DB_DIR=\"$CARDANO_DBDIR\" |g" \
+#		-e "s|^\#* *WALLET_FOLDER=[^#]*|WALLET_FOLDER=\"${CARDANO_PRIVDIR}/wallet\" |g" \
+#		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
+#		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
+#			|| err_exit 109 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
+fi
 
 # UPDATE gLiveView.sh and other guild scripts
 #
+cd "$INSTALLDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
 	GUILDOPTEMPDIR='guild-operators-temp'
@@ -1606,7 +1633,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
  	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
 	cd './scripts/cnode-helper-scripts'
-	cp -f * ${CARDANO_SCRIPTDIR}/
+	cp -f * "${CARDANO_SCRIPTDIR}/"
 	chown -R root.root "${CARDANO_SCRIPTDIR}"
 	chmod 0755 "${CARDANO_SCRIPTDIR}/"*.sh
 	popd 1>> "$BUILDLOG" 2>&1
