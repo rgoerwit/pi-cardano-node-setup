@@ -211,7 +211,7 @@ CARDANO_PROMETHEUS_LISTEN='0.0.0.0' 	# IP address where cardano-node provides da
 INSTALLDIR="/home/${INSTALL_USER}"
 BUILDDIR="/home/${BUILD_USER}/Cardano-BuildDir"
 BUILDLOG="${TMPDIR:-/tmp}/build-log-$(date '+%Y-%m-%d-%H:%M:%S').log"
-touch "$BUILDLOG"
+touch "$BUILDLOG"; chmod o-rwx "$BUILDLOG"
 CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
@@ -364,7 +364,7 @@ download_github_code () {
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
 		MYREQUIREDVERSION=$(echo "$MYREQUIREDVERSION" | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		debug "No minimum version specified for $(echo \"$MYREPOSITORYURL\" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
+		debug "No minimum version specified for $(echo "$MYREPOSITORYURL" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
 	fi
 
 	# Try to determine version of MYGITPROGNAME
@@ -1572,15 +1572,15 @@ fi
 # Pull SPOS scripts and related utilities like bech32 and vit-kedqr
 #
 cd "$INSTALLDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/bech32' "$SKIP_RECOMPILE" "$BUILDLOG"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 fi
 cd "$INSTALLDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/offchain-metadata-tools' "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'token-metadata-creator'; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
 fi
 cd "$INSTALLDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/input-output-hk/vit-kedqr' "$SKIP_RECOMPILE" "$BUILDLOG"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cd "$BUILDDIR/vit-kedqr"
 	debug "Compiling and installing vit-kedqr to $INSTALLDIR"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
