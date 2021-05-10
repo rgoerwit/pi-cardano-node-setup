@@ -367,29 +367,29 @@ download_github_code () {
 		debug "No minimum version specified for $(echo \"$MYREPOSITORYURL\" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
 	fi
 
-	# Try to determine version of MYPROGNAME
+	# Try to determine version of MYGITPROGNAME
 	ISLIBRARY='N'
-	[ -z "$MYPROGNAME" ] && MYPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
-	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYPROGNAME"
+	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
+	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"
 	
-	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME" ]; then
+	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYGITPROGNAME" ]; then
 		# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 	else
-		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYPROGNAME"); then
+		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYGITPROGNAME"); then
 			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 			ISLIBRARY='Y'
 		fi
 	fi
-	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYPROGNAME"
+	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYGITPROGNAME"
 	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]	|| 'rm' -rf "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
-	[ -f "$MYBUILDDIR/$MYPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYPROGNAME"	1>> "$MYBUILDLOG" 2>&1
-	[ -d "$MYBUILDDIR/$MYPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]	|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ -f "$MYBUILDDIR/$MYGITPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ -d "$MYBUILDDIR/$MYGITPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
@@ -400,7 +400,7 @@ download_github_code () {
 	else
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
-		cd "./$MYPROGNAME"
+		cd "./$MYGITPROGNAME"
 		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
 		git reset --hard 1>> "$MYBUILDLOG" 2>&1
 		git pull 1>> "$MYBUILDLOG" 2>&1
