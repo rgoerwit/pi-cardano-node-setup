@@ -1597,21 +1597,20 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" 
 	debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (use these OR CNTools, not both)"
 	cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
 	cp -f ./* "${CARDANO_SPOSDIR}/"
-#	sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
-#		-e "s@^\#* *CCLI=['\"][^'\"]*['\"]@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
-#		-e "s@^\#* *CNCLI=['\"][^'\"]*['\"]@CNCLI=\"$INSTALLDIR/cncli\"@g" \
-#		-e "s|^\#* *CONFIG=\"\${CNODE_HOME}/[^/]*/[^/.]*\.json\"|CONFIG=\"$NODE_CONFIG_FILE\"|g" \
-#		-e "s|^\#* *UPDATE_CHECK=['\"][^'\"]*['\"]|UPDATE_CHECK=\"N\"|g" \
-#		-e "s|^\#* *SOCKET=\"\${CNODE_HOME}/[^/]*/[^/.]*\.socket\"|SOCKET=\"$INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
-#		-e "s|^\#* *CNODE_HOME=[^#]*|CNODE_HOME=\"$INSTALLDIR\" |g" \
-#		-e "s|^\#* *CNODE_PORT=[^#]*|CNODE_PORT=\"$LISTENPORT\" |g" \
-#		-e "s|^\#* *TOPOLOGY=[^#]*|TOPOLOGY=\"$CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json\" |g" \
-#		-e "s|^\#* *LOG_DIR=[^#]*|LOG_DIR=\"${INSTALLDIR}/logs\" |g" \
-#		-e "s|^\#* *DB_DIR=[^#]*|DB_DIR=\"$CARDANO_DBDIR\" |g" \
-#		-e "s|^\#* *WALLET_FOLDER=[^#]*|WALLET_FOLDER=\"${CARDANO_PRIVDIR}/wallet\" |g" \
-#		-e "s|^\#* *POOL_FOLDER=[^#]*|POOL_FOLDER=\"${CARDANO_PRIVDIR}/pool\" |g" \
-#		-e "s|^\#* *ASSET_FOLDER=[^#]*|ASSET_FOLDER=\"${CARDANO_PRIVDIR}/asset\" |g" \
-#			|| err_exit 109 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
+	sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
+		-e "s|^\#* *socket=['\"][^'\"]*['\"]|socket=\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
+		-e "s|^\#* *genesisfile=['\"][^'\"]*['\"]|genesisfile=\"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json\"|g" \
+		-e "s|^\#* *cardanocli=['\"][^'\"]*['\"]|cardanocli=\"${INSTALLDIR}/cardano-cli\"|g" \
+		-e "s|^\#* *cardanonode=['\"][^'\"]*['\"]|cardanonode=\"${INSTALLDIR}/cardano-node\"|g" \
+		-e "s|^\#* *bech32_bin=['\"][^'\"]*['\"]|bech32_bin=\"${INSTALLDIR}/bech32\"|g" \
+		-e "s|^\#* *offlineMode=['\"][^'\"]*['\"]|offlineMode=\"yes\"|g" \
+		-e "s|^\#* *offlineFile=['\"][^'\"]*['\"]|offlineFile=\"${CARDANO_SPOSDIR}/offlineTransfer.json\"|g" \
+		-e "s|^\#* *jcli_bin=['\"][^'\"]*['\"]|jcli_bin=\"${INSTALLDIR}/jcli\"|g" \
+		-e "s|^\#* *vitkedqr_bin=['\"][^'\"]*['\"]|vitkedqr_bin=\"${INSTALLDIR}/vit-kedqr\"|g" \
+		-e "s|^\#* *cardanohwcli=['\"][^'\"]*['\"]|cardanohwcli=\"${INSTALLDIR}/cardano-hw-cli\"|g" \
+		-e "s|^\#* *cardanometa=['\"][^'\"]*['\"]|cardanometa=\"${INSTALLDIR}/token-metadata-creator\"|g" \
+		-e "s|^\#* *queryTokenRegistry=['\"][^'\"]*['\"]|queryTokenRegistry=\"no\"|g" \
+			|| err_exit 110 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
 fi
 
 # UPDATE gLiveView.sh and other guild scripts
