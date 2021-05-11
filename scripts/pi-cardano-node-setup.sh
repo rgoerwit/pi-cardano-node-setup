@@ -377,6 +377,7 @@ download_github_code () {
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2>&1 | egrep -vi 'error|invalid' | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME version 2>&1 | egrep -vi 'error|invalid' | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[[ "$MYVERSION" =~ [Uu]sage ]] && MYVERSION=''  # Give up if we got a usage message
 	else
 		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYGITPROGNAME"); then
 			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
@@ -1434,7 +1435,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		fi
 	else
 		# We assume if port is less than 6000 (usually 3000 or 3001), we're a relay-only node, not a block producer
-		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (port < 6000); ignoring key/cert files in $CARDANO_PRIVDIR"
+		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (no -P <pool> or port < 6000); ignoring key/cert files in $CARDANO_PRIVDIR"
 	fi
 	cat << _EOF > "$INSTALLDIR/cardano-node-starting-env.txt"
 PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
