@@ -1226,8 +1226,8 @@ done
 #
 cd "$BUILDDIR"
 if [[ ! -d './cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
-	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node.git"
-	git clone "${IOHKREPO}/cardano-node.git"	1>> "$BUILDLOG" 2>&1
+	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node"
+	git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
 fi
 cd "$BUILDDIR/cardano-node"
 # Power move - updates local copies of remote branches (will not update local branches, which track remote branches)
@@ -1237,10 +1237,13 @@ git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
 debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
 if [ -z "$CARDANONODE_VERSION" ]; then
-	git pull	1>> "$BUILDLOG" 2>&1	# Fast forward, find version
-	CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
-	[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git tag | sort -V | egrep '^[0-9]' | tail -1)
-	debug "No cardano-node version specified; defaulting to latest tag in the current branch, $CARDANONODE_VERSION"
+	CARDANONODE_VERSION=$(git_latest_release "${IOHKREPO}/cardano-node")
+	if [ -z "$CARDANONODE_VERSION" ]; then
+		git pull	1>> "$BUILDLOG" 2>&1	# Fast forward, find version
+		CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
+		[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git tag | sort -V | egrep '^[0-9]' | tail -1)
+	fi
+	debug "No cardano-node version specified; defaulting to $CARDANONODE_VERSION"
 fi
 CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
 [[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
