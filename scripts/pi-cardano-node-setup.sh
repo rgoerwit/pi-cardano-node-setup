@@ -452,16 +452,19 @@ create_and_secure_installdir () {
 						find "$INSTALL_SUBDIR" -type d -exec chmod 0700 {} \; # Cardano group does not need to write to here
 						find "$INSTALL_SUBDIR" -type f -exec chmod 0600 {} \; -name '*.sh' -exec chmod u+x {} \;
 					else
-						find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
-						find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+						if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
+							debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
+							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
+							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
+							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 2700 {} \;
+							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod 0600 {} \;
+						else
+							find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
+							find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
+						fi
 					fi
 				fi
 			fi
-		fi
-		# Make contents of files in priv directory (below the top level) invisible to all but the owner (root)
-		if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
-			debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
-			find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod go-rwx {} \;
 		fi
 	done
 }
