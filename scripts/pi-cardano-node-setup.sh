@@ -364,7 +364,8 @@ download_github_code () {
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
 		MYREQUIREDVERSION=$(echo "$MYREQUIREDVERSION" | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
-		debug "No minimum version specified for $(echo "$MYREPOSITORYURL" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-0.0}"
+		debug "No minimum version specified for $(echo "$MYREPOSITORYURL" | sed 's:/*$::' | awk -F/ '{ print $(NF) }'); latest version on GitHub is ${MYREQUIREDVERSION:-unknown}"
+		[ -z "$MYREQUIREDVERSION" ] && MYREQUIREDVERSION='0.0'
 	fi
 
 	# Try to determine version of MYGITPROGNAME
@@ -372,7 +373,7 @@ download_github_code () {
 	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
 	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"
 	
-	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYGITPROGNAME" ]; then
+	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 		# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
@@ -384,15 +385,15 @@ download_github_code () {
 		fi
 	fi
 	# [ -z "$MYVERSION" ] && debug "Can't determine version for: ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYGITPROGNAME"
-	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION:-unknown})"
+	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]	|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]		|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYGITPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -d "$MYBUILDDIR/$MYGITPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
-		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION:-0.0}
+		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION}
 	then
 		debug "Refresh not needed for $MYINSTALLPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
