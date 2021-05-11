@@ -368,16 +368,16 @@ download_github_code () {
 		[ -z "$MYREQUIREDVERSION" ] && MYREQUIREDVERSION='0.0'
 	fi
 
-	# Try to determine version of MYGITPROGNAME
+	# Try to determine version of $MYINSTALLPROGNAME (usually the same as $MYGITPROGNAME)
 	ISLIBRARY='N'
 	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
-	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"
-	
+	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"	
 	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 		# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
 		MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2> /dev/null | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME --version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
 		[ -z "$MYVERSION" ] && MYVERSION=$(${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME version 2>&1 | sed 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9.]*\).*$/\1/' | egrep '.' | head -1)
+		[[ "$MYVERSION" =~ (nvalid|error) ]] && MYVERSION=''
 	else
 		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYGITPROGNAME"); then
 			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
@@ -1582,7 +1582,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata
 fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
 	cd "$BUILDDIR/vit-kedqr"
-	debug "Compiling and installing vit-kedqr to $INSTALLDIR"
+	debug "Compiling and installing vit-kedqr to $INSTALLDIR; takes a long time"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
 		cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
 		cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
