@@ -456,7 +456,7 @@ create_and_secure_installdir () {
 							debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
 							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
 							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
-							chown "$INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
+							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
 							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 2700 {} \;	# And not even the cardano group should see below depth 1
 							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod 0600 {} \;
 						else
@@ -1420,8 +1420,6 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert"
-				chown $INSTALL_USER.$INSTALL_USER "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
-				chmod 0600 "$CARDANO_PRIVDIR/kes.skey" "$CARDANO_PRIVDIR/vrf.skey" "$CARDANO_PRIVDIR/node.cert"
 			else
 				err_exit 131 "Can't find guild wallet: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}; aborting"
 			fi
@@ -1591,7 +1589,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata
 fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
 	cd "$BUILDDIR/vit-kedqr"
-	debug "Compiling and installing vit-kedqr to $INSTALLDIR; takes a long time"
+	debug "Compiling and installing vit-kedqr to $INSTALLDIR; on first pass takes a long time"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
 		cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
 		cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
