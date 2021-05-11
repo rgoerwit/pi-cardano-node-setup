@@ -1572,16 +1572,14 @@ fi
 
 # Pull SPOS scripts and related utilities like bech32 and vit-kedqr
 #
-cd "$INSTALLDIR"
+cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 fi
-cd "$INSTALLDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
 fi
-cd "$INSTALLDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG"; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
 	cd "$BUILDDIR/vit-kedqr"
 	debug "Compiling and installing vit-kedqr to $INSTALLDIR"
 	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
@@ -1591,10 +1589,9 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP
 		debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
 	fi
 fi
-
-cd "$INSTALLDIR"
+cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG"; then
-	debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (use these OR CNTools, not both)"
+	debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (don't use both these AND CNTools for pool setup!)"
 	cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
 	cp -f ./* "${CARDANO_SPOSDIR}/"
 	sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
