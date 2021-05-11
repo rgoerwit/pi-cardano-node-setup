@@ -456,7 +456,8 @@ create_and_secure_installdir () {
 							debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
 							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
 							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
-							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 2700 {} \;
+							chown "$INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
+							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 2700 {} \;	# And not even the cardano group should see below depth 1
 							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod 0600 {} \;
 						else
 							find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
@@ -1493,7 +1494,7 @@ debug "Cardano node will be started (later):
 	$IPV4ARG $IPV6ARG --port $LISTENPORT \\
         --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json \\
         --database-path ${CARDANO_DBDIR}/ \\
-            $(echo "${CERTKEYARGS:-# No cert-key args available}" | sed 's/ --/\n\\\\            --/g' )"
+            $(echo "${CERTKEYARGS:-# No cert-key args available}" | sed 's/ --/\\\\\n            --/g' )"
 
 # Modify topology file; add -R <node-ip:port> information
 #
