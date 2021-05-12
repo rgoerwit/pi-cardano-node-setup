@@ -757,18 +757,22 @@ else
 fi
 cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/prometheus' "$SKIP_RECOMPILE" "$BUILDLOG" "$PROMETHEUS_DIR"; then
-	cd './prometheus'
-	debug "Building and installing prometheus"
-	$MAKE clean						1>> "$BUILDLOG" 2>&1
-	pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
-	rm -rf node_modules				1>> "$BUILDLOG" 2>&1
-	npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
-	node cache clean --force		1>> "$BUILDLOG" 2>&1
-	node install node-sass --force	1>> "$BUILDLOG" 2>&1
-	popd							1>> "$BUILDLOG" 2>&1
-	$MAKE build						1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
-	cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
+	if ischroot && ! command -v 'go' 1>> "$BUILDLOG" 2>&1; then
+		debug "Skipping prometheus rebuild; we're in a chroot and 'go' isn't installed"
+	else
+		cd './prometheus'
+		debug "Building and installing prometheus"
+		$MAKE clean						1>> "$BUILDLOG" 2>&1
+		pushd './web/ui/react-app'		1>> "$BUILDLOG" 2>&1
+		rm -rf node_modules				1>> "$BUILDLOG" 2>&1
+		npm uninstall node-sass -g		1>> "$BUILDLOG" 2>&1
+		node cache clean --force		1>> "$BUILDLOG" 2>&1
+		node install node-sass --force	1>> "$BUILDLOG" 2>&1
+		popd							1>> "$BUILDLOG" 2>&1
+		$MAKE build						1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
+		cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
+	fi
 fi
 
 if [ ".$DONT_OVERWRITE" = '.Y' ] && [[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ]]
@@ -1590,7 +1594,7 @@ fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address'
 fi
-go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
+which 'go' && go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
 fi
