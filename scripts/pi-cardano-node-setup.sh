@@ -453,7 +453,7 @@ create_and_secure_installdir () {
 						find "$INSTALL_SUBDIR" -type f -exec chmod 0600 {} \; -name '*.sh' -exec chmod u+x {} \;
 					else
 						if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
-							debug "Placing secure permissions (go-rwx) on root-owned files in $INSTALL_SUBDIR"
+							debug "Placing secure permissions (go-rwx) on files in $INSTALL_SUBDIR"
 							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
 							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
 							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
@@ -488,7 +488,10 @@ cabal_install_software () {
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
 		cp -f $(find "$MYCABALBUILDDIR" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*') "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
-			|| { mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD" "$MYCABALINSTALLDIR/$MYCABALPRODUCT"; err_exit 81 "Failed to build $MYCABALPRODUCT; aborting"; }
+			|| { 
+				mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD" "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1
+				err_exit 81 "Failed to build $MYCABALPRODUCT; aborting"
+			}
 	else
 		err_exit 43 "$0: Failed to build $MYCABALPRODUCT; aborting"
 	fi
@@ -1584,8 +1587,8 @@ cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 fi
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG"; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" '' '' 'cardano-address'
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address'; then
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address'
 fi
 go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
