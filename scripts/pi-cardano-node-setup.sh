@@ -449,16 +449,16 @@ create_and_secure_installdir () {
 					chmod 0775 "${MY_CARDANO_SCRIPTDIR}/topologyUpdater.sh"
 				else
 					if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_SPOSDIR" ]; then
-						find "$INSTALL_SUBDIR" -type d -exec chmod 0700 {} \; # Cardano group does not need to write to here
-						find "$INSTALL_SUBDIR" -type f -exec chmod 0600 {} \; -name '*.sh' -exec chmod u+x {} \;
+						find "$INSTALL_SUBDIR" -type d -exec chmod =0700 {} \; # Cardano group does not need to write to here
+						find "$INSTALL_SUBDIR" -type f -exec chmod =0600 {} \; -name '*.sh' -exec chmod u+x {} \;
 					else
 						if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
 							debug "Placing secure permissions (go-rwx) on files in $INSTALL_SUBDIR"
 							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
 							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
 							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
-							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 0700 {} \;	# And not even the cardano group should see below depth 1
-							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod 0600 {} \;
+							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod =0700 {} \;	# And not even the cardano group should see below depth 1
+							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod =0600 {} \;
 						else
 							find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
 							find "$INSTALL_SUBDIR" -type f -exec chmod 0644 {} \; -name '*.sh' -exec chmod a+x {} \;
