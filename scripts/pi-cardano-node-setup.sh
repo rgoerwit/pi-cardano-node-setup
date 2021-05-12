@@ -457,7 +457,7 @@ create_and_secure_installdir () {
 							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
 							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
 							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
-							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 2700 {} \;	# And not even the cardano group should see below depth 1
+							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod 0700 {} \;	# And not even the cardano group should see below depth 1
 							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod 0600 {} \;
 						else
 							find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
@@ -1605,24 +1605,26 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP
 	fi
 fi
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'no-such-executable'; then
-	debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (don't use both these AND CNTools for pool setup!)"
-	cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
-	cp -f ./* "${CARDANO_SPOSDIR}/"
-	sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
-		-e "s|^\#* *socket=['\"][^'\"]*['\"]|socket=\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
-		-e "s|^\#* *genesisfile=['\"][^'\"]*['\"]|genesisfile=\"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json\"|g" \
-		-e "s|^\#* *cardanocli=['\"][^'\"]*['\"]|cardanocli=\"${INSTALLDIR}/cardano-cli\"|g" \
-		-e "s|^\#* *cardanonode=['\"][^'\"]*['\"]|cardanonode=\"${INSTALLDIR}/cardano-node\"|g" \
-		-e "s|^\#* *bech32_bin=['\"][^'\"]*['\"]|bech32_bin=\"${INSTALLDIR}/bech32\"|g" \
-		-e "s|^\#* *offlineMode=['\"][^'\"]*['\"]|offlineMode=\"yes\"|g" \
-		-e "s|^\#* *offlineFile=['\"][^'\"]*['\"]|offlineFile=\"${CARDANO_SPOSDIR}/offlineTransfer.json\"|g" \
-		-e "s|^\#* *jcli_bin=['\"][^'\"]*['\"]|jcli_bin=\"${INSTALLDIR}/jcli\"|g" \
-		-e "s|^\#* *vitkedqr_bin=['\"][^'\"]*['\"]|vitkedqr_bin=\"${INSTALLDIR}/vit-kedqr\"|g" \
-		-e "s|^\#* *cardanohwcli=['\"][^'\"]*['\"]|cardanohwcli=\"${INSTALLDIR}/cardano-hw-cli\"|g" \
-		-e "s|^\#* *cardanometa=['\"][^'\"]*['\"]|cardanometa=\"${INSTALLDIR}/token-metadata-creator\"|g" \
-		-e "s|^\#* *queryTokenRegistry=['\"][^'\"]*['\"]|queryTokenRegistry=\"no\"|g" \
-			|| err_exit 110 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
+if [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'no-such-executable'; then
+		debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (don't use both these AND CNTools for pool setup!)"
+		cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
+		cp -f ./* "${CARDANO_SPOSDIR}/"
+		sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
+			-e "s|^\#* *socket=['\"][^'\"]*['\"]|socket=\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
+			-e "s|^\#* *genesisfile=['\"][^'\"]*['\"]|genesisfile=\"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json\"|g" \
+			-e "s|^\#* *cardanocli=['\"][^'\"]*['\"]|cardanocli=\"${INSTALLDIR}/cardano-cli\"|g" \
+			-e "s|^\#* *cardanonode=['\"][^'\"]*['\"]|cardanonode=\"${INSTALLDIR}/cardano-node\"|g" \
+			-e "s|^\#* *bech32_bin=['\"][^'\"]*['\"]|bech32_bin=\"${INSTALLDIR}/bech32\"|g" \
+			-e "s|^\#* *offlineMode=['\"][^'\"]*['\"]|offlineMode=\"yes\"|g" \
+			-e "s|^\#* *offlineFile=['\"][^'\"]*['\"]|offlineFile=\"${CARDANO_SPOSDIR}/offlineTransfer.json\"|g" \
+			-e "s|^\#* *jcli_bin=['\"][^'\"]*['\"]|jcli_bin=\"${INSTALLDIR}/jcli\"|g" \
+			-e "s|^\#* *vitkedqr_bin=['\"][^'\"]*['\"]|vitkedqr_bin=\"${INSTALLDIR}/vit-kedqr\"|g" \
+			-e "s|^\#* *cardanohwcli=['\"][^'\"]*['\"]|cardanohwcli=\"${INSTALLDIR}/cardano-hw-cli\"|g" \
+			-e "s|^\#* *cardanometa=['\"][^'\"]*['\"]|cardanometa=\"${INSTALLDIR}/token-metadata-creator\"|g" \
+			-e "s|^\#* *queryTokenRegistry=['\"][^'\"]*['\"]|queryTokenRegistry=\"no\"|g" \
+				|| err_exit 110 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
+	fi
 fi
 
 # UPDATE gLiveView.sh and other guild scripts
@@ -1645,8 +1647,6 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
 	cd './scripts/cnode-helper-scripts'
 	cp -f * "${CARDANO_SCRIPTDIR}/"
-	chown -R root.root "${CARDANO_SCRIPTDIR}"
-	chmod 0755 "${CARDANO_SCRIPTDIR}/"*.sh
 	popd 1>> "$BUILDLOG" 2>&1
 
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
