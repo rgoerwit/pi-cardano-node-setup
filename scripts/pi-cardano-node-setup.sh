@@ -476,13 +476,13 @@ cabal_install_software () {
 	MYCABALINSTALLDIR=$2
 	MYCABALPACKAGENAME=$3
 	MYCABAL=$4
-	MYCABALBUILDLOG=$5
+	MYCABALBUILDLOG=$5A
 	MYCABALPRODUCT=$6
 
 	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
 	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG"  2>&1 \
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
-	debug "Downloading $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
+	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	$MYCABAL clean 1>> "$MYCABALBUILDLOG"  2>&1
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
@@ -1584,6 +1584,10 @@ cd "$BUILDDIR"
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG"; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 fi
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG"; then
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" '' '' 'cardano-address'
+fi
+go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
 fi
