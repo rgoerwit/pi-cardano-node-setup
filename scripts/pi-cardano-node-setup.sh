@@ -772,7 +772,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus
 		popd							1>> "$BUILDLOG" 2>&1
 		$MAKE build						1>> "$BUILDLOG" 2>&1 \
 			|| err_exit 21 "Failed to build Prometheus prometheus; see ${BUILDDIR}/prometheus"
-		cp -f prometheus promtool "$PROMETHEUS_DIR/"			1>> "$BUILDLOG" 2>&1
+		cp -f prometheus promtool "$PROMETHEUS_DIR/"	1>> "$BUILDLOG" 2>&1
 	fi
 fi
 
@@ -1596,9 +1596,6 @@ else
 		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
 	fi
 	go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
-	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
-		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
-	fi
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
 		cd "$BUILDDIR/vit-kedqr"
 		debug "Compiling and installing vit-kedqr to $INSTALLDIR; on first pass takes a long time"
@@ -1632,7 +1629,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s|^\#* *jcli_bin=['\"][^'\"]*['\"]|jcli_bin=\"${INSTALLDIR}/jcli\"|g" \
 			-e "s|^\#* *vitkedqr_bin=['\"][^'\"]*['\"]|vitkedqr_bin=\"${INSTALLDIR}/vit-kedqr\"|g" \
 			-e "s|^\#* *cardanohwcli=['\"][^'\"]*['\"]|cardanohwcli=\"${INSTALLDIR}/cardano-hw-cli\"|g" \
-			-e "s|^\#* *cardanometa=['\"][^'\"]*['\"]|cardanometa=\"${INSTALLDIR}/token-metadata-creator\"|g" \
+			-e "s|^\#* *cardanometa=['\"][^'\"]*['\"]|cardanometa=\"${INSTALLDIR}/token-metadata-creator-not-installed\"|g" \
 			-e "s|^\#* *queryTokenRegistry=['\"][^'\"]*['\"]|queryTokenRegistry=\"no\"|g" \
 				|| err_exit 110 "$0: Failed to modify SPOS common file, ${CARDANO_SPOSDIR}/00_common.sh; aborting"	
 	fi
