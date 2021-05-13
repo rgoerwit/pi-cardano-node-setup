@@ -373,7 +373,7 @@ download_github_code () {
 	MYVERSION=''
 	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
 	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"
-	debug "Checking current version of ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME"
+	debug "Checking current version of ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME (if present)"
 	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 		if [ -f "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 			# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
@@ -391,9 +391,9 @@ download_github_code () {
 	debug "Checking whether GitHub code refresh is needed for $MYINSTALLPROGNAME (version, ${MYVERSION:-unknown}; required version, ${MYREQUIREDVERSION})"
 
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
-	[ ".$MYSKIPRECOMPILEFLAG" = '.Y' ]		|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
-	[ -f "$MYBUILDDIR/$MYGITPROGNAME" 	]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
-	[ -d "$MYBUILDDIR/$MYGITPROGNAME" 	]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
+	[ ".$MYSKIPRECOMPILEFLAG" = '.Y'  ]	|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
+	[ -f "$MYBUILDDIR/$MYGITPROGNAME" ]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1  # If file exists with dirname, delete
+	[ -d "$MYBUILDDIR/$MYGITPROGNAME" ]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION}
