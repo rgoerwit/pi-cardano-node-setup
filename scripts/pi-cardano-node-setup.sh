@@ -410,7 +410,7 @@ download_github_code () {
 		cd "./$MYGITPROGNAME"
 		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep -v "^v?$MYREQUIREDVERSION$" | head -1)
 		if [[ ! -z "$MYTAG" ]]; then
-			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag"
+			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
 				&& git fetch				1>> "$MYBUILDLOG" 2>&1 \
 				&& popd 					1>> "$MYBUILDLOG" 2>&1 \
