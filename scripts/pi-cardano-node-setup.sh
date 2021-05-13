@@ -408,7 +408,7 @@ download_github_code () {
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYGITPROGNAME"
-		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep -v "^v?$MYREQUIREDVERSION$" | head -1)
+		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep "^v?$MYREQUIREDVERSION$" | head -1)
 		if [[ ! -z "$MYTAG" ]]; then
 			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
