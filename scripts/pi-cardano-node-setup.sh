@@ -393,7 +393,10 @@ download_github_code () {
 	pushd "$MYBUILDDIR"	1>> "$MYBUILDLOG" 2>&1
 	[ ".$MYSKIPRECOMPILEFLAG" = '.Y'  ]	|| 'rm' -rf "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1
 	[ -f "$MYBUILDDIR/$MYGITPROGNAME" ]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1  # If file exists with dirname, delete
-	[ -d "$MYBUILDDIR/$MYGITPROGNAME" ]	|| git clone --recurse-submodules "$MYREPOSITORYURL" 	1>> "$MYBUILDLOG" 2>&1
+	[ -d "$MYBUILDDIR/$MYGITPROGNAME" ]	|| {
+		debug "Cloning source: git clone --recurse-submodules $MYREPOSITORYURL"
+		git clone --recurse-submodules "$MYREPOSITORYURL" 						1>> "$MYBUILDLOG" 2>&1
+	}
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
 		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION}
@@ -411,6 +414,7 @@ download_github_code () {
 			git pull							1>> "$MYBUILDLOG" 2>&1 \
 				&& git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
 				&& git fetch					1>> "$MYBUILDLOG" 2>&1 \
+				&& popd 						1>> "$MYBUILDLOG" 2>&1 \
 				&& return 0
 		fi
 		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
