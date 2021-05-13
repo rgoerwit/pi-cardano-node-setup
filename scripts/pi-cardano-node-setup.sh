@@ -476,14 +476,14 @@ cabal_install_software () {
 	MYCABALINSTALLDIR=$2
 	MYCABALPACKAGENAME=$3
 	MYCABAL=$4
-	MYCABALBUILDLOG=$5A
+	MYCABALBUILDLOG=$5
 	MYCABALPRODUCT=$6
 
 	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
-	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG"  2>&1 \
+	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG" 2>&1 \
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
-	$MYCABAL clean 1>> "$MYCABALBUILDLOG"  2>&1
+	$MYCABAL clean 1>> "$MYCABALBUILDLOG" 2>&1
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
@@ -1588,26 +1588,32 @@ fi
 # Pull SPOS scripts and related utilities like bech32 and vit-kedqr
 #
 cd "$BUILDDIR"
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG"; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
+if ischroot; then
+	debug "In a chroot, so skipping bech32, b2sum, and vit-kedqr install; rerun on boot from backup"
+else
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'bech32'; then
+		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
+	fi
+	go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
+		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
+	fi
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
+		cd "$BUILDDIR/vit-kedqr"
+		debug "Compiling and installing vit-kedqr to $INSTALLDIR; on first pass takes a long time"
+		if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
+			cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
+			cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
+		else
+			debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
+		fi
+	fi
 fi
+
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address'
 fi
-which 'go' && go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/offchain-metadata-tools" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'token-metadata-creator'; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'offchain-metadata-tools' "$CABAL" "$BUILDLOG" 'token-metadata-creator'
-fi
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
-	cd "$BUILDDIR/vit-kedqr"
-	debug "Compiling and installing vit-kedqr to $INSTALLDIR; on first pass takes a long time"
-	if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
-		cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
-		cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
-	else
-		debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
-	fi
-fi
+
 cd "$BUILDDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'no-such-executable'; then
