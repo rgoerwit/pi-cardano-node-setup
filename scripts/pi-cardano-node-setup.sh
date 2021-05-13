@@ -491,12 +491,14 @@ cabal_install_software () {
 	MYCABAL=$4
 	MYCABALBUILDLOG=$5
 	MYCABALPRODUCT=$6
+	MYGHCVERSION=$7
 
 	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
 	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG" 2>&1 \
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	$MYCABAL clean 1>> "$MYCABALBUILDLOG" 2>&1
+	[ -z "$MYGHCPATH" ] || $MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}" 1>> "$MYCABALBUILDLOG" 2>&1
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
@@ -1621,12 +1623,12 @@ else
 fi
 
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address'; then
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address'
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address' "$GHCVERSION"
 fi
 
 cd "$BUILDDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
-	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'no-such-executable'; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'placeholder-for-all-SPOS-scripts'; then
 		debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (don't use both these AND CNTools for pool setup!)"
 		cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
 		cp -f ./* "${CARDANO_SPOSDIR}/"
