@@ -405,6 +405,14 @@ download_github_code () {
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYGITPROGNAME"
+		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep -v "^v?$MYREQUIREDVERSION$" | head -1)
+		if [[ ! -z "$MYTAG" ]]; then
+			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag"
+			git pull							1>> "$MYBUILDLOG" 2>&1 \
+				&& git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
+				&& git fetch					1>> "$MYBUILDLOG" 2>&1 \
+				&& return 0
+		fi
 		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
 		git reset --hard 1>> "$MYBUILDLOG" 2>&1
 		git pull 1>> "$MYBUILDLOG" 2>&1
