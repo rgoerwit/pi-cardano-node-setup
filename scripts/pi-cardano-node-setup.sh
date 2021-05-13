@@ -370,8 +370,10 @@ download_github_code () {
 
 	# Try to determine version of $MYINSTALLPROGNAME (usually the same as $MYGITPROGNAME)
 	ISLIBRARY='N'
+	MYVERSION=''
 	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
 	[ -z "$MYINSTALLPROGNAME" ] && MYINSTALLPROGNAME="$MYGITPROGNAME"
+	debug "Checking current version of ${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME"
 	if [ -x "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 		if [ -f "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ]; then
 			# Most executables will cough up some sort of version number when passed '--version' or 'version' to stdout or stderr
@@ -382,7 +384,6 @@ download_github_code () {
 		fi
 	else
 		if (stat "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME".so -c '%n' 2> /dev/null | egrep -q '/lib') && (ldconfig -pNv | egrep -q "$MYGITPROGNAME"); then
-			MYVERSION='' # Just assume version is high enough; we can't easily infer it here
 			ISLIBRARY='Y'
 		fi
 	fi
