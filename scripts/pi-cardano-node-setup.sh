@@ -454,10 +454,11 @@ create_and_secure_installdir () {
 					else
 						if [ "$INSTALL_SUBDIR" = "$MY_CARDANO_PRIVDIR" ]; then
 							debug "Placing secure permissions (go-rwx) on files in $INSTALL_SUBDIR"
-							chmod 2750 "$INSTALL_SUBDIR"										# Cardano group does NOT need to write to here
-							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;	# But others should not see material in this area
-							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert}; chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} # candano-node insists on this
-							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod =0700 {} \;	# And not even the cardano group should see below depth 1
+							chmod 2750 "$INSTALL_SUBDIR"											# Cardano group does NOT need to write to here
+							find "$INSTALL_SUBDIR" -maxdepth 1 -type f -exec chmod 0640 {} \;		# But others should not see material in this area
+							chown "$MY_INSTALLUSER" "$INSTALL_SUBDIR"/*.{skey,cert} 2> /dev/null	# candano-node insists on this
+							chmod 0400 "$INSTALL_SUBDIR"/*.{skey,cert} 2> /dev/null
+							find "$INSTALL_SUBDIR" -mindepth 1 -type d -exec chmod =0700 {} \;		# And not even the cardano group should see below depth 1
 							find "$INSTALL_SUBDIR" -mindepth 2 -type f -exec chmod =0600 {} \;
 						else
 							find "$INSTALL_SUBDIR" -type d -exec chmod 2755 {} \; # Cardano group does NOT need to write to here 
