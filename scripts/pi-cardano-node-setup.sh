@@ -1652,23 +1652,18 @@ fi
 cd "$INSTALLDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
-	GUILDOPTEMPDIR='guild-operators-temp'
-	pushd "${TMPDIR:-/tmp}" 			1>> "$BUILDLOG" 2>&1; 'rm' -rf "$GUILDOPTEMPDIR"
-    git init "$GUILDOPTEMPDIR"          1>> "$BUILDLOG" 2>&1
-    cd "$GUILDOPTEMPDIR"
-	git remote add origin "$GUILDREPO"  1>> "$BUILDLOG" 2>&1
-	git config core.sparsecheckout true 1>> "$BUILDLOG" 2>&1
- 	echo 'scripts/cnode-helper-scripts/*' 1>> .git/info/sparse-checkout
-	[ -z "$GUILDSCRIPT_VERSION" ] \
-		|| (debug "Checking out cnode tool version $GUILDSCRIPT_VERSION"; \
-			git checkout "$GUILDSCRIPT_VERSION" 1>> "$BUILDLOG" 2>&1 \
-				|| debug "$0: Failed to checkout cnode tool version $GUILDSCRIPT_VERSION; using default")
- 	git pull --depth=1 origin master    1>> "$BUILDLOG" 2>&1 \
-	 	|| err_exit 109 "$0: Failed to fetch ${CARDANO_SCRIPTDIR}/scripts/cnode-helper-scripts/*; aborting"
-	cd './scripts/cnode-helper-scripts'
-	cp -f * "${CARDANO_SCRIPTDIR}/"
-	popd 1>> "$BUILDLOG" 2>&1
-
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$GUILDREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SCRIPTDIR" '' 'placeholder-for-all-Guild-scripts'; then
+		pushd "./guild-operators"	1>> "$BUILDLOG" 2>&1;
+		if [[ ! -z "$GUILDSCRIPT_VERSION" ]]; then
+			debug "Checking out cnode tool version $GUILDSCRIPT_VERSION (branch $GUILDREPOBRANCH)"
+			[ -z "$GUILDREPOBRANCH" 	]	|| git switch "$GUILDREPOBRANCH"		1>> "$BUILDLOG" 2>&1
+			[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
+				|| debug "$0: Failed to checkout CNTool version $GUILDSCRIPT_VERSION; using default")
+			get fetch 1>> "$BUILDLOG" 2>&1
+		fi
+		cp -f './scripts/cnode-helper-scripts/'* "${CARDANO_SCRIPTDIR}/"
+		popd 1>> "$BUILDLOG" 2>&1
+	fi
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
 	sed -i "${CARDANO_SCRIPTDIR}/env" \
 		-e "s@^\#* *CCLI=['\"][^'\"]*['\"]@CCLI=\"$INSTALLDIR/cardano-cli\"@g" \
