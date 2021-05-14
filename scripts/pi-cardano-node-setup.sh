@@ -1256,16 +1256,18 @@ cd "$BUILDDIR/cardano-node"
 git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
-debug "Setting working cardano-node branch to: ${CARDANOBRANCH} (force with -U <branch>)"
+debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH" 1>> "$BUILDLOG" 2>&1
-if git checkout "$CARDANONODE_VERSION"	1>> "$BUILDLOG" 2>&1; then
+if git checkout "$CARDANONODE_VERSION" 1>> "$BUILDLOG" 2>&1; then
 	debug "Checked out cardano-node version $CARDANONODE_VERSION (force with -V <version>)"
 else
-	CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
-	[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
-	debug "Checking out tag: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
-	git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
+	debug "Checkout failed; trying tags/$CARDANONODE_VERSION"
+	if [[ "$CARDANONODE_VERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]]; then
+		CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
+		debug "Checking out tag: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
+		git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 79 "$0: Failed to 'git checkout $CARDANONODE_TAGGEDVERSION; aborting"
+	fi
 fi
 git fetch	1>> "$BUILDLOG" 2>&1
 
