@@ -275,7 +275,6 @@ fi
 [ -z "${GUILDREPO_RAW_URL}" ]	&& GUILDREPO_RAW_URL="${GUILDREPO_RAW}/${GUILDREPOBRANCH}"
 [ -z "${SPOSREPO}" ]			&& SPOSREPO='https://github.com/gitmachtl/scripts'
 [ -z "${WPA_SUPPLICANT}" ]		&& WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
-[ -z "$CARDANONODE_VERSION" ]	&& CARDANONODE_VERSION=$(git_latest_release "${IOHKREPO}/cardano-node")
 [ -z "$CARDANOBRANCH" ]			&& CARDANOBRANCH='master'
 WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeout $WGET_TIMEOUT -t 5"
 [ -z "$GHCVERSION" ] && GHCVERSION="8.10.4"
@@ -1251,6 +1250,7 @@ done
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 cd "$BUILDDIR"
+[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git_latest_release "${IOHKREPO}/cardano-node")
 download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-node" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-node'
 cd "$BUILDDIR/cardano-node"
 git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
