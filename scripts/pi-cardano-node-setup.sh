@@ -1627,7 +1627,7 @@ fi
 cd "$BUILDDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$SPOSREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SPOSDIR" '' 'placeholder-for-all-SPOS-scripts'; then
-		debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (don't use both these AND CNTools for pool setup!)"
+		debug "Installing SPOS scripts to ${CARDANO_SPOSDIR} (only use these if you're a pro)"
 		cd "./scripts/cardano/${BLOCKCHAINNETWORK}"
 		cp -f ./* "${CARDANO_SPOSDIR}/"
 		sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
@@ -1647,12 +1647,12 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	fi
 fi
 
-# UPDATE gLiveView.sh and other guild scripts
+# UPDATE gLiveView.sh and other guild scripts 
 #
 cd "$INSTALLDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
-	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$GUILDREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SCRIPTDIR" '' 'placeholder-for-all-Guild-scripts'; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$GUILDREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SCRIPTDIR" '' 'placeholder-for-Guild-scripts'; then
 		pushd './guild-operators'	1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDREPOBRANCH" 	]	|| git switch "$GUILDREPOBRANCH"		1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
