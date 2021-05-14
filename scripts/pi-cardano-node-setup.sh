@@ -1627,10 +1627,11 @@ fi
 
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
 	cd "$BUILDDIR/cardano-addresses"
+	debug "Adding recidivist Guild directives to $BUILDDIR/cardano-addresses/cabal.project.local"
 	cat <<-EOF > 'cabal.project.local'
         package cardano-crypto-praos
         flags: -external-libsodium-vrf
-
+		
         source-repository-package
           type: git
           location: https://github.com/input-output-hk/cardano-addresses
