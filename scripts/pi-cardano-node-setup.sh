@@ -361,6 +361,7 @@ download_github_code () {
 	MYPROGINSTALLDIR=$6
 	MYREQUIREDVERSION=$7
 	MYINSTALLPROGNAME=$8
+	VERSIONMUSTMATCH=$9
 
 	if [ -z "$MYREQUIREDVERSION" ]; then
 		MYREQUIREDVERSION=$(git_latest_release "$MYREPOSITORYURL")
@@ -396,9 +397,11 @@ download_github_code () {
 		debug "Cloning source: git clone --recurse-submodules $MYREPOSITORYURL"
 		git clone --recurse-submodules "$MYREPOSITORYURL" 						1>> "$MYBUILDLOG" 2>&1
 	}
+	MY_COMPARE_OP='ge'
+	[ ".$VERSIONMUSTMATCH" = '.Y' ] && MY_COMPARE_OP='eq' 
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
-		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" 'ge' ${MYREQUIREDVERSION}
+		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" "${MY_COMPARE_OP}" ${MYREQUIREDVERSION}
 	then
 		debug "Refresh not needed for $MYINSTALLPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -407,6 +410,7 @@ download_github_code () {
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYGITPROGNAME"
+		git fetch --all --recurse-submodules --tags	--prune 1>> "$BUILDLOG" 2>&1
 		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep "^v?$MYREQUIREDVERSION$" | head -1)
 		if [[ ! -z "$MYTAG" ]]; then
 			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
@@ -414,10 +418,15 @@ download_github_code () {
 				&& git fetch				1>> "$MYBUILDLOG" 2>&1 \
 				&& popd 					1>> "$MYBUILDLOG" 2>&1 \
 				&& return 0
+		else
+			if git checkout "$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
+				&& git fetch			1>> "$MYBUILDLOG" 2>&1
+			then
+				debug "Can't checkout version $MYTAG; doing hard reset and pulling"
+				git reset --hard 1>> "$MYBUILDLOG" 2>&1
+				git pull 1>> "$MYBUILDLOG" 2>&1
+			fi
 		fi
-		# git fetch --all -prune 1>> "$BUILDLOG" 2>&1; git checkout <latest tag>  # A lot gentler than a reset
-		git reset --hard 1>> "$MYBUILDLOG" 2>&1
-		git pull 1>> "$MYBUILDLOG" 2>&1
 		popd 1>> "$MYBUILDLOG" 2>&1
 		return 0
 	fi
@@ -1615,7 +1624,7 @@ else
 	fi
 fi
 
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address'; then
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address' "$GHCVERSION"
 fi
 
