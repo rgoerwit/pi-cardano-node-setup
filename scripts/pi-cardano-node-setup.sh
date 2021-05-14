@@ -1657,7 +1657,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		[ -z "$GUILDREPOBRANCH" 	]	|| git switch "$GUILDREPOBRANCH"		1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
 			|| debug "$0: Failed to checkout CNTool version $GUILDSCRIPT_VERSION; using default"
-		get fetch 1>> "$BUILDLOG" 2>&1
+		git fetch 1>> "$BUILDLOG" 2>&1
 		cp -f './scripts/cnode-helper-scripts/'* "${CARDANO_SCRIPTDIR}/"
 		popd 1>> "$BUILDLOG" 2>&1
 	fi
