@@ -1653,7 +1653,7 @@ cd "$INSTALLDIR"
 if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Downloading guild scripts (incl. gLiveView.sh) to: ${CARDANO_SCRIPTDIR}"
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "$GUILDREPO" "$SKIP_RECOMPILE" "$BUILDLOG" "$CARDANO_SCRIPTDIR" '' 'placeholder-for-Guild-scripts'; then
-		pushd './guild-operators'	1>> "$BUILDLOG" 2>&1
+		pushd "$INSTALLDIR/guild-operators"	1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDREPOBRANCH" 	]	|| git switch "$GUILDREPOBRANCH"		1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
 			|| debug "$0: Failed to checkout CNTool version $GUILDSCRIPT_VERSION; using default"
