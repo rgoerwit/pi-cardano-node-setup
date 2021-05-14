@@ -1249,32 +1249,25 @@ done
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 cd "$BUILDDIR"
-if [[ ! -d './cardano-node' ]] || [[ ! -x "$INSTALLDIR/cardano-node" ]]; then
-	debug "Fetching cardano-node code: git clone ${IOHKREPO}/cardano-node"
-	git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
-fi
+download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-node" "$SKIP_RECOMPILE" "$BUILDLOG" '' "$CARDANONODE_VERSION" 'cardano-node'
 cd "$BUILDDIR/cardano-node"
-# Power move - updates local copies of remote branches (will not update local branches, which track remote branches)
+git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
-[ -z "$CARDANOBRANCH" ] && CARDANOBRANCH='master'
-debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
-git switch "$CARDANOBRANCH"					1>> "$BUILDLOG" 2>&1
-if [ -z "$CARDANONODE_VERSION" ]; then
-	CARDANONODE_VERSION=$(git_latest_release "${IOHKREPO}/cardano-node")
-	if [ -z "$CARDANONODE_VERSION" ]; then
-		git pull	1>> "$BUILDLOG" 2>&1	# Fast forward, find version
-		CARDANONODE_VERSION="$(git describe --exact-match --tags --abbrev=0)"
-		[ -z "$CARDANONODE_VERSION" ] && CARDANONODE_VERSION=$(git tag | sort -V | egrep '^[0-9]' | tail -1)
+debug "Setting working cardano-node branch to: ${CARDANOBRANCH:=master} (force with -U <branch>)"
+[ -z "$CARDANOBRANCH" ] || git switch "$CARDANOBRANCH" 1>> "$BUILDLOG" 2>&1
+if [[ ! -z "$CARDANONODE_VERSION" ]]; then
+	if git checkout "$CARDANONODE_VERSION"	1>> "$BUILDLOG" 2>&1; then
+		debug "Checked out cardano-node version $CARDANONODE_VERSION (force with -V <version>)"
+	else
+		CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
+		[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
+		debug "Checking out tag: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
+		git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
+			|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
 	fi
-	debug "No cardano-node version specified; defaulting to $CARDANONODE_VERSION"
 fi
-CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
-[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
-debug "Checking out cardano-node: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
-git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
-	|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
-git fetch						 			1>> "$BUILDLOG" 2>&1
+git fetch	1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
@@ -1658,7 +1651,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
 			|| debug "$0: Failed to checkout CNTool version $GUILDSCRIPT_VERSION; using default"
 		git fetch 1>> "$BUILDLOG" 2>&1
-		cp -f './scripts/cnode-helper-scripts/'* "${CARDANO_SCRIPTDIR}/"
+		cd './scripts/cnode-helper-scripts'
+		cp -f ./* "${CARDANO_SCRIPTDIR}/"
 		popd 1>> "$BUILDLOG" 2>&1
 	fi
 	debug "Resetting variables in Guild env file; e.g., NODE_CONFIG_FILE -> $NODE_CONFIG_FILE"
