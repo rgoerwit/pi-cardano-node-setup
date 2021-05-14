@@ -498,7 +498,7 @@ cabal_install_software () {
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	$MYCABAL clean 1>> "$MYCABALBUILDLOG" 2>&1
-	[ -z "$MYGHCPATH" ] || $MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}" 1>> "$MYCABALBUILDLOG" 2>&1
+	[ -z "$MYGHCVERSION" ] || $MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}" 1>> "$MYCABALBUILDLOG" 2>&1
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
