@@ -275,6 +275,8 @@ fi
 [ -z "${GUILDREPO_RAW_URL}" ]	&& GUILDREPO_RAW_URL="${GUILDREPO_RAW}/${GUILDREPOBRANCH}"
 [ -z "${SPOSREPO}" ]			&& SPOSREPO='https://github.com/gitmachtl/scripts'
 [ -z "${WPA_SUPPLICANT}" ]		&& WPA_SUPPLICANT="/etc/wpa_supplicant/wpa_supplicant.conf"
+[ -z "$CARDANONODE_VERSION" ]	&& CARDANONODE_VERSION=$(git_latest_release "${IOHKREPO}/cardano-node")
+[ -z "$CARDANOBRANCH" ]			&& CARDANOBRANCH='master'
 WGET="wget --quiet --retry-connrefused --waitretry=10 --read-timeout=20 --timeout $WGET_TIMEOUT -t 5"
 [ -z "$GHCVERSION" ] && GHCVERSION="8.10.4"
 GHCARCHITECTURE="$(arch)"         # could potentially be aarch64, arm7, arm8, etc. for example; see http://downloads.haskell.org/~ghc/
@@ -1249,23 +1251,21 @@ done
 # BACKUP PREVIOUS SOURCES AND DOWNLOAD $CARDANONODE_VERSION
 #
 cd "$BUILDDIR"
-download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-node" "$SKIP_RECOMPILE" "$BUILDLOG" '' "$CARDANONODE_VERSION" 'cardano-node'
+download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-node" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-node'
 cd "$BUILDDIR/cardano-node"
 git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
 debug "Updating local copies of cardano-node remote git branches"
 git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
-debug "Setting working cardano-node branch to: ${CARDANOBRANCH:=master} (force with -U <branch>)"
-[ -z "$CARDANOBRANCH" ] || git switch "$CARDANOBRANCH" 1>> "$BUILDLOG" 2>&1
-if [[ ! -z "$CARDANONODE_VERSION" ]]; then
-	if git checkout "$CARDANONODE_VERSION"	1>> "$BUILDLOG" 2>&1; then
-		debug "Checked out cardano-node version $CARDANONODE_VERSION (force with -V <version>)"
-	else
-		CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
-		[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
-		debug "Checking out tag: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
-		git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
-	fi
+debug "Setting working cardano-node branch to: ${CARDANOBRANCH} (force with -U <branch>)"
+git switch "$CARDANOBRANCH" 1>> "$BUILDLOG" 2>&1
+if git checkout "$CARDANONODE_VERSION"	1>> "$BUILDLOG" 2>&1; then
+	debug "Checked out cardano-node version $CARDANONODE_VERSION (force with -V <version>)"
+else
+	CARDANONODE_TAGGEDVERSION="$CARDANONODE_VERSION"
+	[[ "$CARDANONODE_TAGGEDVERSION" =~ ^[0-9]{1,2}\.[0-9]{1,3} ]] && CARDANONODE_TAGGEDVERSION="tags/$CARDANONODE_VERSION"
+	debug "Checking out tag: git checkout ${CARDANONODE_TAGGEDVERSION} (force with -V <version>)"
+	git checkout "${CARDANONODE_TAGGEDVERSION}"	1>> "$BUILDLOG" 2>&1 \
+		|| err_exit 79 "$0: Failed to 'git checkout ${CARDANONODE_TAGGEDVERSION}; aborting"
 fi
 git fetch	1>> "$BUILDLOG" 2>&1
 
