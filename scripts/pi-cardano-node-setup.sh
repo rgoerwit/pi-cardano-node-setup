@@ -395,13 +395,13 @@ download_github_code () {
 	[ -f "$MYBUILDDIR/$MYGITPROGNAME" ]	&& 'rm' -f  "$MYBUILDDIR/$MYGITPROGNAME"	1>> "$MYBUILDLOG" 2>&1  # If file exists with dirname, delete
 	[ -d "$MYBUILDDIR/$MYGITPROGNAME" ]	|| {
 		debug "Cloning source: git clone --recurse-submodules $MYREPOSITORYURL"
-		git clone --recurse-submodules "$MYREPOSITORYURL" 						1>> "$MYBUILDLOG" 2>&1
+		git clone --recurse-submodules "$MYREPOSITORYURL" 1>> "$MYBUILDLOG" 2>&1
 	}
 	MY_COMPARE_OP='ge'
-	[ ".$VERSIONMUSTMATCH" = '.Y' ] && MY_COMPARE_OP='eq' 
+	[ ".$VERSIONMUSTMATCH" = '.Y' ] && MY_COMPARE_OP='eq'
 	if [ ".$MYSKIPRECOMPILEFLAG" = '.Y' ] \
 		&& ( [ ".$ISLIBRARY" = '.Y' ] || [ -e "${MYPROGINSTALLDIR:-$MYINSTALLDIR}/$MYINSTALLPROGNAME" ] ) \
-		&& dpkg --compare-versions "${MYVERSION:-1000.1000}" "${MY_COMPARE_OP}" ${MYREQUIREDVERSION}
+		&& dpkg --compare-versions "${MYVERSION:-000.000}" "${MY_COMPARE_OP}" "${MYREQUIREDVERSION}"
 	then
 		debug "Refresh not needed for $MYINSTALLPROGNAME ($MYREPOSITORYURL)"
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -410,21 +410,21 @@ download_github_code () {
 		[ ".$MYSKIPRECOMPILEFLAG" != '.Y' ] && debug "No -x argument; forcing recompile, regardless of version"
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYGITPROGNAME"
-		git fetch --all --recurse-submodules --tags	--prune 1>> "$BUILDLOG" 2>&1
+		git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
 		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep "^v?$MYREQUIREDVERSION$" | head -1)
 		if [[ ! -z "$MYTAG" ]]; then
 			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
-				&& git fetch				1>> "$MYBUILDLOG" 2>&1 \
-				&& popd 					1>> "$MYBUILDLOG" 2>&1 \
-				&& return 0
+				&& git fetch				1>> "$MYBUILDLOG" 2>&1
 		else
 			if git checkout "$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
 				&& git fetch			1>> "$MYBUILDLOG" 2>&1
 			then
-				debug "Can't checkout version $MYTAG; doing hard reset and pulling"
-				git reset --hard 1>> "$MYBUILDLOG" 2>&1
-				git pull 1>> "$MYBUILDLOG" 2>&1
+				debug "Ended up checking out $MYTAG (no tag)"
+			else
+				debug "Can't checkout tag/$MYTAG or just $MYTAG; doing hard reset and pulling"
+				git reset --hard	1>> "$MYBUILDLOG" 2>&1
+				git pull			1>> "$MYBUILDLOG" 2>&1
 			fi
 		fi
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -505,7 +505,8 @@ cabal_install_software () {
 	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG" 2>&1 \
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
-	$MYCABAL clean 1>> "$MYCABALBUILDLOG" 2>&1
+	# $MYCABAL update	1>> "$MYCABALBUILDLOG" 2>&1
+	$MYCABAL clean	1>> "$MYCABALBUILDLOG" 2>&1
 	[ -z "$MYGHCVERSION" ] || $MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}" 1>> "$MYCABALBUILDLOG" 2>&1
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
@@ -1264,7 +1265,7 @@ download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-node" "$SKIP
 cd "$BUILDDIR/cardano-node"
 git clone "${IOHKREPO}/cardano-node"	1>> "$BUILDLOG" 2>&1
 debug "Updating local copies of cardano-node remote git branches"
-git fetch --all --recurse-submodules --tags	1>> "$BUILDLOG" 2>&1
+git fetch --all --recurse-submodules --tags	 --prune 1>> "$BUILDLOG" 2>&1
 debug "Setting working cardano-node branch to: $CARDANOBRANCH (force with -U <branch>)"
 git switch "$CARDANOBRANCH" 1>> "$BUILDLOG" 2>&1
 if git checkout "$CARDANONODE_VERSION" 1>> "$BUILDLOG" 2>&1; then
@@ -1625,6 +1626,23 @@ else
 fi
 
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
+	cd "$BUILDDIR/cardano-addresses"
+	cat <<-EOF > 'cabal.project.local'
+        package cardano-crypto-praos
+        flags: -external-libsodium-vrf
+
+        source-repository-package
+          type: git
+          location: https://github.com/input-output-hk/cardano-addresses
+          tag: 2.1.0
+          subdir: core
+
+        source-repository-package
+          type: git
+          location: https://github.com/input-output-hk/cardano-addresses
+          tag: 2.1.0
+          subdir: command-line
+	EOF
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address' "$GHCVERSION"
 fi
 
