@@ -506,9 +506,10 @@ cabal_install_software () {
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	# $MYCABAL update	1>> "$MYCABALBUILDLOG" 2>&1
-	if [[ ! -z "$MYGHCVERSION" ]]; then
+	$MYCABAL clean 1>> "$MYCABALBUILDLOG" 2>&1
+	if [ -z "$MYGHCVERSION" ]; then
+		$MYCABAL update 1>> "$MYCABALBUILDLOG" 2>&1
 		debug "GHC version supplied; doing a config: $MYCABAL configure -O0 -w ghc-${MYGHCVERSION}"
-		$MYCABAL clean									1>> "$MYCABALBUILDLOG" 2>&1
 		$MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}"	1>> "$MYCABALBUILDLOG" 2>&1
 	fi
 	if $MYCABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
@@ -1631,29 +1632,8 @@ else
 	fi
 fi
 
-if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
-	cd "$BUILDDIR/cardano-addresses"
-	debug "Adding recidivist Guild directives to $BUILDDIR/cardano-addresses/cabal.project.local"
-	cat > "cabal.project.local" <<- _EOF
-		package cardano-crypto-praos
-		flags: -external-libsodium-vrf
-		ignore-project: False
-		with-compiler: ghc-$GHCVERSION
-		optimization: False
-
-		source-repository-package
-		  type: git
-		  location: https://github.com/input-output-hk/cardano-addresses
-		  tag: 2.1.0
-		  subdir: core
-
-		source-repository-package
-		  type: git
-		  location: https://github.com/input-output-hk/cardano-addresses
-		  tag: 2.1.0
-		  subdir: command-line
-	_EOF
-	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address'
+if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '' 'cardano-address' 'Y'; then
+	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address' "$GHCVERSION"
 fi
 
 cd "$BUILDDIR"
