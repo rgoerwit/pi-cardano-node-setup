@@ -712,11 +712,14 @@ else
 	done
 	if [ ".$HOSTED_GRAFANA" = '.Y' ]; then
 		debug "Granting hosted Grafana IPs access to Prometheus port, $EXTERNAL_PROMETHEUS_PORT"
-	    GRAFANAIP_TEMPFILE='grafana-iplist-temp'
-		'rm' -rf "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE"
-		$WGET -S 'https://grafana.com/api/hosted-grafana/source-ips' -O "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE" 1>> "$BUILDLOG" 2>&1 \
-			|| err_exit 9 "$0: Unable to download Grafana cloud IP list: https://grafana.com/api/hosted-grafana/source-ips"
-		for GRAFIP in $(jq -c '.[]' "${TMPDIR:-/tmp}/$GRAFANAIP_TEMPFILE" | sed 's/^"\(.*\)"$/\1/g'); do
+	    GRAFANAIPLIST="${BUILDDIR}/grafana-iplist.json"
+		[ -s "$GRAFANAIPLIST" ] && mv -f "$GRAFANAIPLIST" "${GRAFANAIPLIST}.old"
+		if ! $WGET -S 'https://grafana.com/api/hosted-grafana/source-ips' -O "$GRAFANAIPLIST" 1>> "$BUILDLOG" 2>&1; then
+			[[ -s "${GRAFANAIPLIST}.old" ]] \
+				|| err_exit 27 "$0: Grafana IP download failed, and no cached Grafana IP list; aborting"
+			mv -f "${GRAFANAIPLIST}.old" "$GRAFANAIPLIST" 
+		fi
+		for GRAFIP in $(jq -c '.[]' "$GRAFANAIPLIST" | sed 's/^"\(.*\)"$/\1/g'); do
 			ufw allow proto tcp from "$GRAFIP" to any port "$EXTERNAL_PROMETHEUS_PORT" 1>> "$BUILDLOG" 2>&1 \
 				|| err_exit 10 "$0: Aborting; failed to add firewall rule: ufw allow proto tcp from $GRAFIP to any port $EXTERNAL_PROMETHEUS_PORT"
 		done
