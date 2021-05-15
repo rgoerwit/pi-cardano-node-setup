@@ -666,15 +666,15 @@ if [ ".$OVERCLOCK_SPEED" != '.' ]; then
 			debug "Current CPU temp: `vcgencmd measure_temp`"
 			debug "Current Max CPU speed: `cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`"
 			debug "Setting speed to $OVERCLOCK_SPEED; please check $BOOTCONFIG file before next restart"
-			cat << _EOF >> "$BOOTCONFIG"
+			cat <<- _EOF >> "$BOOTCONFIG"
 
-over_voltage=5
-arm_freq=$OVERCLOCK_SPEED
-# gpu_freq=700
-# gpu_mem=256
-# sdram_freq=3200
+				over_voltage=5
+				arm_freq=$OVERCLOCK_SPEED
+				# gpu_freq=700
+				# gpu_mem=256
+				# sdram_freq=3200
 
-_EOF
+				_EOF
 		fi
 	fi
 fi
@@ -807,15 +807,15 @@ then
 else
 	openssl req -x509 -newkey rsa:4096 -nodes -days 999 \
 		-keyout "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key" \
-		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt" 1>> "$BUILDLOG" 2>&1 << _EOF
-US
-Minnesota
-Rural
-Local Company
-Local Company
-$EXTERNAL_HOSTNAME
-self-signed-cert@local-company.local
-_EOF
+		-out "${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt" 1>> "$BUILDLOG" 2>&1 <<- _EOF
+			US
+			Minnesota
+			Rural
+			Local Company
+			Local Company
+			$EXTERNAL_HOSTNAME
+			self-signed-cert@local-company.local
+			_EOF
 	NGINX_CONF_DIR='/usr/local/etc/nginx/conf.d'
 	debug "Writing nginx reverse proxy conf for http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/"
 	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
@@ -824,60 +824,60 @@ _EOF
 	htpasswd -b -c "${PROMETHEUS_DIR}/nginx-htpasswd" stats "$(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')" 1>> "$BUILDLOG" 2>&1
 	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
-	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" << _EOF
-    server {
-        listen              $EXTERNAL_PROMETHEUS_PORT ssl;
-        server_name         example.com;
-        ssl_certificate     ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt;
-        ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
+	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" <<- _EOF
+		server {
+		    listen              $EXTERNAL_PROMETHEUS_PORT ssl;
+		    server_name         example.com;
+		    ssl_certificate     ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt;
+		    ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
 
-        location / {
-            auth_basic "Restricted Content";
-            auth_basic_user_file ${PROMETHEUS_DIR}/nginx-htpasswd;
-            proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
-        }
-    }
-_EOF
-	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" << _EOF
-global:
-  scrape_interval:     15s
-  query_log_file: $PROMETHEUS_DIR/logs/query.log
-  external_labels:
-    monitor: 'codelab-monitor'
+		    location / {
+		        auth_basic "Restricted Content";
+		        auth_basic_user_file ${PROMETHEUS_DIR}/nginx-htpasswd;
+		        proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
+		    }
+		}
+		_EOF
+	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" <<- _EOF
+		global:
+		scrape_interval:     15s
+		query_log_file: $PROMETHEUS_DIR/logs/query.log
+		external_labels:
+		    monitor: 'codelab-monitor'
 
-scrape_configs:
-  - job_name: 'cardano_node' # To scrape data from the cardano node
-    scrape_interval: 5s
-    static_configs:
-    - targets: ['$CARDANO_PROMETHEUS_LISTEN:$CARDANO_PROMETHEUS_PORT']
-  - job_name: 'node_exporter' # To scrape data from a node exporter - linux host metrics
-    scrape_interval: 5s
-    static_configs:
-    - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
-_EOF
+		scrape_configs:
+		- job_name: 'cardano_node' # To scrape data from the cardano node
+		    scrape_interval: 5s
+		    static_configs:
+		    - targets: ['$CARDANO_PROMETHEUS_LISTEN:$CARDANO_PROMETHEUS_PORT']
+		- job_name: 'node_exporter' # To scrape data from a node exporter - linux host metrics
+		    scrape_interval: 5s
+		    static_configs:
+		    - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
+		_EOF
 	debug "Creating prometheus.service file; will listen on $PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT"
-	cat > '/etc/systemd/system/prometheus.service' << _EOF
-[Unit]
-Description=Prometheus Server
-Documentation=https://prometheus.io/docs/introduction/overview/
-After=network-online.target
+	cat > '/etc/systemd/system/prometheus.service' <<- _EOF
+		[Unit]
+		Description=Prometheus Server
+		Documentation=https://prometheus.io/docs/introduction/overview/
+		After=network-online.target
 
-[Service]
-User=prometheus
-Restart=on-failure
-ExecStart=$PROMETHEUS_DIR/prometheus \
-	--config.file=$PROMETHEUS_DIR/prometheus-cardano.yaml \
-	--storage.tsdb.path=$PROMETHEUS_DIR/data \
-	--web.listen-address=$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT \
-	--web.external-url=https://${EXTERNAL_HOSTNAME}:${EXTERNAL_PROMETHEUS_PORT}/ \
-	--web.route-prefix="/"
-WorkingDirectory=$PROMETHEUS_DIR
-RestartSec=6s
-LimitNOFILE=10000
+		[Service]
+		User=prometheus
+		Restart=on-failure
+		ExecStart=$PROMETHEUS_DIR/prometheus \
+		    --config.file=$PROMETHEUS_DIR/prometheus-cardano.yaml \
+		    --storage.tsdb.path=$PROMETHEUS_DIR/data \
+		    --web.listen-address=$PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT \
+		    --web.external-url=https://${EXTERNAL_HOSTNAME}:${EXTERNAL_PROMETHEUS_PORT}/ \
+		    --web.route-prefix="/"
+		WorkingDirectory=$PROMETHEUS_DIR
+		RestartSec=6s
+		LimitNOFILE=10000
 
-[Install]
-WantedBy=multi-user.target
-_EOF
+		[Install]
+		WantedBy=multi-user.target
+		_EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable prometheus		1>> "$BUILDLOG" 2>&1
@@ -917,24 +917,24 @@ if [ ".$DONT_OVERWRITE" = '.Y' ] && [ -f '/etc/systemd/system/node_exporter.serv
 then
 	debug "Skipping node_exporter service file remake (drop -d to force)"
 else
-	cat > '/etc/systemd/system/node_exporter.service' << _EOF
-[Unit]
-Description=Node Exporter
-Wants=network-online.target
-After=network-online.target
+	cat > '/etc/systemd/system/node_exporter.service' <<- _EOF
+		[Unit]
+		Description=Node Exporter
+		Wants=network-online.target
+		After=network-online.target
 
-[Service]
-User=node_exporter
-Restart=on-failure
-ExecStart=$NODE_EXPORTER_DIR/node_exporter \
-	--web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
-WorkingDirectory=$NODE_EXPORTER_DIR
-RestartSec=6s
-LimitNOFILE=3500
+		[Service]
+		User=node_exporter
+		Restart=on-failure
+		ExecStart=$NODE_EXPORTER_DIR/node_exporter \
+			--web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
+		WorkingDirectory=$NODE_EXPORTER_DIR
+		RestartSec=6s
+		LimitNOFILE=3500
 
-[Install]
-WantedBy=multi-user.target
-_EOF
+		[Install]
+		WantedBy=multi-user.target
+		_EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
@@ -955,26 +955,26 @@ if [ ".$HIDDENWIFI" != '.' ]; then
 		: do nothing
 	else
 		$APTINSTALLER install wpasupplicant 1>> "$BUILDLOG" 2>&1
-		cat << _EOF > "$WPA_SUPPLICANT"
-country=US
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-	
-_EOF
+		cat <<- _EOF > "$WPA_SUPPLICANT"
+			country=US
+			ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+			update_config=1
+				
+			_EOF
 	fi
 	if egrep -q '^[	 ]*ssid="$HIDDENWIFI"' "$WPA_SUPPLICANT"; then
 		: do nothing
 	else
-		cat << _EOF >> "$WPA_SUPPLICANT"
+		cat <<- _EOF >> "$WPA_SUPPLICANT"
 
-network={
-	ssid="$HIDDENWIFI"
-	scan_ssid=1
-	psk="$HIDDENWIFIPASSWORD"
-	key_mgmt=WPA-PSK
-}
+			network={
+			    ssid="$HIDDENWIFI"
+			    scan_ssid=1
+			    psk="$HIDDENWIFIPASSWORD"
+			    key_mgmt=WPA-PSK
+			}
 
-_EOF
+			_EOF
 	fi
 	#
 	# Enable WiFi
@@ -983,28 +983,28 @@ _EOF
 	if [ -f "/etc/systemd/system/network-wireless@.service" ]; then
 		: do nothing
 	else
-		cat << _EOF >> "/etc/systemd/system/network-wireless@.service"
-[Unit]
-Description=Wireless network connectivity (%i)
-Wants=network.target
-Before=network.target
-BindsTo=sys-subsystem-net-devices-%i.device
-After=sys-subsystem-net-devices-%i.device
+		cat <<- _EOF >> "/etc/systemd/system/network-wireless@.service"
+			[Unit]
+			Description=Wireless network connectivity (%i)
+			Wants=network.target
+			Before=network.target
+			BindsTo=sys-subsystem-net-devices-%i.device
+			After=sys-subsystem-net-devices-%i.device
 
-[Service]
-Type=oneshot
-RemainAfterExit=yes
+			[Service]
+			Type=oneshot
+			RemainAfterExit=yes
 
-ExecStart=/usr/sbin/ip link set dev %i up
-ExecStart=/usr/sbin/wpa_supplicant -B -i %i -c /etc/wpa_supplicant/wpa_supplicant.conf
-ExecStart=/usr/sbin/dhclient %i
+			ExecStart=/usr/sbin/ip link set dev %i up
+			ExecStart=/usr/sbin/wpa_supplicant -B -i %i -c /etc/wpa_supplicant/wpa_supplicant.conf
+			ExecStart=/usr/sbin/dhclient %i
 
-ExecStop=/usr/sbin/ip link set dev %i down
+			ExecStop=/usr/sbin/ip link set dev %i down
 
-[Install]
-WantedBy=multi-user.target
+			[Install]
+			WantedBy=multi-user.target
 
-_EOF
+			_EOF
 		ln -s "/etc/systemd/system/network-wireless@.service" \
 			"/etc/systemd/system/multi-user.target.wants/network-wireless@${WLAN}.service" \
 			    1>> "$BUILDLOG"
@@ -1028,13 +1028,13 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
 		debug "Skipping VLAN.$VLAN_NUMBER configuration; $NETPLAN_FILE missing, or has VLANs; edit manually."
 	else
     	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
-		cat << _EOF >> "$NETPLAN_FILE"
-    vlans:
-        vlan$VLAN_NUMBER:
-            id: $VLAN_NUMBER
-            link: eth0
-            dhcp4: true
-_EOF
+		cat <<- _EOF >> "$NETPLAN_FILE"
+			    vlans:
+			        vlan$VLAN_NUMBER:
+			            id: $VLAN_NUMBER
+			            link: eth0
+			            dhcp4: true
+			_EOF
     	echo "Configuring eth0 for VLAN.${VLAN_NUMBER}; check by hand and run 'netplan apply' (addresses may change!)" 1>&2
 	fi
 fi
@@ -1471,44 +1471,44 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		# We assume if port is less than 6000 (usually 3000 or 3001), we're a relay-only node, not a block producer
 		[ "$KEYCOUNT" -ge 3 ] && debug "Not running as block producer (no -P <pool> or port < 6000); ignoring key/cert files in $CARDANO_PRIVDIR"
 	fi
-	cat << _EOF > "$INSTALLDIR/cardano-node-starting-env.txt"
-PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
-LD_LIBRARY_PATH="/usr/local/lib:$INSTALLDIR/lib:\$LD_LIBRARY_PATH"
-PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$INSTALLDIR/pkgconfig:\$PKG_CONFIG_PATH"
-_EOF
+	cat <<- _EOF > "$INSTALLDIR/cardano-node-starting-env.txt"
+		PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
+		LD_LIBRARY_PATH="/usr/local/lib:$INSTALLDIR/lib:\$LD_LIBRARY_PATH"
+		PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$INSTALLDIR/pkgconfig:\$PKG_CONFIG_PATH"
+		_EOF
 	chmod 0644 "$INSTALLDIR/cardano-node-starting-env.txt"
 	[ -z "${IPV4_ADDRESS}" ] || IPV4ARG="--host-addr '$IPV4_ADDRESS'"
 	[ -z "${IPV6_ADDRESS}" ] || IPV6ARG="--host-ipv6-addr '$IPV6_ADDRESS'"
 	LIBSTARTUPSCRIPT=$(echo "$SYSTEMSTARTUPSCRIPT" | sed 's|^/lib/|/etc/|')
 	[ -f "$LIBSTARTUPSCRIPT" ] && 'rm' -f "$LIBSTARTUPSCRIPT"  # Old startup script was here
-	cat << _EOF > "$SYSTEMSTARTUPSCRIPT"
-# Make sure cardano-node is installed as a service
-[Unit]
-Description=Cardano Node start script
-After=multi-user.target
- 
-[Service]
-User=$INSTALL_USER
-Environment=LD_LIBRARY_PATH=/usr/local/lib
-KillSignal=SIGINT
-RestartKillSignal=SIGINT
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=cardano-node
-TimeoutStartSec=0
-TimeoutStopSec=3
-Type=simple
-KillMode=process
-WorkingDirectory=$INSTALLDIR
-ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
-Restart=on-failure
-RestartSec=10s
-LimitNOFILE=32768
- 
-[Install]
-WantedBy=multi-user.target
+	cat <<- _EOF > "$SYSTEMSTARTUPSCRIPT"
+		# Make sure cardano-node is installed as a service
+		[Unit]
+		Description=Cardano Node start script
+		After=multi-user.target
+		
+		[Service]
+		User=$INSTALL_USER
+		Environment=LD_LIBRARY_PATH=/usr/local/lib
+		KillSignal=SIGINT
+		RestartKillSignal=SIGINT
+		StandardOutput=journal
+		StandardError=journal
+		SyslogIdentifier=cardano-node
+		TimeoutStartSec=0
+		TimeoutStopSec=3
+		Type=simple
+		KillMode=process
+		WorkingDirectory=$INSTALLDIR
+		ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
+		Restart=on-failure
+		RestartSec=10s
+		LimitNOFILE=32768
+		
+		[Install]
+		WantedBy=multi-user.target
 
-_EOF
+		_EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
@@ -1630,25 +1630,25 @@ fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
 	cd "$BUILDDIR/cardano-addresses"
 	debug "Adding recidivist Guild directives to $BUILDDIR/cardano-addresses/cabal.project.local"
-	cat <<-EOF > 'cabal.project.local'
-        package cardano-crypto-praos
-        flags: -external-libsodium-vrf
+	cat <<- "_EOF" > 'cabal.project.local'
+		package cardano-crypto-praos
+		flags: -external-libsodium-vrf
 		ignore-project: False
-		with-compiler: ghc-${MYGHCVERSION}
+		with-compiler: ghc-${GHCVERSION}
 		optimization: False
 
-        source-repository-package
-          type: git
-          location: https://github.com/input-output-hk/cardano-addresses
-          tag: 2.1.0
-          subdir: core
+		source-repository-package
+		  type: git
+		  location: https://github.com/input-output-hk/cardano-addresses
+		  tag: 2.1.0
+		  subdir: core
 
-        source-repository-package
-          type: git
-          location: https://github.com/input-output-hk/cardano-addresses
-          tag: 2.1.0
-          subdir: command-line
-	EOF
+		source-repository-package
+		  type: git
+		  location: https://github.com/input-output-hk/cardano-addresses
+		  tag: 2.1.0
+		  subdir: command-line
+	_EOF
 	cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'cardano-addresses' "$CABAL" "$BUILDLOG" 'cardano-address' "$GHCVERSION"
 fi
 
