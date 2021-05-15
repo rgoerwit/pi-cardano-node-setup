@@ -417,12 +417,12 @@ download_github_code () {
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
 				&& git fetch				1>> "$MYBUILDLOG" 2>&1
 		else
-			if git checkout "$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
-				&& git fetch			1>> "$MYBUILDLOG" 2>&1
+			if git checkout "$MYREQUIREDVERSION"	1>> "$MYBUILDLOG" 2>&1 \
+				&& git fetch						1>> "$MYBUILDLOG" 2>&1
 			then
-				debug "Ended up checking out $MYTAG (no tag)"
+				debug "Ended up checking out $MYREQUIREDVERSION (no tag)"
 			else
-				debug "Can't checkout tag/$MYTAG or just $MYTAG; doing hard reset and pulling"
+				debug "Can't checkout $MYREQUIREDVERSION (as tag or version); doing hard reset and pulling"
 				git reset --hard	1>> "$MYBUILDLOG" 2>&1
 				git pull			1>> "$MYBUILDLOG" 2>&1
 			fi
@@ -506,11 +506,12 @@ cabal_install_software () {
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	# $MYCABAL update	1>> "$MYCABALBUILDLOG" 2>&1
-	if [[ -z "$MYGHCVERSION" ]]; then
+	if [ -z "$MYGHCVERSION" ]; then
+		debug "GHC version supplied; doing a config: $MYCABAL configure -O0 -w ghc-${MYGHCVERSION}"
 		$MYCABAL clean									1>> "$MYCABALBUILDLOG" 2>&1
 		$MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}"	1>> "$MYCABALBUILDLOG" 2>&1
 	fi
-	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
+	if $MYCABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
 		cp -f $(find "$MYCABALBUILDDIR" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*') "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
@@ -1633,7 +1634,7 @@ fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses" "$SKIP_RECOMPILE" "$BUILDLOG" '' '2.1.0' 'cardano-address' 'Y'; then
 	cd "$BUILDDIR/cardano-addresses"
 	debug "Adding recidivist Guild directives to $BUILDDIR/cardano-addresses/cabal.project.local"
-	cat <<- _EOF > "cabal.project.local"
+	cat > "cabal.project.local" <<- _EOF
 		package cardano-crypto-praos
 		flags: -external-libsodium-vrf
 		ignore-project: False
