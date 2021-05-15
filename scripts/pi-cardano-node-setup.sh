@@ -506,8 +506,10 @@ cabal_install_software () {
 		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	# $MYCABAL update	1>> "$MYCABALBUILDLOG" 2>&1
-	$MYCABAL clean	1>> "$MYCABALBUILDLOG" 2>&1
-	[ -z "$MYGHCVERSION" ] || $MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}" 1>> "$MYCABALBUILDLOG" 2>&1
+	if [[ -z "$MYGHCVERSION" ]]; then
+		$MYCABAL clean									1>> "$MYCABALBUILDLOG" 2>&1
+		$MYCABAL configure -O0 -w "ghc-${MYGHCVERSION}"	1>> "$MYCABALBUILDLOG" 2>&1
+	fi
 	if $CABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
@@ -1631,7 +1633,10 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses
 	cat <<-EOF > 'cabal.project.local'
         package cardano-crypto-praos
         flags: -external-libsodium-vrf
-		
+		ignore-project: False
+		with-compiler: ghc-${MYGHCVERSION}
+		optimization: False
+
         source-repository-package
           type: git
           location: https://github.com/input-output-hk/cardano-addresses
