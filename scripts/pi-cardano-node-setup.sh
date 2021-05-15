@@ -1634,7 +1634,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/cardano-addresses
 		package cardano-crypto-praos
 		flags: -external-libsodium-vrf
 		ignore-project: False
-		with-compiler: ghc-${GHCVERSION}
+		with-compiler: ghc-$GHCVERSION
 		optimization: False
 
 		source-repository-package
