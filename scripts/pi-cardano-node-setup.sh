@@ -674,7 +674,7 @@ if [ ".$OVERCLOCK_SPEED" != '.' ]; then
 				# gpu_mem=256
 				# sdram_freq=3200
 
-				_EOF
+			_EOF
 		fi
 	fi
 fi
@@ -815,7 +815,7 @@ else
 			Local Company
 			$EXTERNAL_HOSTNAME
 			self-signed-cert@local-company.local
-			_EOF
+		_EOF
 	NGINX_CONF_DIR='/usr/local/etc/nginx/conf.d'
 	debug "Writing nginx reverse proxy conf for http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/"
 	[ -f "${PROMETHEUS_DIR}/nginx-htpasswd" ] \
@@ -837,24 +837,24 @@ else
 		        proxy_pass http://127.0.0.1:$PREPROXY_PROMETHEUS_PORT/;
 		    }
 		}
-		_EOF
+	_EOF
 	cat > "$PROMETHEUS_DIR/prometheus-cardano.yaml" <<- _EOF
 		global:
-		scrape_interval:     15s
-		query_log_file: $PROMETHEUS_DIR/logs/query.log
-		external_labels:
+		  scrape_interval:     15s
+		  query_log_file: $PROMETHEUS_DIR/logs/query.log
+		  external_labels:
 		    monitor: 'codelab-monitor'
 
 		scrape_configs:
-		- job_name: 'cardano_node' # To scrape data from the cardano node
+		  - job_name: 'cardano_node' # To scrape data from the cardano node
 		    scrape_interval: 5s
 		    static_configs:
 		    - targets: ['$CARDANO_PROMETHEUS_LISTEN:$CARDANO_PROMETHEUS_PORT']
-		- job_name: 'node_exporter' # To scrape data from a node exporter - linux host metrics
+		  - job_name: 'node_exporter' # To scrape data from a node exporter - linux host metrics
 		    scrape_interval: 5s
 		    static_configs:
 		    - targets: ['$EXTERNAL_NODE_EXPORTER_LISTEN:$EXTERNAL_NODE_EXPORTER_PORT']
-		_EOF
+	_EOF
 	debug "Creating prometheus.service file; will listen on $PREPROXY_PROMETHEUS_LISTEN:$PREPROXY_PROMETHEUS_PORT"
 	cat > '/etc/systemd/system/prometheus.service' <<- _EOF
 		[Unit]
@@ -877,7 +877,7 @@ else
 
 		[Install]
 		WantedBy=multi-user.target
-		_EOF
+	_EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable prometheus		1>> "$BUILDLOG" 2>&1
@@ -927,14 +927,14 @@ else
 		User=node_exporter
 		Restart=on-failure
 		ExecStart=$NODE_EXPORTER_DIR/node_exporter \
-			--web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
+		    --web.listen-address=${EXTERNAL_NODE_EXPORTER_LISTEN}:${EXTERNAL_NODE_EXPORTER_PORT}
 		WorkingDirectory=$NODE_EXPORTER_DIR
 		RestartSec=6s
 		LimitNOFILE=3500
 
 		[Install]
 		WantedBy=multi-user.target
-		_EOF
+	_EOF
 fi
 systemctl daemon-reload			1>> "$BUILDLOG" 2>&1
 systemctl enable node_exporter	1>> "$BUILDLOG" 2>&1
@@ -960,7 +960,7 @@ if [ ".$HIDDENWIFI" != '.' ]; then
 			ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 			update_config=1
 				
-			_EOF
+		_EOF
 	fi
 	if egrep -q '^[	 ]*ssid="$HIDDENWIFI"' "$WPA_SUPPLICANT"; then
 		: do nothing
@@ -974,7 +974,7 @@ if [ ".$HIDDENWIFI" != '.' ]; then
 			    key_mgmt=WPA-PSK
 			}
 
-			_EOF
+		_EOF
 	fi
 	#
 	# Enable WiFi
@@ -1004,7 +1004,7 @@ if [ ".$HIDDENWIFI" != '.' ]; then
 			[Install]
 			WantedBy=multi-user.target
 
-			_EOF
+		_EOF
 		ln -s "/etc/systemd/system/network-wireless@.service" \
 			"/etc/systemd/system/multi-user.target.wants/network-wireless@${WLAN}.service" \
 			    1>> "$BUILDLOG"
@@ -1034,7 +1034,7 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
 			            id: $VLAN_NUMBER
 			            link: eth0
 			            dhcp4: true
-			_EOF
+		_EOF
     	echo "Configuring eth0 for VLAN.${VLAN_NUMBER}; check by hand and run 'netplan apply' (addresses may change!)" 1>&2
 	fi
 fi
@@ -1475,7 +1475,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		PATH="/usr/local/bin:$INSTALLDIR:\$PATH"
 		LD_LIBRARY_PATH="/usr/local/lib:$INSTALLDIR/lib:\$LD_LIBRARY_PATH"
 		PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$INSTALLDIR/pkgconfig:\$PKG_CONFIG_PATH"
-		_EOF
+	_EOF
 	chmod 0644 "$INSTALLDIR/cardano-node-starting-env.txt"
 	[ -z "${IPV4_ADDRESS}" ] || IPV4ARG="--host-addr '$IPV4_ADDRESS'"
 	[ -z "${IPV6_ADDRESS}" ] || IPV6ARG="--host-ipv6-addr '$IPV6_ADDRESS'"
@@ -1508,7 +1508,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		[Install]
 		WantedBy=multi-user.target
 
-		_EOF
+	_EOF
 	chown root.root "$SYSTEMSTARTUPSCRIPT"
 	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
