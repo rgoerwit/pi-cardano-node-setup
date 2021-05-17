@@ -563,8 +563,6 @@ $APTINSTALLER update		1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update --fix-missing	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
-$APTINSTALLER clean			1>> "$BUILDLOG" 2>&1
-$APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 modinfo ip_tables			1>> "$BUILDLOG" 2>&1 \
 	|| ischroot \
 		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')" 1>> "$BUILDLOG" 2>&1
@@ -615,14 +613,13 @@ npm install cardanocli-js		1>> "$BUILDLOG" 2>&1
 # OK, now clean up anything lying around that shouldn't be there...again
 (apt clean && apt autoremove && apt autoclean)	1>> "$BUILDLOG" 2>&1
 
-# Make sure some other basic prerequisites are correctly installed
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
 	$APTINSTALLER install --reinstall gcc             1>> "$BUILDLOG" 2>&1
 	dpkg-reconfigure build-essential                  1>> "$BUILDLOG" 2>&1
 	dpkg-reconfigure gcc                              1>> "$BUILDLOG" 2>&1
-	$APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
 fi
+$APTINSTALLER install llvm-9                      1>> "$BUILDLOG" 2>&1 || err_exit 71 "$0: Failed to install llvm-9; aborting"
 $APTINSTALLER install rpi-imager                  1>> "$BUILDLOG" 2>&1 \
 	|| snap install rpi-imager 					  1>> "$BUILDLOG" 2>&1  # If not present, no biggie
 $APTINSTALLER install rpi-eeprom                  1>> "$BUILDLOG" 2>&1  # Might not be present, and if so, no biggie
