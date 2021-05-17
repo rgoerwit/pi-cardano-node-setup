@@ -557,10 +557,13 @@ if ischroot; then
 else
 	apt-mark unhold initramfs-tools linux-image-generic linux-headers-generic cryptsetup-initramfs flash-kernel flash-kernel:arm64 1>> "$BUILDLOG" 2>&1
 fi
+$APTINSTALLER clean			1>> "$BUILDLOG" 2>&1
+$APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update		1>> "$BUILDLOG" 2>&1
 $APTINSTALLER update --fix-missing	1>> "$BUILDLOG" 2>&1
 $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
+$APTINSTALLER clean			1>> "$BUILDLOG" 2>&1
 $APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
 modinfo ip_tables			1>> "$BUILDLOG" 2>&1 \
 	|| ischroot \
