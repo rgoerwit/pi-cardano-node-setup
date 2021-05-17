@@ -630,7 +630,9 @@ if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then
 		: Eeprom up to date
 	else
 		debug "Updating eeprom: $EEPROM_UPDATE -a"
-		$EEPROM_UPDATE -a 1>> "$BUILDLOG" 2>&1
+		sed -i "/etc/default/rpi-eeprom-update" -e "s|^\#* *FIRMWARE_RELEASE_STATUS=['\"][^'\"]*['\"]|FIRMWARE_RELEASE_STATUS=\"stable\"|g" 1>> "$BUILDLOG" 2>&1
+			|| debug 'Unable to set FIRMWARE_RELEASE_STATUS="stable" in /etc/default/rpi-eeprom-update; skipping'
+		$EEPROM_UPDATE -d -a 1>> "$BUILDLOG" 2>&1
     fi
 fi
 
