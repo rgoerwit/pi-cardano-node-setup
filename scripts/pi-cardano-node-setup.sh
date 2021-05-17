@@ -629,11 +629,15 @@ if [ ".$EEPROM_UPDATE" != '.' ] && [ -x "$EEPROM_UPDATE" ]; then
 	if $EEPROM_UPDATE 2> /dev/null | egrep -q 'BOOTLOADER: *up-to-date'; then
 		: Eeprom up to date
 	else
-		debug "Updating eeprom: $EEPROM_UPDATE -a"
-		debug 'If you want to USB boot, see: https://blog.emtwo.ch/2020/07/boot-raspberry-pi-4-from-usb-ssd.html'
-		sed -i "/etc/default/rpi-eeprom-update" -e "s|^\#* *FIRMWARE_RELEASE_STATUS=['\"][^'\"]*['\"]|FIRMWARE_RELEASE_STATUS=\"stable\"|g" 1>> "$BUILDLOG" 2>&1
-			|| debug 'Unable to set FIRMWARE_RELEASE_STATUS="stable" in /etc/default/rpi-eeprom-update; skipping'
-		$EEPROM_UPDATE -d -a 1>> "$BUILDLOG" 2>&1
+		if egrep -q 'FIRMWARE_RELEASE_STATUS="stable"' '/etc/default/rpi-eeprom-update' 1>> "$BUILDLOG" 2>&1; then
+			debug "Firmware appears already to be updated (using latest stable version)"
+		else
+			debug "Updating eeprom: $EEPROM_UPDATE -a"
+			debug 'If you want to USB boot, see: https://blog.emtwo.ch/2020/07/boot-raspberry-pi-4-from-usb-ssd.html'
+			sed -i "/etc/default/rpi-eeprom-update" -e "s|^\#* *FIRMWARE_RELEASE_STATUS=['\"][^'\"]*['\"]|FIRMWARE_RELEASE_STATUS=\"stable\"|g" 1>> "$BUILDLOG" 2>&1
+				|| debug 'Unable to set FIRMWARE_RELEASE_STATUS="stable" in /etc/default/rpi-eeprom-update; skipping'
+			$EEPROM_UPDATE -a 1>> "$BUILDLOG" 2>&1  # Don't use -d; will wipe out current config
+		fi
     fi
 fi
 
