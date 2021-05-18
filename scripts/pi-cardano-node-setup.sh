@@ -370,7 +370,7 @@ download_github_code () {
 		[ -z "$MYREQUIREDVERSION" ] && MYREQUIREDVERSION='0.0'
 	fi
 
-	# Try to determine version of $MYINSTALLPROGNAME (usually the same as $MYGITPROGNAME)
+	# Try to determine installed version of $MYINSTALLPROGNAME (usually the same as $MYGITPROGNAME)
 	ISLIBRARY='N'
 	MYVERSION=''
 	MYGITPROGNAME=$(echo "$MYREPOSITORYURL" | sed 's|/*$||' | awk -F/ '{ print $(NF) }')
@@ -411,7 +411,7 @@ download_github_code () {
 		debug "Refreshing GitHub code for $MYINSTALLPROGNAME from: $MYREPOSITORYURL"
 		cd "./$MYGITPROGNAME"
 		git fetch --all --recurse-submodules --tags 1>> "$BUILDLOG" 2>&1
-		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep "^v?$MYREQUIREDVERSION$" | head -1)
+		MYTAG=$(git tag | sort -V | egrep '[0-9]' | egrep "^([a-z-]*-)?v?$MYREQUIREDVERSION$" | head -1)
 		if [[ ! -z "$MYTAG" ]]; then
 			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
@@ -422,7 +422,7 @@ download_github_code () {
 			then
 				debug "Ended up checking out $MYREQUIREDVERSION (no tag)"
 			else
-				debug "Can't checkout $MYREQUIREDVERSION (as tag or version); doing hard reset and pulling"
+				debug "Can't checkout $MYREQUIREDVERSION (as tag, tags/$MYTAG, or version, $MYREQUIREDVERSION); doing hard reset and pulling"
 				git reset --hard	1>> "$MYBUILDLOG" 2>&1
 				git pull			1>> "$MYBUILDLOG" 2>&1
 			fi
@@ -586,7 +586,8 @@ $APTINSTALLER install cython3		1>> "$BUILDLOG" 2>&1 \
 		|| debug "$0: Cython could not be installed with '$APTINSTALLER install'; will try to build anyway"
 ($APTINSTALLER install nmap || ischroot || snap install nmap) 1>> "$BUILDLOG" 2>&1
 if ! ischroot; then
-	snap connect nmap --classic			1>> "$BUILDLOG" 2>&1 || snap refresh nmap	1>> "$BUILDLOG" 2>&1
+	snap install nmap 					1>> "$BUILDLOG" 2>&1 || snap refresh nmap	1>> "$BUILDLOG" 2>&1
+	snap connect nmap:network-control	1>> "$BUILDLOG" 2>&1
 	snap install rustup --classic		1>> "$BUILDLOG" 2>&1 || snap refresh rustup	1>> "$BUILDLOG" 2>&1
 	snap install jcli --classic			1>> "$BUILDLOG" 2>&1 || snap refresh jcli	1>> "$BUILDLOG" 2>&1
 	snap install go --classic			1>> "$BUILDLOG" 2>&1 || snap refresh go		1>> "$BUILDLOG" 2>&1
@@ -611,7 +612,9 @@ $APTINSTALLER install yarn		1>> "$BUILDLOG" 2>&1 \
 	|| err_exit 101 "$0: Faild to install yarn (and possibly nodejs); aborting; see $BUILDLOG"
 npm install cardanocli-js		1>> "$BUILDLOG" 2>&1
 # OK, now clean up anything lying around that shouldn't be there...again
-(apt clean && apt autoremove && apt autoclean)	1>> "$BUILDLOG" 2>&1
+$APTINSTALLER clean			1>> "$BUILDLOG" 2>&1
+$APTINSTALLER autoremove	1>> "$BUILDLOG" 2>&1
+$APTINSTALLER autoclean		1>> "$BUILDLOG" 2>&1
 
 if [ ".$SKIP_RECOMPILE" != '.Y' ]; then
 	$APTINSTALLER install --reinstall build-essential 1>> "$BUILDLOG" 2>&1
