@@ -776,7 +776,7 @@ else
 		enabled = true
 		filter = nginx-limit-req
 		action = iptables-multiport[name=ReqLimit, port="http,https", protocol=tcp]
-		logpath = /var/log/nginx/*error.log
+		logpath = %(nginx_error_log)s
 		findtime = 180
 		maxretry = 30
 		bantime = 3666
