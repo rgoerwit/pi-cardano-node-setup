@@ -771,6 +771,21 @@ fi
 if [ -s '/etc/fail2ban/filter.d/cardano.conf' ]; then
 	debug 'Fail2ban configured; not creating: /etc/fail2ban/{jail.d/cardano.conf,filter.d/cardano.conf}'
 else
+	cat <<-_EOF > '/etc/fail2ban/jail.d/nginx-limit-req.conf'
+		[nginx-limit-req]
+		enabled = true
+		filter = nginx-limit-req
+		action = iptables-multiport[name=ReqLimit, port="http,https", protocol=tcp]
+		logpath = /var/log/nginx/*error.log
+		findtime = 180
+		maxretry = 30
+		bantime = 3666
+	_EOF
+	cat <<-_EOF > '/etc/fail2ban/filter.d/nginx-limit-req.conf'
+		[Definition]
+		failregex = limiting requests, excess:.* by zone.*client: <HOST>
+		ignoreregex =
+	_EOF
 	debug 'Creating Fail2ban files: /etc/fail2ban/{jail.d/cardano.conf,filter.d/cardano.conf}'
 	cat <<-_EOF > '/etc/fail2ban/jail.d/cardano.conf'
 		# service name
@@ -873,11 +888,13 @@ else
 	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" <<- _EOF
+		limit_req_zone $binary_remote_addr zone=one:10m rate=1r/s;
 		server {
 		    listen              $EXTERNAL_PROMETHEUS_PORT ssl;
 		    server_name         example.com;
 		    ssl_certificate     ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.crt;
 		    ssl_certificate_key ${PROMETHEUS_DIR}/nginx-${EXTERNAL_HOSTNAME}.key;
+			limit_req zone=one burst=5;
 
 		    location / {
 		        auth_basic "Restricted Content";
