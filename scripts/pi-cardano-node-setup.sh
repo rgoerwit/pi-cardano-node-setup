@@ -765,9 +765,42 @@ else
 		ufw allow from "$MY_SUBNETS" to any port 3389 1>> "$BUILDLOG" 2>&1
 	fi
 fi
+
+# Fail2ban setup
+#
+if [ -s '/etc/fail2ban/filter.d/cardano.conf' ]; then
+	debug 'Fail2ban configured; not creating: /etc/fail2ban/{jail.d/cardano.conf,filter.d/cardano.conf}'
+else
+	debug 'Creating Fail2ban files: /etc/fail2ban/{jail.d/cardano.conf,filter.d/cardano.conf}'
+	cat <<-_EOF > '/etc/fail2ban/jail.d/cardano.conf'
+		# service name
+		[cardano-node]
+		# turn on /off
+		enabled  = true
+		# ports to ban (numeric or text)
+		port     = $LISTENPORT
+		# filter file basename (/etc/fail2ban/filter.d/cardano.conf)
+		filter   = cardano
+		# file to parse
+		logpath  = /var/log/syslog
+		# How many retries (maxretry) in how many seconds (findtime)
+		maxretry = 3
+		findtime = 180
+		# ban time in seconds
+		bantime = 3666
+	_EOF
+	cat <<-_EOF > '/etc/fail2ban/filter.d/cardano.conf'
+		[Definition]
+		#Theses regex expressions capture nodes that are not on the latest fork and also
+		#nodes from other networks (testnets)
+		failregex = ^.*HardForkEncoderDisabledEra.*"address":"<HOST>:.*$
+			^.*version data mismatch.*"address":"<HOST>:.*$
+			^.*"address":"<HOST>:.*version data mismatch.*$
+	_EOF
+fi
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Checking fail2ban status (will squawk if NOT OK); please also leverage ISP DDOS protection"
-	systemctl start fail2ban		1>> "$BUILDLOG" 2>&1;	sleep 3
+	systemctl restart fail2ban		1>> "$BUILDLOG" 2>&1;	sleep 3
 	systemctl is-active fail2ban	1> /dev/null \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 fi
@@ -1734,6 +1767,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	(echo -e '#!'"/usr/bin/env bash\nvname='cardano-node'\nPARENT=\"\$(dirname \"\$0\")\"\n. \"\${PARENT}\"/env offline\n"; \
 		sed '1,/^EOF"/d' < "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh") \
 	 		| sponge "${CARDANO_SCRIPTDIR}/deploy-as-systemd.sh"
+	[ $(find /etc/systemd -type f -name 'cnode-*' -exec egrep -q ardano {} \; -print 2> /dev/null | wc -l) -gt 0 ] \
+		&& debug "CNTool scripts found in /etc/systemd; disable/remove if needed: find /etc/systemd -type f -name 'cnode-*' ..."
 fi
 [ -x "${CARDANO_SCRIPTDIR}/gLiveView.sh" ] \
     || err_exit 108 "$0: Can't find executable ${CARDANO_SCRIPTDIR}/gLiveView.sh; Guild scripts missing; aborting (drop -d option?)"
