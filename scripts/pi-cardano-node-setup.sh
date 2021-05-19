@@ -783,7 +783,7 @@ else
 	_EOF
 	cat <<-_EOF > '/etc/fail2ban/filter.d/nginx-limit-req.conf'
 		[Definition]
-		failregex = limiting requests, excess:.* by zone.*client: <HOST>
+		failregex = limiting requests, excess:.* by zone.*client:
 		ignoreregex =
 	_EOF
 	debug 'Creating Fail2ban files: /etc/fail2ban/{jail.d/cardano.conf,filter.d/cardano.conf}'
