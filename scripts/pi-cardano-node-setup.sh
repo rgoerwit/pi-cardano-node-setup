@@ -888,7 +888,7 @@ else
 	debug "Prometheus (via nginx) credentials: username, stats; pass, $(cat ${PROMETHEUS_DIR}/nginx-passwd-cleartext.txt | tail -1 | sed 's/\n$//')"
 	[ -d "$NGINX_CONF_DIR" ] || NGINX_CONF_DIR='/etc/nginx/conf.d'
 	cat <<- _EOF > "$NGINX_CONF_DIR/nginx-${EXTERNAL_HOSTNAME}.conf" 
-		limit_req_zone $binary_remote_addr zone=one:10m rate=1r/s;
+		limit_req_zone \$binary_remote_addr zone=one:10m rate=1r/s;
 		server {
 		    listen              $EXTERNAL_PROMETHEUS_PORT ssl;
 		    server_name         example.com;
