@@ -500,6 +500,7 @@ cabal_install_software () {
 	MYCABALBUILDLOG=$5
 	MYCABALPRODUCT=$6
 	MYGHCVERSION=$7
+	MYLOOKFORTHISSTRINGINPATH=$8
 
 	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
 	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG" 2>&1 \
@@ -517,7 +518,7 @@ cabal_install_software () {
 	if $MYCABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
-		cp -f $(find "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*' | head -1) "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
+		cp -f $(find "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*' | egrep "${MYLOOKFORTHISSTRINGINPATH:-.}" | tail -1) "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
 			|| { 
 				mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD" "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1
 				err_exit 81 "Failed to build $MYCABALPRODUCT; aborting"
@@ -1679,8 +1680,7 @@ if ischroot; then
 	debug "In a chroot, so skipping bech32, b2sum, and vit-kedqr install; rerun on boot from backup"
 else
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'bech32'; then
-		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG"
-		cp -f $(find "$INSTALLDIR/bech32" -type f -name 'bech32' ! -path '*OLD*' | egrep "$BLOCKCHAINNETWORK" | head -1) "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1
+		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG" '' '' "$BLOCKCHAINNETWORK"
 	fi
 	go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
