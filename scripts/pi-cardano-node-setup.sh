@@ -1682,7 +1682,7 @@ if ischroot; then
 	debug "In a chroot, so skipping bech32, b2sum, and vit-kedqr install; rerun on boot from backup"
 else
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/bech32" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0' 'bech32'; then
-		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG" '' '' "$BLOCKCHAINNETWORK"
+		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG" '' '' "build"
 	fi
 	go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
 	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
