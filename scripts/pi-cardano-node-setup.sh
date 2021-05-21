@@ -518,7 +518,9 @@ cabal_install_software () {
 	if $MYCABAL build all 1>> "$MYCABALBUILDLOG" 2>&1; then
 		# If we recompiled or user wants new version, remove symlinks if they exist in prep for copying in new binaries
 		mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT" "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD"	1>> "$MYCABALBUILDLOG" 2>&1
-		cp -f $(find "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*' | egrep "${MYLOOKFORTHISSTRINGINPATH:-.}" | tail -1) "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
+		BUILTEXECUTABLE=$(find "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" -type f -name "$MYCABALPRODUCT" ! -path '*OLD*' | egrep "${MYLOOKFORTHISSTRINGINPATH:-.}" | tail -1)
+		debug "Copying $BUILTEXECUTABLE to $MYCABALINSTALLDIR"
+		cp -f "$BUILTEXECUTABLE" "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1 \
 			|| { 
 				mv -f "$MYCABALINSTALLDIR/$MYCABALPRODUCT.OLD" "$MYCABALINSTALLDIR/$MYCABALPRODUCT" 1>> "$MYCABALBUILDLOG" 2>&1
 				err_exit 81 "Failed to build $MYCABALPRODUCT; aborting"
