@@ -1517,7 +1517,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/hot.skey" "$CARDANO_PRIVDIR/kes.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/vrf.skey" "$CARDANO_PRIVDIR/vrf.skey"
 				cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert" "$CARDANO_PRIVDIR/node.cert" || \
-					cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/pool.cert" "$CARDANO_PRIVDIR/node.cert"
+					cp -f "${CARDANO_PRIVDIR}/pool/${POOLNAME}/node.cert" "$CARDANO_PRIVDIR/node.cert" \
+						debug "NOT STARTING AS OPERATIONAL POOL; no operational certificate in: ${CARDANO_PRIVDIR}/pool/${POOLNAME}/op.cert"
 			else
 				err_exit 131 "Can't find guild wallet: ${CARDANO_PRIVDIR}/wallet/${GUILD_WALLET}; aborting"
 			fi
