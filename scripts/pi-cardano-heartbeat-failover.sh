@@ -53,20 +53,20 @@ fi
 #
 [ -f "/lib/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
 [ -f "/etc/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
-ENVFILEBASE="/home/cardano/systemd-env-file"
+ENVFILEBASE="$INSTALLDIR/systemd-env-file"
 BLOCKMAKINGENVFILEEXTENSION='.normal'
 STANDINGBYENVFILEEXTENSION='.standingby'
 
 if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"
 then
     # Parent is OK; we're not configured with any block-producer data, though, so no need to fail back to standby
-    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGFILEEXTENSION}" \
-        || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGFILEEXTENSION}"
+    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
+        || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
-    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGFILEEXTENSION"; then
+    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION"; then
         sed -i "$SYSTEMSTARTUPSCRIPT" \
-            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKNIBLOCKMAKINGFILEEXTENSIONGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
+            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKNIBLOCKMAKINGENVFILEEXTENSIONGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
                 || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
     fi
 
@@ -76,16 +76,16 @@ then
         || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
 else
     # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; but we can't help if we have to keys or certs
-    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGFILEEXTENSION}" \
-        || jump_ship 6 user.warn "Failover blocked; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGFILEEXTENSION}"
+    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
+        || jump_ship 6 user.warn "Failover blocked; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent node is down; we are already helping - running as a block producer 
-    egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT" \
+    egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT" \
         || jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
 
     # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
     sed -i "$SYSTEMSTARTUPSCRIPT" \
-        -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGFILEEXTENSION}/" \
+        -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGENVFILEEXTENSION}/" \
             || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
 
     systemtcl is-active cardano-node 1> /dev/null \
