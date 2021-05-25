@@ -60,7 +60,7 @@ STANDINGBYENVFILEEXTENSION='.standingby'
 if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"
 then
     # Parent is OK; we're not configured with any block-producer data, though, so no need to fail back to standby
-    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
+    egrep -q "kes-key|vrf-key|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
         || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
@@ -78,7 +78,7 @@ then
 
 else
     # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; but we can't help if we have to keys or certs
-    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
+    egrep -q "kes-key|vrf-key|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
         || jump_ship 6 user.warn "Failover blocked; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent node is down; we are already helping - running as a block producer 
