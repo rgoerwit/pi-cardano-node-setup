@@ -64,16 +64,18 @@ then
         || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
-    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION"; then
+    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT"; then
         sed -i "$SYSTEMSTARTUPSCRIPT" \
-            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKNIBLOCKMAKINGENVFILEEXTENSIONGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
+            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
                 || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+        systemtcl is-active cardano-node 1> /dev/null \
+            || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
+        systemctl reload-or-restart cardano-node \
+            || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
+    else
+        jump_ship 3 user.debug "Node already running as a plain relay; not modifying $SYSTEMSTARTUPSCRIPT"
     fi
 
-    systemtcl is-active cardano-node 1> /dev/null \
-        || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
-    systemctl reload-or-restart cardano-node \
-        || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
 else
     # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; but we can't help if we have to keys or certs
     egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
