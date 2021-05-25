@@ -1433,6 +1433,7 @@ else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
+		sed -i -e "/^[[:space:]]*ENVFILEBASE=/ s|/home/cardano|$INSTALLDIR|" "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		chown root.$INSTALL_USER "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		chmod 0750 "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
