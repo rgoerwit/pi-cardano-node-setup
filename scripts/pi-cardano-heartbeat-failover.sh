@@ -53,34 +53,40 @@ fi
 #
 [ -f "/lib/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
 [ -f "/etc/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
+ENVFILEBASE="$INSTALLDIR/systemd-env-file"
+BLOCKMAKNIGENVFILEEXTENSION='.normal'
+STANDINGBYENVFILEEXTENSION='.standingby'
 
 if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"
 then
-    # Parent is OK.  If we're not running as a block producer, we can exit.
-    egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT" \
-        || jump_ship 1 user.warn "Failover stand-down blocked; node start script lacks commented-out block-producer arguments: $SYSTEMSTARTUPSCRIPT"
-    egrep -q 'kes-key\|vrf-key\|operational-certificate' "$SYSTEMSTARTUPSCRIPT" \
-        || jump_ship 2 user.warn "Node is configured a relay, not a failover spare; not modifying $SYSTEMSTARTUPSCRIPT"
+    # Parent is OK; we're not configured with any block-producer data, though, so no need to fail back to standby
+    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKNIGENVFILEEXTENSION}" \
+        || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKNIGENVFILEEXTENSION}"
 
-    # Parent is OK (again), make us just a node; comment out key-related items on cardano-node command line
-    sed -i "$SYSTEMSTARTUPSCRIPT" \
-        -e '/^[^#]*$/ s/^\([[:space:]]*ExecStart=.*\)[[:space:]]\(\(--[0-z]*-\(kes-key\|vrf-key\|operational-certificate\)[[:space:]]*[^[:space:]]*[[:space:]]*\)\{3\}.*\)$/\1 # \2/' \
-        || jump_ship 3 user.warn "Failed to switch local cardano-node to a regular relay node; failed to edit: $SYSTEMSTARTUPSCRIPT"
+    # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
+    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKNIGENVFILEEXTENSION"; then
+        sed -i "$SYSTEMSTARTUPSCRIPT" \
+            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKNIGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
+                || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+    fi
 
     systemtcl is-active cardano-node 1> /dev/null \
         || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
     systemctl reload-or-restart cardano-node \
         || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
 else
-    # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; either it's down or we're cut off from it
-    egrep -q 'kes-key\|vrf-key\|operational-certificate' "$SYSTEMSTARTUPSCRIPT" \
-        || jump_ship 6 user.warn "Failover blocked; node start script lacks commented-out block-producer arguments: $SYSTEMSTARTUPSCRIPT"
-    egrep -q '^[ \t]*ExecStart.*#' "$SYSTEMSTARTUPSCRIPT" \
-        || jump_ship 0 user.debug "Node is already a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
+    # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; but we can't help if we have to keys or certs
+    egrep -q "kes-key\|vrf-key\|operational-certificate" "${ENVFILEBASE}${BLOCKMAKNIGENVFILEEXTENSION}" \
+        || jump_ship 6 user.warn "Failover blocked; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKNIGENVFILEEXTENSION}"
+
+    # Parent node is down; we are already helping - running as a block producer 
+    egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKNIGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT" \
+        || jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
 
     # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
-    sed -i "$SYSTEMSTARTUPSCRIPT" -e '/^[[:space:]]*ExecStart/ s/ # / /' \
-        || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
+    sed -i "$SYSTEMSTARTUPSCRIPT" \
+        -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKNIGENVFILEEXTENSION}/" \
+            || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
 
     systemtcl is-active cardano-node 1> /dev/null \
         || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"

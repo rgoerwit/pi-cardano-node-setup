@@ -1533,8 +1533,6 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		# Assuming we're a block producer if -p <LISTENPORT> is >= 6000 and we have a pool name
 		if [ "$KEYCOUNT" -ge 3 ]; then
 			CERTKEYARGS="--shelley-kes-key $CARDANO_PRIVDIR/kes.skey --shelley-vrf-key $CARDANO_PRIVDIR/vrf.skey --shelley-operational-certificate $CARDANO_PRIVDIR/node.cert"
-			# If we will be a failover/hot spare then keep the $CERTKEYARGS, but comment them out
-			[ ".$FAILOVER_PARENT" != '.' ] && CERTKEYARGS="# $CERTKEYARGS"
 		else
 			# Go ahead and configure if key/cert is missing, but don't run the node with them
 			[ "$KEYCOUNT" -ge 1 ] && debug "Not all needed keys/certs are present in $CARDANO_PRIVDIR; ignoring them (please generate!)"
@@ -1553,6 +1551,10 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	[ -z "${IPV6_ADDRESS}" ] || IPV6ARG="--host-ipv6-addr '$IPV6_ADDRESS'"
 	LIBSTARTUPSCRIPT=$(echo "$SYSTEMSTARTUPSCRIPT" | sed 's|^/lib/|/etc/|')
 	[ -f "$LIBSTARTUPSCRIPT" ] && 'rm' -f "$LIBSTARTUPSCRIPT"  # Old startup script was here
+	echo "CERTKEYARGS='${CERTKEYARGS}'" > "$INSTALLDIR/systemd-env-file.normal"
+	echo "CERTKEYARGS=''" > "$INSTALLDIR/systemd-env-file.standingby"
+	ENVFILEEXTENSION='.normal'
+	[ ".$FAILOVER_PARENT" != '.' ] && ENVFILEEXTENSION='.standingby'
 	cat <<- _EOF > "$SYSTEMSTARTUPSCRIPT"
 		# Make sure cardano-node is installed as a service
 		[Unit]
@@ -1562,6 +1564,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		[Service]
 		User=$INSTALL_USER
 		Environment=LD_LIBRARY_PATH=/usr/local/lib
+		EnvironmentFile=$INSTALLDIR/systemd-env-file$ENVFILEEXTENSION
 		KillSignal=SIGINT
 		RestartKillSignal=SIGINT
 		StandardOutput=journal
@@ -1572,7 +1575,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		Type=simple
 		KillMode=process
 		WorkingDirectory=$INSTALLDIR
-		ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ $CERTKEYARGS
+		ExecStart=$INSTALLDIR/cardano-node run --socket-path $INSTALLDIR/sockets/${BLOCKCHAINNETWORK}-node.socket --config $NODE_CONFIG_FILE $IPV4ARG $IPV6ARG --port $LISTENPORT --topology $CARDANO_FILEDIR/${BLOCKCHAINNETWORK}-topology.json --database-path ${CARDANO_DBDIR}/ \$CERTKEYARGS
 		Restart=on-failure
 		RestartSec=10s
 		LimitNOFILE=32768
