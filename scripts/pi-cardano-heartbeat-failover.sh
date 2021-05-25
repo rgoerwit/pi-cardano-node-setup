@@ -53,7 +53,7 @@ fi
 #
 [ -f "/lib/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/lib/systemd/system/cardano-node.service"
 [ -f "/etc/systemd/system/cardano-node.service" ] && SYSTEMSTARTUPSCRIPT="/etc/systemd/system/cardano-node.service"
-ENVFILEBASE="$INSTALLDIR/systemd-env-file"
+ENVFILEBASE="/home/cardano/systemd-env-file"
 BLOCKMAKINGENVFILEEXTENSION='.normal'
 STANDINGBYENVFILEEXTENSION='.standingby'
 
