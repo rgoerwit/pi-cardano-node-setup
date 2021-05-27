@@ -1108,7 +1108,7 @@ if [ ".$VLAN_NUMBER" != '.' ]; then
 	if [ ".$NETPLAN_FILE" = '.' ] || egrep -q 'vlans:' "$NETPLAN_FILE"; then
 		debug "Skipping VLAN.$VLAN_NUMBER configuration; $NETPLAN_FILE missing, or has VLANs; edit manually."
 	else
-    	sed -i "$NETPLAN_FILE" -e '/eth0:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
+    	sed -i "$NETPLAN_FILE" -e '/eth0:\|eno1:/,/wlan0:|vlans:/ { s|^\([ 	]*dhcp4:[ 	]*\)true|\1false|gi }'
 		cat <<- _EOF >> "$NETPLAN_FILE"
 			    vlans:
 			        vlan$VLAN_NUMBER:
@@ -1351,11 +1351,11 @@ else
 			|| err_exit 79 "$0: Failed to 'git checkout $CARDANONODE_TAGGEDVERSION; aborting"
 	fi
 fi
-git fetch	1>> "$BUILDLOG" 2>&1
+git fetch  1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
-OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }')
+OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }' 2> /dev/null)
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
 	debug "Building cardano-node; already installed version is ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
@@ -1691,7 +1691,7 @@ else
 		cabal_install_software "$BUILDDIR" "$INSTALLDIR" 'bech32' "$CABAL" "$BUILDLOG" '' '' "build"
 	fi
 	go get bitbucket.org/dchest/b2sum 1>> "$BUILDLOG" 2>&1
-	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '1.1.0'; then
+	if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/vit-kedqr" "$SKIP_RECOMPILE" "$BUILDLOG" '' '0.1.0'; then
 		cd "$BUILDDIR/vit-kedqr"
 		debug "Compiling and installing vit-kedqr to $INSTALLDIR; on first pass takes a long time"
 		if cargo build --bin vit-kedqr	1>> "$BUILDLOG" 2>&1; then
