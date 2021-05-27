@@ -341,6 +341,7 @@ do_ghcup_install () {
 	( [ -x "$CABAL" ] && [ "$CABAL_VERSION" = $($CABAL --version | head -1 | awk '{ print $(NF) }' 2> /dev/null) ] ) \
 		|| 'cp' -f "$GHCUP_INSTALL_PATH/cabal" "$CABAL"
 	CABAL="$GHCUP_INSTALL_PATH/cabal"
+	debug "Consider re-running this script after completing this run; $CABAL can upgrade itself if needed"
 	popd 1>> "$BUILDLOG" 2>&1
 
 }
@@ -1698,7 +1699,7 @@ else
 			cargo install --path . --force --locked	1>> "$BUILDLOG" 2>&1
 			cp -f $(find "$BUILDDIR/vit-kedqr" -type f -name vit-kedqr ! -path '*OLD*') "$INSTALLDIR/vit-kedqr" 1>> "$BUILDLOG" 2>&1
 		else
-			debug "Failed to 'cargo build' vit-kedqr; continuing anyway"
+			debug "Failed to 'cargo build' vit-kedqr; continuing anyway (used for QR codes)"
 		fi
 	fi
 fi
