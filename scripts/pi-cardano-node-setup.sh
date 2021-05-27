@@ -550,6 +550,17 @@ mkdir "$BUILDDIR" 2> /dev/null
 chown "${BUILD_USER}.${BUILD_USER}" "$BUILDDIR"
 chmod 2755 "$BUILDDIR"
 
+# Add cardano user (or whatever install user is used) and lock password
+#
+debug "Checking and (if need be) making install user: ${INSTALL_USER}"
+id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
+    || useradd -m -U -s /bin/bash -d "/home/$INSTALL_USER" "$INSTALL_USER"	1>> "$BUILDLOG"
+# The account for the install user (which will run cardano-node) should be locked
+usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin					1>> "$BUILDLOG" 2>&1
+passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
+(stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') \
+	|| (chown $INSTALL_USER.$INSTALL_USER "/home/${INSTALL_USER}"; chmod o-rwx "/home/${INSTALL_USER}")
+
 [ ".$SKIP_RECOMPILE" = '.Y' ] || debug "You are compiling (NO -x flag supplied); this may take a long time...."
 debug "To monitor progress, run: 'tail -f \"$BUILDLOG\"'"
 
@@ -978,11 +989,11 @@ fi
 if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/prometheus/node_exporter' "$SKIP_RECOMPILE" "$BUILDLOG" "$NODE_EXPORTER_DIR"; then
 	cd './node_exporter'
 	$MAKE common-all	1>> "$BUILDLOG" 2>&1 \
-		|| err_exit 21 "Failed to build Prometheus node_exporter; see ${BUILDDIR}/node_exporter"
+		|| err_exit 21 "Failed to build node_exporter; try another version of 'go': snap remove go; snap install --classic --channel=1.XXX/stable go"
 fi
 systemctl stop node_exporter							1>> "$BUILDLOG" 2>&1
 
-cp -f $(find "$BUILDDIR/node_exporter/" -type f -name 'node_exporter' ! -path '*OLD*') "$NODE_EXPORTER_DIR/node_exporter" 1>> "$BUILDLOG" 2>&1
+cp -f $(find "$BUILDDIR/node_exporter/" -type f -name 'node_exporter' ! -path '*examples*' ! -path '*init.d*' ! -path '*OLD*' | tail -1) "$NODE_EXPORTER_DIR/node_exporter" 1>> "$BUILDLOG" 2>&1
 if [ ".$DONT_OVERWRITE" = '.Y' ] && [ -f '/etc/systemd/system/node_exporter.service' ]
 then
 	debug "Skipping node_exporter service file remake (drop -d to force)"
@@ -1157,17 +1168,6 @@ else
 	debug "Turning on Bottleneck Bandwidth and RTT in sysconfig file, $SYSCONFIGFILE"
 	echo -e "\n# Use Google's congestion control algorithm\nnet.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\n# net.ipv4.tcp_congestion_control=htcp" >> "$SYSCONFIGFILE"
 fi
-
-# Add cardano user (or whatever install user is used) and lock password
-#
-debug "Checking and (if need be) making install user: ${INSTALL_USER}"
-id "$INSTALL_USER" 1>> "$BUILDLOG"  2>&1 \
-    || useradd -m -U -s /bin/bash -d "/home/$INSTALL_USER" "$INSTALL_USER"	1>> "$BUILDLOG"
-# The account for the install user (which will run cardano-node) should be locked
-usermod -a -G users "$INSTALL_USER" -s /usr/sbin/nologin					1>> "$BUILDLOG" 2>&1
-passwd -l "$INSTALL_USER"													1>> "$BUILDLOG"
-(stat "/home/${INSTALL_USER}" --format '%A' | egrep -q '\---$') \
-	|| (chown $INSTALL_USER.$INSTALL_USER "/home/${INSTALL_USER}"; chmod o-rwx "/home/${INSTALL_USER}")
 
 # Increase cardano-user open-file limits
 #
