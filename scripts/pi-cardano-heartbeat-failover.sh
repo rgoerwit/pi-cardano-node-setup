@@ -83,8 +83,10 @@ else
         || jump_ship 6 user.warn "Failover blocked; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 
     # Parent node is down; we are already helping - running as a block producer 
-    egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT" \
-        && jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
+    if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT"; then
+        systemctl is-active cardano-node 1> /dev/null || systemctl reload-or-restart cardano-node
+        jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
+    fi
 
     # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
     sed -i "$SYSTEMSTARTUPSCRIPT" \
@@ -92,7 +94,7 @@ else
             || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
 
     systemctl daemon-reload 1> /dev/null
-    systemtcl is-active cardano-node 1> /dev/null \
+    systemctl is-active cardano-node 1> /dev/null \
         || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"
     systemctl reload-or-restart cardano-node \
         || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
