@@ -69,7 +69,7 @@ then
             || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT (permission issue?)"
 
         systemctl daemon-reload 1> /dev/null
-        systemtcl is-active cardano-node 1> /dev/null \
+        systemctl is-active cardano-node 1> /dev/null \
             || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
         systemctl reload-or-restart cardano-node \
             || jump_ship 5 user.crit "Failed to switch local cardano-node to a regular relay; can't (re)start cardano-node"
@@ -98,7 +98,7 @@ else
         systemctl reload-or-restart cardano-node \
             || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
     fi
-    
+
     $LOGGER -p 'user.info' "Cardano node in ${BLOCKMAKINGENVFILEEXTENSION} mode"
 fi
 
