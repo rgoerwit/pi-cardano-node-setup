@@ -59,7 +59,7 @@ STANDINGBYENVFILEEXTENSION='.standingby'
 
 if nmap -Pn -p "$PARENTPORT" -sT "$PARENTADDR" 2> /dev/null | egrep -q "^ *$PARENTPORT/.*open"
 then
-    # Parent is OK; we're not configured with any block-producer data, though, so no need to fail back to standby
+    # Parent is OK; we're not configured with any block-producer data, though; no need to fail back to standby
     egrep -q "kes-key|vrf-key|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
         || jump_ship 1 user.warn "Failover stand-down not needed; no keys/certs in: ${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}"
 

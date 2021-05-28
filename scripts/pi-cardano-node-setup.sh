@@ -1426,37 +1426,38 @@ echo -n "$SCRIPT_PATH/pi-cardano-node-setup.sh $@ # (not completed)" > $LASTRUNF
 # Configure this server to fail over for another block-producing node if asked (-f <parent:port>)
 #
 CRONFILE='/etc/cron.d/cardano-failover'
+FAILOVERSCRIPTNAME='pi-cardano-heartbeat-failover.sh'
 if [ -z "$FAILOVER_PARENT" ]; then
 	# Remove unneeded cron job
 	debug "No parent-failover configured; removing cron file (if it exists): $CRONFILE"
 	rm -f "$CRONFILE"		1>> "$BUILDLOG" 2>&1
 	service cron reload 	1>> "$BUILDLOG" 2>&1
 else
-	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" ]; then
-		debug "Copying heartbeat-failover script into position: $INSTALLDIR/pi-cardano-heartbeat-failover.sh"
+	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" ]; then
+		debug "Copying heartbeat-failover script into position: $INSTALLDIR/$FAILOVERSCRIPTNAME"
 		if ip addr | egrep -v 'fe80|::[10]/(128|0)|127\.0\.0' | awk '/^ *inet6? / { print $2 }' | cut -d/ -f1 | tr -d ' \t\r' | grep -qF "${PARENTADDR}"; then
 			err_abort 9 "$0: Failover address is local; please use a non-local address; aborting!"
 		fi
-		cp "$SCRIPT_PATH/pi-cardano-heartbeat-failover.sh" "$INSTALLDIR"
-		sed -i -e "/^[[:space:]]*ENVFILEBASE=/ s|/home/cardano|$INSTALLDIR|" "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
-		chown root.$INSTALL_USER "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
-		chmod 0750 "$INSTALLDIR/pi-cardano-heartbeat-failover.sh"
+		cp "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" "$INSTALLDIR/"
+		sed -i -e "/^[[:space:]]*ENVFILEBASE=/ s:/home/cardano\|\$INSTALLDIR:$INSTALLDIR:" "$INSTALLDIR/$FAILOVERSCRIPTNAME"
+		chown root.$INSTALL_USER "$INSTALLDIR/$FAILOVERSCRIPTNAME"
+		chmod 0750 "$INSTALLDIR/$FAILOVERSCRIPTNAME"
 		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
 		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
 		if [ -z "$PARENTADDR" ]; then
 			err_exit 71 "$0: Can't determine failover parent host/ip:port from supplied data: $FAILOVER_PARENT"
 		else
 			[ -z "$PARENTPORT" ] && debug "Defaulting failover parent port to 6000"
-			sed -i "$INSTALLDIR/pi-cardano-heartbeat-failover.sh" \
+			sed -i "$INSTALLDIR/$FAILOVERSCRIPTNAME" \
 				-e "s|^ *PARENTADDR=\"\([^\"]*\)\"|PARENTADDR=\"${PARENTADDR}\"|" \
 				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
 			debug "Adding cron job for heartbeat-failover script (runs every 2 min): "$CRONFILE""
-			echo "*/2 * * * * cardano test -x $INSTALLDIR/pi-cardano-heartbeat-failover.sh && $INSTALLDIR/pi-cardano-heartbeat-failover.sh" > "$CRONFILE"
+			echo "*/2 * * * * cardano test -x $INSTALLDIR/$FAILOVERSCRIPTNAME && $INSTALLDIR/$FAILOVERSCRIPTNAME" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
 	else
-		err_exit 72 "$0: Bad '-p $FAILOVER_PARENT'; can't find $SCRIPT_PATH/pi-cardano-heartbeat-failover.sh"
+		err_exit 72 "$0: Bad '-p $FAILOVER_PARENT'; can't find $SCRIPT_PATH/$FAILOVERSCRIPTNAME"
 	fi
 fi
 
