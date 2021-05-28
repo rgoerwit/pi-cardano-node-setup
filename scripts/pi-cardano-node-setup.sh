@@ -1591,8 +1591,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		WantedBy=multi-user.target
 
 	_EOF
-	chown root.root "$SYSTEMSTARTUPSCRIPT"
-	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
+	chown root.cardano "$SYSTEMSTARTUPSCRIPT"
+	chmod 0664 "$SYSTEMSTARTUPSCRIPT"
 fi
 debug "Cardano node will be started (later): 
     $INSTALLDIR/cardano-node run \\
