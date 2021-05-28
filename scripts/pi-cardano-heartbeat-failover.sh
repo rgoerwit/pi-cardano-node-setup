@@ -68,6 +68,7 @@ then
         sed -i "$SYSTEMSTARTUPSCRIPT" \
             -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
                 || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+        systemctl daemon-reload 1> /dev/null
         systemtcl is-active cardano-node 1> /dev/null \
             || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
         systemctl reload-or-restart cardano-node \
@@ -83,13 +84,14 @@ else
 
     # Parent node is down; we are already helping - running as a block producer 
     egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT" \
-        || jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
+        && jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
 
     # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
     sed -i "$SYSTEMSTARTUPSCRIPT" \
         -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGENVFILEEXTENSION}/" \
             || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
 
+    systemctl daemon-reload 1> /dev/null
     systemtcl is-active cardano-node 1> /dev/null \
         || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"
     systemctl reload-or-restart cardano-node \
