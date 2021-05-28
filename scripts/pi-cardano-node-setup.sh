@@ -833,8 +833,8 @@ else
 fi
 if [ ".$START_SERVICES" != '.N' ]; then
 	debug "Checking fail2ban status (will squawk if NOT OK); please also leverage ISP DDOS protection"
-	systemctl restart fail2ban		1>> "$BUILDLOG" 2>&1;	sleep 3
-	systemctl is-active fail2ban	1> /dev/null \
+	systemctl reload-or-restart fail2ban	1>> "$BUILDLOG" 2>&1;	sleep 3
+	systemctl is-active fail2ban			1> /dev/null \
 		|| err_exit 134 "$0: Problem with fail2ban service; aborting (run 'systemctl status fail2ban')"
 fi
 
