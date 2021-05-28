@@ -1453,7 +1453,7 @@ else
 				-e "s|^ *PARENTPORT=\"\([^\"]*\)\"|PARENTPORT=\"${PARENTPORT:-6000}\"|"
 			# Add cron job
 			debug "Adding cron job for heartbeat-failover script (runs every 2 min): "$CRONFILE""
-			echo "*/2 * * * * cardano test -x $INSTALLDIR/$FAILOVERSCRIPTNAME && $INSTALLDIR/$FAILOVERSCRIPTNAME" > "$CRONFILE"
+			echo "*/2 * * * * root test -x $INSTALLDIR/$FAILOVERSCRIPTNAME && $INSTALLDIR/$FAILOVERSCRIPTNAME" > "$CRONFILE"
 			service cron reload 1>> "$BUILDLOG" 2>&1
 		fi
 	else
@@ -1592,7 +1592,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 
 	_EOF
 	chown root.cardano "$SYSTEMSTARTUPSCRIPT"
-	chmod 0664 "$SYSTEMSTARTUPSCRIPT"
+	chmod 0644 "$SYSTEMSTARTUPSCRIPT"
 fi
 debug "Cardano node will be started (later): 
     $INSTALLDIR/cardano-node run \\

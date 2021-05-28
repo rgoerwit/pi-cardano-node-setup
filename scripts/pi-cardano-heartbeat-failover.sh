@@ -66,7 +66,7 @@ then
     # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
     if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT"; then
         sed -i -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" "$SYSTEMSTARTUPSCRIPT" \
-            || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+            || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT (permission issue?)"
 
         systemctl daemon-reload 1> /dev/null
         systemtcl is-active cardano-node 1> /dev/null \
@@ -89,7 +89,7 @@ else
     else
         # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
         sed -i -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGENVFILEEXTENSION}/" "$SYSTEMSTARTUPSCRIPT" \
-            || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
+            || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT (permission issue?)"
 
         systemctl daemon-reload 1> /dev/null
         systemctl is-active cardano-node 1> /dev/null \
