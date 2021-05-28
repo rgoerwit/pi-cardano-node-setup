@@ -757,6 +757,7 @@ else
 	# Assume cardano-node is publicly available, so don't restrict 
 	ufw allow "$LISTENPORT/tcp"  1>> "$BUILDLOG" 2>&1
 	ufw --force enable           1>> "$BUILDLOG" 2>&1
+	ufw logging medium           1>> "$BUILDLOG" 2>&1
 	debug "Firewall enabled; to check the configuration: 'ufw status numbered'"
 	# [ -z "$DEBUG" ] || ufw status numbered  # show what's going on
 
