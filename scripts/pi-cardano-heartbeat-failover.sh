@@ -68,6 +68,7 @@ then
         sed -i "$SYSTEMSTARTUPSCRIPT" \
             -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
                 || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+
         systemctl daemon-reload 1> /dev/null
         systemtcl is-active cardano-node 1> /dev/null \
             || jump_ship 4 user.warn "Holding off on cardano-node restart; service is inactive"
