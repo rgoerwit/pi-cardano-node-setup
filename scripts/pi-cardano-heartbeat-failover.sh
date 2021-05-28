@@ -77,6 +77,7 @@ then
         jump_ship 3 user.debug "Node already running as a plain relay; not modifying $SYSTEMSTARTUPSCRIPT"
     fi
 
+    $LOGGER -p 'user.info' "Cardano node in ${STANDINGBYENVFILEEXTENSION} mode"
 else
     # Parent node $PARENTADDR:$PARENTPORT isn't allowing TCP connects; but we can't help if we have to keys or certs
     egrep -q "kes-key|vrf-key|operational-certificate" "${ENVFILEBASE}${BLOCKMAKINGENVFILEEXTENSION}" \
@@ -97,6 +98,8 @@ else
         systemctl reload-or-restart cardano-node \
             || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
     fi
+    
+    $LOGGER -p 'user.info' "Cardano node in ${BLOCKMAKINGENVFILEEXTENSION} mode"
 fi
 
 # If we get to here, we're good
