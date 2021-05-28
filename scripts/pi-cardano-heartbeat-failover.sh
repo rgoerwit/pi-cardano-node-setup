@@ -65,9 +65,8 @@ then
 
     # Parent is OK (again), make us just a node by pointing startup script at non-block-producer environment file
     if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT"; then
-        sed -i "$SYSTEMSTARTUPSCRIPT" \
-            -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" \
-                || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
+        sed -i -e "/^[[:space:]]*EnvironmentFile/ s/${BLOCKMAKINGENVFILEEXTENSION}/${STANDINGBYENVFILEEXTENSION}/" "$SYSTEMSTARTUPSCRIPT" \
+            || jump_ship 3 user.warn "Failed to switch local cardano-node to standby mode; failed to edit: $SYSTEMSTARTUPSCRIPT"
 
         systemctl daemon-reload 1> /dev/null
         systemtcl is-active cardano-node 1> /dev/null \
@@ -87,18 +86,17 @@ else
     if egrep -q "^[ \t]*EnvironmentFile.*$BLOCKMAKINGENVFILEEXTENSION" "$SYSTEMSTARTUPSCRIPT"; then
         systemctl is-active cardano-node 1> /dev/null || systemctl reload-or-restart cardano-node
         jump_ship 0 user.debug "Node already running as a block producer; not modifying $SYSTEMSTARTUPSCRIPT"
-    fi
-
-    # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
-    sed -i "$SYSTEMSTARTUPSCRIPT" \
-        -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGENVFILEEXTENSION}/" \
+    else
+        # Parent is down, make us a block producer; remove any commented-out portions of the cardano-node command line
+        sed -i -e "/^[[:space:]]*EnvironmentFile/ s/${STANDINGBYENVFILEEXTENSION}/${BLOCKMAKINGENVFILEEXTENSION}/" "$SYSTEMSTARTUPSCRIPT" \
             || jump_ship 7 user.crit "Failover blocked; can't rewrite start-up script: $SYSTEMSTARTUPSCRIPT"
 
-    systemctl daemon-reload 1> /dev/null
-    systemctl is-active cardano-node 1> /dev/null \
-        || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"
-    systemctl reload-or-restart cardano-node \
-        || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
+        systemctl daemon-reload 1> /dev/null
+        systemctl is-active cardano-node 1> /dev/null \
+            || jump_ship 8 user.warn "Holding off on cardano-node restart; service is inactive"
+        systemctl reload-or-restart cardano-node \
+            || jump_ship 9 user.crit "Failed to switch local cardano-node to a block producer: Can't (re)start cardano-node"
+    fi
 fi
 
 # If we get to here, we're good
