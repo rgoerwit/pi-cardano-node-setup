@@ -216,6 +216,7 @@ CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"					# mostly guild scripts
+CNCLI_SCRIPTDIR=$(echo "$MY_CARDANO_SCRIPTDIR" | sed "s:$MY_INSTALLDIR/*\([^/]*\):$MY_INSTALLDIR/cncli-\1:") # DO NOT CHANGE
 CARDANO_SPOSDIR="${INSTALLDIR}/spos-${BLOCKCHAINNETWORK}"	# SPOS scripts ("Martin's scripts")
 
 # Make sure the path has the locations in it that we'll be needing
@@ -447,7 +448,8 @@ create_and_secure_installdir () {
 
 	debug "(Re)checking/building cardano-node directory structure in $MY_INSTALLDIR"
 	cd "$MY_INSTALLDIR"
-	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" "$MY_CARDANO_SPOSDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
+	MY_CNCLI_SCRIPTDIR=$(echo "$MY_CARDANO_SCRIPTDIR" | sed "s:$MY_INSTALLDIR/*\([^/]*\):$MY_INSTALLDIR/cncli-\1:") # DO NOT CHANGE
+	for INSTALL_SUBDIR in "$MY_CARDANO_FILEDIR" "$MY_CARDANO_DBDIR" "$MY_CARDANO_PRIVDIR" "$MY_CARDANO_SCRIPTDIR" "$MY_CARDANO_SPOSDIR" "$MY_CNCLI_SCRIPTDIR" 'cold-keys' 'guild-db' 'logs' 'sockets' 'pkgconfig'; do
 		(echo "$INSTALL_SUBDIR" | egrep -q '^/') || INSTALL_SUBDIR="${MYINSTALLDIR}/${INSTALL_SUBDIR}" 
 		mkdir -p "$INSTALL_SUBDIR"						2>/dev/null
 		chown -R root.$MY_INSTALLUSER "$INSTALL_SUBDIR"	2>/dev/null
@@ -1846,6 +1848,14 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
 	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
 	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR" 
+	cp -r ./scripts/* "$CNCLI_SCRIPTDIR/"
+	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
+	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
+		sed -i "$CNCLI_SCRIPT" \
+			-e "s:/home/cardano-node:$CARDANO_FILESDIR:" \
+			-e "s:/usr/local/bin:$INSTALLDIR:" \
+			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:" \
+	done
 
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
@@ -1882,6 +1892,7 @@ debug "    Please ensure no /home directory is world-readable (many distros make
 debug "    Please examine topology file; run: 'less \"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json\"'"
 debug "    Install ddclient, if needed; edit /etc/ddclient.conf then restart: systemctl restart ddclient"
 debug "    Have your router or firewall port forward to tcp 9090 if you're using hosted Grafana (-H)"
+debug "    On cncli-sync/sendtip setup, see: https://github.com/AndrewWestberg/cncli/blob/develop/INSTALL.md"
 if date +"%Z %z" | egrep -q UTC; then
 	timedatectl set-timezone "$(curl --fail https://ipapi.co/timezone 2> /dev/null)" 1>> "$BUILDLOG" 2>&1 \
 	    || debug "    Please also set the timezone (e.g., 'timedatectl set-timezone \"America/Chicago\"')"
