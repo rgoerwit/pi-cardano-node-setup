@@ -1874,7 +1874,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 	if [ ".$START_SERVICES" != '.N' ]; then
 		systemctl start cncli-sync.service		1>> "$BUILDLOG" 2>&1
 		systemctl start cncli-sendtip.service	1>> "$BUILDLOG" 2>&1
-	if
+	fi
 fi
 
 # Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
