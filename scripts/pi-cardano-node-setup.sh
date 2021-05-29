@@ -1846,6 +1846,13 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 	rustup component add clippy rustfmt				1>> "$BUILDLOG" 2>&1
 	cargo +stable install --path . --force --locked 1>> "$BUILDLOG" 2>&1 \
 		|| debug "Build of cncli ('cargo install') failed, but moving on (details in $BUILDLOG)"
+	if systemctl is-active cncli-sync.service 1> /dev/null || systemctl is-active cncli-sendtip.service 1> /dev/null; then
+		debug "Stopping cncli services temporarily (updating scripts and executable)"
+		systemctl stop cncli-sync.service		1>> "$BUILDLOG" 2>&1 || debug "Can't stop cncli-sync.service; continuing anyway"
+		systemctl stop cncli-sendtip.service	1>> "$BUILDLOG" 2>&1 || debug "Can't stop cncli-sendtip.service; continuing anyway"
+	else
+		debug "Cncli services not running; no need to stop them"
+	fi
 	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
 	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR" 
 	cp -r ./scripts/* "$CNCLI_SCRIPTDIR/"
@@ -1854,7 +1861,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		sed -i "$CNCLI_SCRIPT" \
 			-e "s:/home/cardano-node:$CARDANO_FILESDIR:" \
 			-e "s:/usr/local/bin:$INSTALLDIR:" \
-			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:" \
+			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:"
 	done
 
 	debug "Installing python-cardano and cardano-tools using $PIP"
@@ -1863,6 +1870,11 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 	$PIP install python-cardano  1>> "$BUILDLOG" 2>&1
 	$PIP install cardano-tools   1>> "$BUILDLOG" 2>&1 \
 		|| err_exit 117 "$0: Unable to install cardano tools: '$PIP install cardano-tools'; aborting"
+
+	if [ ".$START_SERVICES" != '.N' ]; then
+		systemctl start cncli-sync.service		1>> "$BUILDLOG" 2>&1
+		systemctl start cncli-sendtip.service	1>> "$BUILDLOG" 2>&1
+	if
 fi
 
 # Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
