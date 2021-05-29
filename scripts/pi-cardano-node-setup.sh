@@ -1868,12 +1868,13 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		systemctl start cncli-sendtip.service	1>> "$BUILDLOG" 2>&1
 	fi
 fi
+cd "$BUILDDIR"
 if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	cp -r ./cncli/scripts/* "$CNCLI_SCRIPTDIR/"
 	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
 	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
 		sed -i "${CNCLI_SCRIPTDIR}/${CNCLI_SCRIPT}" \
-			-e "s:/home/cardano-node:$CARDANO_FILESDIR:g" \
+			-e "s:/home/cardano-node:$CARDANO_FILEDIR:g" \
 			-e "s:/usr/local/bin:$INSTALLDIR:g" \
 			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g"
 	done
