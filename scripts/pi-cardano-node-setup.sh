@@ -216,7 +216,7 @@ CARDANO_DBDIR="${INSTALLDIR}/db-${BLOCKCHAINNETWORK}"
 CARDANO_PRIVDIR="${INSTALLDIR}/priv-${BLOCKCHAINNETWORK}"
 CARDANO_FILEDIR="${INSTALLDIR}/files"
 CARDANO_SCRIPTDIR="${INSTALLDIR}/scripts"					# mostly guild scripts
-CNCLI_SCRIPTDIR=$(echo "$MY_CARDANO_SCRIPTDIR" | sed "s:$MY_INSTALLDIR/*\([^/]*\):$MY_INSTALLDIR/cncli-\1:") # DO NOT CHANGE
+CNCLI_SCRIPTDIR=$(echo "$CARDANO_SCRIPTDIR" | sed "s:$INSTALLDIR/*\([^/]*\):$INSTALLDIR/cncli-\1:") # DO NOT CHANGE
 CARDANO_SPOSDIR="${INSTALLDIR}/spos-${BLOCKCHAINNETWORK}"	# SPOS scripts ("Martin's scripts")
 
 # Make sure the path has the locations in it that we'll be needing
