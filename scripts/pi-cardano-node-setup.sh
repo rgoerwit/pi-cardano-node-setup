@@ -1876,6 +1876,7 @@ if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CNCLI_SCRIPTDIR}/${CNCLI_SCRIPT}" \
 			-e "s:/home/cardano-node/keys:$CARDANO_PRIVDIR:g" \
 			-e "s:/home/cardano-node/config:$CARDANO_FILEDIR:g" \
+			-e "s:/home/cardano-node/socket/node\.socket:${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket:g" \
 			-e "s:/home/cardano:$INSTALLDIR:g" \
 			-e "s:/usr/local/bin:$INSTALLDIR:g" \
 			-e "s:/root/scripts/cncli\.db:${INSTALLDIR}/guild-db/cncli.db:g" \
