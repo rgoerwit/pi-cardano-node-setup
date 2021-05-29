@@ -1873,9 +1873,9 @@ if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
 	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
 		sed -i "${CNCLI_SCRIPTDIR}/${CNCLI_SCRIPT}" \
-			-e "s:/home/cardano-node:$CARDANO_FILESDIR:" \
-			-e "s:/usr/local/bin:$INSTALLDIR:" \
-			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:"
+			-e "s:/home/cardano-node:$CARDANO_FILESDIR:g" \
+			-e "s:/usr/local/bin:$INSTALLDIR:g" \
+			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g"
 	done
 fi
 
