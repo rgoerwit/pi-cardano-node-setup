@@ -1854,15 +1854,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		debug "Cncli services not running; no need to stop them"
 	fi
 	[ -x './bin/cncli' ] && cp -f './bin/cncli' "$INSTALLDIR" 
-	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR" 
-	cp -r ./scripts/* "$CNCLI_SCRIPTDIR/"
-	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
-	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
-		sed -i "$CNCLI_SCRIPT" \
-			-e "s:/home/cardano-node:$CARDANO_FILESDIR:" \
-			-e "s:/usr/local/bin:$INSTALLDIR:" \
-			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:"
-	done
+	[ -x './target/release/cncli' ] && cp -f './target/release/cncli' "$INSTALLDIR"
 
 	debug "Installing python-cardano and cardano-tools using $PIP"
 	$PIP install --upgrade pip   1>> "$BUILDLOG" 2>&1
@@ -1875,6 +1867,16 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 		systemctl start cncli-sync.service		1>> "$BUILDLOG" 2>&1
 		systemctl start cncli-sendtip.service	1>> "$BUILDLOG" 2>&1
 	fi
+fi
+if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
+	cp -r ./cncli/scripts/* "$CNCLI_SCRIPTDIR/"
+	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
+	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
+		sed -i "$CNCLI_SCRIPT" \
+			-e "s:/home/cardano-node:$CARDANO_FILESDIR:" \
+			-e "s:/usr/local/bin:$INSTALLDIR:" \
+			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:"
+	done
 fi
 
 # Ensuring again that the cardano user itself can modify its topology file; ditto for Guild env and topologyUpdater files (note last arg is doubled)
