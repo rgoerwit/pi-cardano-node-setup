@@ -1878,7 +1878,7 @@ if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s:/home/cardano-node/config:$CARDANO_FILEDIR:g" \
 			-e "s:/home/cardano:$INSTALLDIR:g" \
 			-e "s:/usr/local/bin:$INSTALLDIR:g" \
-			-e "s:/root/scripts/cncli\.db:${INSTALLDIR}/guild-db:g" \
+			-e "s:/root/scripts/cncli\.db:${INSTALLDIR}/guild-db/cncli.db:g" \
 			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g"
 	done
 fi
