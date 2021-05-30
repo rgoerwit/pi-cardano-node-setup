@@ -1870,6 +1870,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" 'https://github.com/AndrewWest
 fi
 cd "$BUILDDIR"
 if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
+    POOLID=$(find "$INSTALLDIR" -path "*${POOLNAME:-NOPOOLNAMEPROVIDED}*" -type f -name 'pool.id' -exec cat {} \; | tr -d ' \t\r\n')
 	cp -r ./cncli/scripts/* "$CNCLI_SCRIPTDIR/"
 	debug "Re-pointing at proper directories everything in: $CNCLI_SCRIPTDIR"
 	for CNCLI_SCRIPT in `ls "$CNCLI_SCRIPTDIR"`; do
@@ -1880,7 +1881,8 @@ if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s:/home/cardano:$INSTALLDIR:g" \
 			-e "s:/usr/local/bin:$INSTALLDIR:g" \
 			-e "s:/root/scripts/cncli\.db:${INSTALLDIR}/guild-db/cncli.db:g" \
-			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g"
+			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g" \
+			-e "s:--pool-id[ \t][ \t]*\([^ \t]*\)[ \t]*:--pool-id '${POOLID:-POOL_ID_IS_UNKNOWN_PLEASE_INSERT_HERE}' :"
 	done
 fi
 
