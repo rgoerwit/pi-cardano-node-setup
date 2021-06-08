@@ -191,7 +191,7 @@ else
 		MY_SUBNETS="$MY_SUBNETS,$MY_SUBNET"
 	fi
 fi
-MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[[:space:]]*\(LISTEN\|ESTABLISHED\) *$/\1/gip' | sed 's/[[:space:]]/,/g')
+MY_SSH_HOST=$(netstat -an | sed -n 's/^.*:22[[:space:]]*\([1-9][0-9.]*\):[0-9]*[[:space:]]*\(LISTEN\|ESTABLISHED\) *$/\1/gip' | tr '\n\r' ',,' | sed 's/[[:space:]]/,/g' | sed 's/,*$//')
 [ -z "$MY_SSH_HOST" ] || MY_SUBNETS="$MY_SUBNETS,$MY_SSH_HOST"  # Make sure not to cut off the current SSH session
 [ -z "${BUILD_USER}" ] && BUILD_USER='builduser'
 [ -z "${WGET_TIMEOUT}" ] && WGET_TIMEOUT=80
@@ -734,7 +734,7 @@ else
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
-		ufw allow proto tcp from "$NETW" to any port ssh 1>> "$BUILDLOG" 2>&1
+		ufw allow proto tcp from "$NETW" to any port ssh 							1>> "$BUILDLOG" 2>&1
 		ufw allow proto tcp from "$NETW" to any port "$PREPROXY_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
 		ufw allow proto tcp from "$NETW" to any port "$CARDANO_PROMETHEUS_PORT"		1>> "$BUILDLOG" 2>&1
 		ufw allow proto tcp from "$NETW" to any port "$EXTERNAL_PROMETHEUS_PORT"	1>> "$BUILDLOG" 2>&1
