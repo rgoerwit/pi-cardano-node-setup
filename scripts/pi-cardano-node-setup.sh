@@ -1374,8 +1374,8 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ 
 		if [ ".$DEBUG" = '.Y' ]; then
 			# Do some more intense debugging if the build fails, with a more restrictive library search path
 			debug "Failed to build cardano-node; setting LD_LIBRARY_PATH and PKG_CONFIG_PATH to specific /usr/local locations"
-			LD_LIBRARY_PATH="/usr/local/lib"; 			EXPORT LD_LIBRARY_PATH
-			PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; EXPORT PKG_CONFIG_PATH
+			LD_LIBRARY_PATH="/usr/local/lib"; 			export LD_LIBRARY_PATH
+			PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"; export PKG_CONFIG_PATH
 			$CABAL build cardano-cli cardano-node 2>&1 \
 				|| err_exit 88 "$0: Failed to build cardano-node; try rerunning or: 'strace $CABAL build cardano-cli cardano-node'"
 			debug "Built cardano-node successfully with explicit LD_LIBRARY_PATH and PKG_CONFIG_PATH"
