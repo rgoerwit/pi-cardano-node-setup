@@ -722,13 +722,14 @@ else
     debug "Configuring firewall for prometheus, SSH; subnets:\n    $MY_SUBNETS"
 	ufw --force reset			1>> "$BUILDLOG" 2>&1
 	if apt-cache pkgnames 2> /dev/null | egrep -q '^ufw$'; then
-		ufw disable 1>> "$BUILDLOG" # install ufw if not present
+		ufw disable 1>> "$BUILDLOG" # install ufw if not present, disable otherwise
 	else
 		$APTINSTALLER install ufw 1>> "$BUILDLOG" 2>&1
 	fi
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
-	ufw default deny incoming    1>> "$BUILDLOG" 2>&1
-	ufw default allow outgoing   1>> "$BUILDLOG" 2>&1
+	ufw default deny incoming	1>> "$BUILDLOG" 2>&1  # Deny means 'drop' (vs TCP reject, which is visible)
+	ufw default allow outgoing	1>> "$BUILDLOG" 2>&1
+	ufw enable           		1>> "$BUILDLOG" 2>&1
 	debug "Using $PREPROXY_PROMETHEUS_PORT as pre-proxy prometheus port (proxy port = $EXTERNAL_PROMETHEUS_PORT)"
 	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
 	    [ -z "$netw" ] && next
@@ -1882,7 +1883,7 @@ if [ -d './cncli/scripts' ] && [ ".$DONT_OVERWRITE" != '.Y' ]; then
 			-e "s:/usr/local/bin:$INSTALLDIR:g" \
 			-e "s:/root/scripts/cncli\.db:${INSTALLDIR}/guild-db/cncli.db:g" \
 			-e "s:/root/scripts:$CNCLI_SCRIPTDIR:g" \
-			-e "s:--pool-id[ \t][ \t]*\([^ \t]*\)[ \t]*:--pool-id '${POOLID:-POOL_ID_IS_UNKNOWN_PLEASE_INSERT_HERE}' :"
+			-e "s:--pool-id[ \t][ \t]*[^ \t]*[ \t]*:--pool-id '${POOLID:-POOL_ID_IS_UNKNOWN_PLEASE_INSERT_HERE}' :"
 	done
 fi
 
