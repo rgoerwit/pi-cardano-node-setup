@@ -729,9 +729,10 @@ else
 	# echo "Installing firewall with only ports 22, 3000, 3001, and 3389 open..."
 	ufw default deny incoming	1>> "$BUILDLOG" 2>&1  # Deny means 'drop' (vs TCP reject, which is visible)
 	ufw default allow outgoing	1>> "$BUILDLOG" 2>&1
-	ufw enable           		1>> "$BUILDLOG" 2>&1
+	for mySubnet in $(echo "$MY_SSH_HOST" | sed 's/ *, */ /g'); do ufw allow proto tcp from "$mySubnet" to any port ssh 1>> "$BUILDLOG" 2>&1; done
+	ufw --force enable			1>> "$BUILDLOG" 2>&1
 	debug "Using $PREPROXY_PROMETHEUS_PORT as pre-proxy prometheus port (proxy port = $EXTERNAL_PROMETHEUS_PORT)"
-	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do
+	for netw in $(echo "$MY_SUBNETS" | sed 's/ *, */ /g'); do 
 	    [ -z "$netw" ] && next
 		NETW=$(netmask --cidr "$netw" | tr -d ' \n\r' 2>> "$BUILDLOG")
 		ufw allow proto tcp from "$NETW" to any port ssh 							1>> "$BUILDLOG" 2>&1
