@@ -507,7 +507,7 @@ cabal_install_software () {
 
 	[ -z "$MYCABALPRODUCT" ] && MYCABALPRODUCT="$MYCABALPACKAGENAME"
 	pushd "$MYCABALBUILDDIR/$MYCABALPACKAGENAME" 1>> "$MYCABALBUILDLOG" 2>&1 \
-		|| err_abort 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
+		|| err_exit 41 "$0: Can't 'cd $MYCABALBUILDDIR/$MYCABALPACKAGENAME'; aborting"
 	debug "Downloaded $MYCABALPRODUCT; installing to $MYCABALINSTALLDIR"
 	# $MYCABAL update	1>> "$MYCABALBUILDLOG" 2>&1
 	$MYCABAL clean	1>> "$MYCABALBUILDLOG" 2>&1
@@ -1440,7 +1440,7 @@ else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/$FAILOVERSCRIPTNAME"
 		if ip addr | egrep -v 'fe80|::[10]/(128|0)|127\.0\.0' | awk '/^ *inet6? / { print $2 }' | cut -d/ -f1 | tr -d ' \t\r' | grep -qF "${PARENTADDR}"; then
-			err_abort 9 "$0: Failover address is local; please use a non-local address; aborting!"
+			err_exit 9 "$0: Failover address is local; please use a non-local address; aborting!"
 		fi
 		cp "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" "$INSTALLDIR/"
 		sed -i -e "/^[[:space:]]*ENVFILEBASE=/ s:/home/cardano\|\$INSTALLDIR:$INSTALLDIR:" "$INSTALLDIR/$FAILOVERSCRIPTNAME"
