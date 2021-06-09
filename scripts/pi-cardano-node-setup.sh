@@ -1386,8 +1386,11 @@ if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ 
 	fi
 fi
 
-# Stop the node so we can replace binaries or update config files
+# Stop the node so we can replace binaries or update config files; remove any failover scripts from cron
 #
+CRONFILE='/etc/cron.d/cardano-failover'
+rm -f "$CRONFILE" 1>> "$BUILDLOG" 2>&1 \
+	&& service cron reload 	1>> "$BUILDLOG" 2>&1
 if systemctl list-unit-files --type=service --state=enabled | egrep -q 'cardano-node'; then
 	debug "Stopping cardano-node service, if running, for potential config file or binary update" 
 	systemctl stop cardano-node    1>> "$BUILDLOG" 2>&1
@@ -1433,9 +1436,7 @@ CRONFILE='/etc/cron.d/cardano-failover'
 FAILOVERSCRIPTNAME='pi-cardano-heartbeat-failover.sh'
 if [ -z "$FAILOVER_PARENT" ]; then
 	# Remove unneeded cron job
-	debug "No parent-failover configured; removing cron file (if it exists): $CRONFILE"
-	rm -f "$CRONFILE"		1>> "$BUILDLOG" 2>&1
-	service cron reload 	1>> "$BUILDLOG" 2>&1
+	debug "No parent-failover configured; not installing cron file (if it exists): $CRONFILE"
 else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" ]; then
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/$FAILOVERSCRIPTNAME"
