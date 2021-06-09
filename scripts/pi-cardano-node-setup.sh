@@ -1361,7 +1361,7 @@ git fetch  1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
-OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version | head -1 | awk '{ print $2 }' 2> /dev/null)
+OBSERVED_CARDANO_NODE_VERSION=$("$INSTALLDIR/cardano-node" version 2> /dev/null | head -1 | awk '{ print $2 }')
 if [ ".$SKIP_RECOMPILE" != '.Y' ] || [[ ! -x "$INSTALLDIR/cardano-node" ]] || [ ".${OBSERVED_CARDANO_NODE_VERSION}" != ".${CARDANONODE_VERSION}" ]; then
 	debug "Building cardano-node; already installed version is ${OBSERVED_CARDANO_NODE_VERSION:-(not found)}"
 	$CABAL clean 1>> "$BUILDLOG"  2>&1
