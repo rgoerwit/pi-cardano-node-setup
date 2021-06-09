@@ -1439,6 +1439,8 @@ if [ -z "$FAILOVER_PARENT" ]; then
 	debug "No parent-failover configured; not installing cron file (if it exists): $CRONFILE"
 else
 	if [ ".$SCRIPT_PATH" != '.' ] && [ -e "$SCRIPT_PATH/$FAILOVERSCRIPTNAME" ]; then
+		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
+		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
 		debug "Copying heartbeat-failover script into position: $INSTALLDIR/$FAILOVERSCRIPTNAME"
 		if ip addr | egrep -v 'fe80|::[10]/(128|0)|127\.0\.0' | awk '/^ *inet6? / { print $2 }' | cut -d/ -f1 | tr -d ' \t\r' | grep -qF "${PARENTADDR}"; then
 			err_exit 9 "$0: Failover address is local; please use a non-local address; aborting!"
@@ -1447,8 +1449,6 @@ else
 		sed -i -e "/^[[:space:]]*ENVFILEBASE=/ s:/home/cardano\|\$INSTALLDIR:$INSTALLDIR:" "$INSTALLDIR/$FAILOVERSCRIPTNAME"
 		chown root.$INSTALL_USER "$INSTALLDIR/$FAILOVERSCRIPTNAME"
 		chmod 0750 "$INSTALLDIR/$FAILOVERSCRIPTNAME"
-		PARENTADDR=$(echo "$FAILOVER_PARENT" | sed 's/^\[*\([^]]*\)\]*:[^.:]*$/\1/')	# Take out ip address part
-		PARENTPORT=$(echo "$FAILOVER_PARENT" | sed 's/^\[*[^]]*\]*:\([^.:]*\)$/\1/')	# Take out port part
 		if [ -z "$PARENTADDR" ]; then
 			err_exit 71 "$0: Can't determine failover parent host/ip:port from supplied data: $FAILOVER_PARENT"
 		else
