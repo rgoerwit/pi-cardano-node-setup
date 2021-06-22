@@ -417,16 +417,16 @@ download_github_code () {
 		if [[ ! -z "$MYTAG" ]]; then
 			debug "Trying to download version $MYREQUIREDVERSION as GitHub tag, tags/$MYTAG"
 				git checkout "tags/$MYTAG"	1>> "$MYBUILDLOG" 2>&1 \
-				&& git fetch				1>> "$MYBUILDLOG" 2>&1
+				&& git pull	--force			1>> "$MYBUILDLOG" 2>&1
 		else
 			if git checkout "$MYREQUIREDVERSION"	1>> "$MYBUILDLOG" 2>&1 \
-				&& git fetch						1>> "$MYBUILDLOG" 2>&1
+				&& git pull							1>> "$MYBUILDLOG" 2>&1
 			then
 				debug "Ended up checking out $MYREQUIREDVERSION (no tag)"
 			else
 				debug "Can't checkout $MYREQUIREDVERSION (as tag, tags/$MYTAG, or version, $MYREQUIREDVERSION); doing hard reset and pulling"
 				git reset --hard	1>> "$MYBUILDLOG" 2>&1
-				git pull			1>> "$MYBUILDLOG" 2>&1
+				git pull --force	1>> "$MYBUILDLOG" 2>&1
 			fi
 		fi
 		popd 1>> "$MYBUILDLOG" 2>&1
@@ -1277,7 +1277,7 @@ if download_github_code "$BUILDDIR" "$INSTALLDIR" "${IOHKREPO}/libsodium" "$SKIP
 	debug "Building and installing libsodium, version $LIBSODIUM_VERSION"
 	cd './libsodium'					1>> "$BUILDLOG" 2>&1
 	git checkout "$LIBSODIUM_VERSION"	1>> "$BUILDLOG" 2>&1 || err_exit 77 "$0: Failed to 'git checkout' libsodium version "$LIBSODIUM_VERSION"; aborting"
-	git fetch							1>> "$BUILDLOG" 2>&1
+	git pull --force					1>> "$BUILDLOG" 2>&1
 	$MAKE clean							1>> "$BUILDLOG" 2>&1
 	./autogen.sh 						1>> "$BUILDLOG" 2>&1
 	./configure							1>> "$BUILDLOG" 2>&1
@@ -1357,7 +1357,8 @@ else
 			|| err_exit 79 "$0: Failed to 'git checkout $CARDANONODE_TAGGEDVERSION; aborting"
 	fi
 fi
-git fetch  1>> "$BUILDLOG" 2>&1
+git pull	1>> "$BUILDLOG" 2>&1 \
+	|| git pull --force	1>> "$BUILDLOG" 2>&1
 
 # Set build options for cardano-node and cardano-cli
 #
@@ -1751,7 +1752,8 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		[ -z "$GUILDREPOBRANCH" 	]	|| git switch "$GUILDREPOBRANCH"		1>> "$BUILDLOG" 2>&1
 		[ -z "$GUILDSCRIPT_VERSION"	]	|| git checkout "$GUILDSCRIPT_VERSION"	1>> "$BUILDLOG" 2>&1 \
 			|| debug "$0: Failed to checkout CNTool version $GUILDSCRIPT_VERSION; using default"
-		git fetch 1>> "$BUILDLOG" 2>&1
+		git pull 1>> "$BUILDLOG" 2>&1 \
+			|| git pull --force	1>> "$BUILDLOG" 2>&1
 		cd './scripts/cnode-helper-scripts'
 		cp -f ./* "${CARDANO_SCRIPTDIR}/"
 		popd 1>> "$BUILDLOG" 2>&1
