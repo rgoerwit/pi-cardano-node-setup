@@ -584,7 +584,7 @@ $APTINSTALLER upgrade       1>> "$BUILDLOG" 2>&1
 $APTINSTALLER dist-upgrade  1>> "$BUILDLOG" 2>&1
 modinfo ip_tables			1>> "$BUILDLOG" 2>&1 \
 	|| ischroot \
-		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')" 1>> "$BUILDLOG" 2>&1
+		|| $APTINSTALLER install --reinstall "linux-modules-$(ls -t /lib/modules | tail -1 | awk -F/ '{ print $(NF) }')" 1>> "$BUILDLOG" 2>&1 \
 		    || err_exit 32 "$0:  Failed to install kernel modules; try updating to a more recent linux-modules-X.X.X-XXXX-XXXX version; backtrace: \n$(tail -4 $BUILDLOG)"
 # Install a bunch of necessary development and support packages
 $APTINSTALLER install \
