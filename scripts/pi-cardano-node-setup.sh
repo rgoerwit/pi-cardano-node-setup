@@ -1484,6 +1484,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-topology.json"			-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-topology.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-byron-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-byron-genesis.json"
 	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-shelley-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json"
+	$WGET "https://hydra.iohk.io/build/${NODE_BUILD_NUM}/download/1/${BLOCKCHAINNETWORK}-alonzo-genesis.json"	-O "${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-alonzo-genesis.json"
 
 	# Restoring previous parameters to the config file:
 	if [ ".$EKG_PORT" != '.' ]; then 
@@ -1731,6 +1732,7 @@ if [ ".$DONT_OVERWRITE" != '.Y' ]; then
 		sed -i "${CARDANO_SPOSDIR}/00_common.sh" \
 			-e "s|^\#* *socket=['\"][^'\"]*['\"]|socket=\"${INSTALLDIR}/sockets/${BLOCKCHAINNETWORK}-node.socket\"|g" \
 			-e "s|^\#* *genesisfile=['\"][^'\"]*['\"]|genesisfile=\"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-shelley-genesis.json\"|g" \
+			-e "s|^\#* *alonzogenesisfile=['\"][^'\"]*['\"]|alonzogenesisfile=\"${CARDANO_FILEDIR}/${BLOCKCHAINNETWORK}-alonzo-genesis.json\"|g" \
 			-e "s|^\#* *cardanocli=['\"][^'\"]*['\"]|cardanocli=\"${INSTALLDIR}/cardano-cli\"|g" \
 			-e "s|^\#* *cardanonode=['\"][^'\"]*['\"]|cardanonode=\"${INSTALLDIR}/cardano-node\"|g" \
 			-e "s|^\#* *bech32_bin=['\"][^'\"]*['\"]|bech32_bin=\"${INSTALLDIR}/bech32\"|g" \
